@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from opic.core.transcript import Word
+
 PAUSE_THRESHOLD_S = 0.5
 LOW_CONFIDENCE_THRESHOLD = 0.6
 
@@ -14,14 +16,6 @@ FILLERS: frozenset[str] = frozenset(
 )
 
 _STRIP = ".,!?;:\"'()[]…-"
-
-
-@dataclass(frozen=True, slots=True)
-class Word:
-    text: str
-    start: float
-    end: float
-    probability: float
 
 
 @dataclass(frozen=True, slots=True)

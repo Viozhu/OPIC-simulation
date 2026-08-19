@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from opic.core.metrics import Word, compute_metrics
+from opic.core.metrics import compute_metrics
+from opic.core.transcript import Word
 
 
 def speech(texts: list[str], step: float = 0.5, probability: float = 0.9) -> list[Word]:
