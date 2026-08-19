@@ -30,7 +30,7 @@ from opic.core.survey import (
     validate_survey,
 )
 from opic.session import store
-from opic.session.state import Step, advance
+from opic.session.state import Step, TransitionError, advance
 from opic.session.worker import Worker
 
 
@@ -48,6 +48,12 @@ def create_app(
     clock: Callable[[], datetime] = datetime.now,
 ) -> FastAPI:
     app = FastAPI(title="OPIc simulator")
+
+    @app.exception_handler(TransitionError)
+    async def transition_error_handler(request, exc: TransitionError):
+        # A refresh or a double-submit is an ordinary thing for a browser to do.
+        # The state machine's refusal is a client error, not a crash.
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
 
     def session_json(state) -> dict:
         payload = store.to_json(state)

@@ -69,3 +69,19 @@ def test_an_unknown_occupation_is_rejected_without_a_traceback(client, a_valid_s
     a_valid_survey["occupation"] = "astronaut"
     response = client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
     assert response.status_code == 422
+
+
+def test_resubmitting_the_survey_after_it_already_advanced_is_a_409(client, a_valid_survey):
+    session_id = client.post("/api/sessions").json()["id"]
+    first = client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
+    assert first.status_code == 200
+
+    second = client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
+    assert second.status_code == 409
+    body = second.json()
+    assert "detail" in body
+    assert "level" in body["detail"] and "setup" in body["detail"]
+
+    body = client.get(f"/api/sessions/{session_id}").json()
+    assert body["step"] == "level"
+    assert body["survey"]["occupation"] == "business"
