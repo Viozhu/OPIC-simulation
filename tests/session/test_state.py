@@ -109,3 +109,12 @@ def test_questions_are_ready_only_when_every_one_has_audio():
     with_audio = QuestionRecord(0, QuestionType.SELF_INTRO.value, None, None, False, "IM1", "Hi.", "/cache/ab.wav")
     assert SessionState.new("s", 7).with_questions((without_audio,)).questions_ready is False
     assert SessionState.new("s", 7).with_questions((with_audio,)).questions_ready is True
+
+
+def test_advancing_past_the_last_step_is_rejected():
+    state = SessionState.new("s", seed=7)
+    for step in (Step.LEVEL, Step.SETUP, Step.SAMPLE, Step.TEST, Step.GRADING, Step.DONE):
+        state = advance(state, step)
+    with pytest.raises(TransitionError) as excinfo:
+        advance(state, Step.DONE)
+    assert "last step" in str(excinfo.value)
