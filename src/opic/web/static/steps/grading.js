@@ -1,6 +1,8 @@
 // 채점 중. The wait is long by nature — about five minutes per answer — so this
 // screen has to be honest about it: how many are done, roughly how long is
 // left, and the fact that the tab can be closed.
+import {render as renderDone} from "./done.js";
+
 const POLL_MS = 3000;
 const SECONDS_PER_ANSWER = 300;
 
@@ -36,7 +38,7 @@ export async function render(state, {api, show}) {
         progress.failed > 0 ? `채점하지 못한 답변: ${progress.failed}개` : "";
 
       if (progress.done) {
-        await show(await api.get(`/api/sessions/${state.id}`));
+        await goToResult(state, api, show);
         return;
       }
       if (settled === progress.expected) {
@@ -65,4 +67,29 @@ export async function render(state, {api, show}) {
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
   }
+}
+
+// `progress.done` means `result.json` exists, but the session's own `step`
+// can still read "grading" for a moment after that — the worker's last
+// EVALUATE can settle and aggregate before the browser's own POST has moved
+// the session TEST -> GRADING, and older servers may never advance it at
+// all. Calling `show()` on a state still stuck at "grading" would just
+// re-render this very screen: an infinite loop with nothing left to poll,
+// since `done` is already true. Give the server one short chance to catch
+// up, then render the result directly — the result exists and the
+// candidate is entitled to see it regardless of what `step` says.
+async function goToResult(state, api, show) {
+  let latest = await api.get(`/api/sessions/${state.id}`);
+  if (latest.step === "grading") {
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+    latest = await api.get(`/api/sessions/${state.id}`);
+  }
+  if (latest.step === "grading") {
+    // `show()` is what normally updates the step label; bypassing it to
+    // avoid the re-render loop means doing that one bit of its job by hand.
+    document.getElementById("step-label").textContent = "결과";
+    await renderDone(latest, {api});
+    return;
+  }
+  await show(latest);
 }

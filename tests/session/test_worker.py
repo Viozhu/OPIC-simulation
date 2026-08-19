@@ -402,3 +402,65 @@ def test_a_generate_that_fails_twice_is_retried_and_succeeds(tmp_path, ports, su
     loaded = store.load(tmp_path, state.id)
     assert loaded.questions_ready is True
     assert ports["writer"].attempts == 3
+
+
+# --- fix round 2, task 12 (browser-review: TEST -> DONE never happened) ----
+
+
+def test_aggregation_finishing_while_still_on_test_still_reaches_done(
+    tmp_path, ports, survey
+):
+    """The candidate's real bug: the last EVALUATE can settle and trigger
+    aggregation before the browser's own POST has moved the session
+    TEST -> GRADING. `_aggregate` used to advance only `if state.step is
+    Step.GRADING`, so a session caught at TEST here got stuck there forever —
+    `list_unfinished` filters on `result.json` existing, so `resume()` would
+    never touch it again either. Aggregation must walk every remaining step
+    to DONE, not assume the step is already GRADING.
+    """
+    state = a_session(tmp_path, survey)
+    worker = a_worker(tmp_path, ports)
+    worker.submit(Task("generate", state.id))
+    worker.drain()
+    worker.update(
+        state.id,
+        lambda s: advance(advance(advance(s, Step.LEVEL), Step.SETUP), Step.SAMPLE),
+    )
+    worker.update(state.id, lambda s: advance(s, Step.TEST))
+
+    for index in range(EXAM_LENGTH):
+        recorded(tmp_path, worker, state.id, index)
+        worker.submit(Task("evaluate", state.id, index))
+    worker.drain()
+
+    result = json.loads((tmp_path / state.id / "result.json").read_text(encoding="utf-8"))
+    assert result["scored_answers"] == EXAM_LENGTH
+    loaded = store.load(tmp_path, state.id)
+    assert loaded.step is Step.DONE
+
+
+def test_a_second_aggregate_on_a_session_already_done_does_not_raise(
+    tmp_path, ports, survey
+):
+    """A restart (or a stray duplicate task) can queue AGGREGATE again after
+    the session already reached DONE. Walking to DONE must be a no-op there,
+    not a `TransitionError` from asking `advance` to leave the last step.
+    """
+    state = a_session(tmp_path, survey)
+    worker = a_worker(tmp_path, ports)
+    worker.submit(Task("generate", state.id))
+    worker.drain()
+    worker.update(
+        state.id,
+        lambda s: advance(advance(advance(advance(advance(s, Step.LEVEL), Step.SETUP), Step.SAMPLE), Step.TEST), Step.GRADING),
+    )
+    for index in range(EXAM_LENGTH):
+        recorded(tmp_path, worker, state.id, index)
+        worker.submit(Task("evaluate", state.id, index))
+    worker.drain()
+    assert store.load(tmp_path, state.id).step is Step.DONE
+
+    worker.submit(Task("aggregate", state.id))
+    worker.drain()  # must not raise
+
+    assert store.load(tmp_path, state.id).step is Step.DONE

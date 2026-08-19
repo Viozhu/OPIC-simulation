@@ -26,6 +26,7 @@ from opic.core.scoring import AnswerAssessment
 from opic.session import assessments as answers_on_disk
 from opic.session import store
 from opic.session.state import (
+    ORDER,
     AnswerState,
     QuestionRecord,
     SessionState,
@@ -289,8 +290,22 @@ class Worker:
             json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         temporary.replace(target)
-        if state.step is Step.GRADING:
-            self.update(session_id, lambda s: advance(s, Step.DONE))
+        # A result now exists, so the exam is over regardless of which step
+        # the session happened to be sitting in when the last answer
+        # settled. That is usually GRADING, but the last EVALUATE can settle
+        # (and so trigger this) before the browser's own POST moves the
+        # session TEST -> GRADING; advancing only from GRADING left that
+        # session stuck at TEST forever, since `advance` permits exactly one
+        # step at a time and nothing else ever nudges it again. Walk every
+        # remaining step instead of assuming which one it is; a session
+        # already at DONE (e.g. a second AGGREGATE task racing a restart)
+        # is left untouched rather than raising.
+        self.update(session_id, self._advance_to_done)
+
+    def _advance_to_done(self, s: SessionState) -> SessionState:
+        while s.step is not Step.DONE:
+            s = advance(s, ORDER[ORDER.index(s.step) + 1])
+        return s
 
     # --- restart ----------------------------------------------------------
 
