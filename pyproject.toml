@@ -17,7 +17,7 @@ packages = ["src/opic"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 markers = [
     "models: needs a real local model (Ollama, Whisper) or macOS `say`; excluded by default",
 ]
