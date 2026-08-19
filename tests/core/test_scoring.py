@@ -35,8 +35,6 @@ def metrics(mean_confidence: float = 0.9, low_rate: float = 0.1) -> AnswerMetric
         word_count=120,
         words_per_minute=120.0,
         pause_ratio=0.1,
-        filler_count=3,
-        filler_rate=0.025,
         type_token_ratio=0.6,
         mean_utterance_length=8.0,
         mean_confidence=mean_confidence,

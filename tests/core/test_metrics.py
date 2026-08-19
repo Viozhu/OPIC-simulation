@@ -95,17 +95,6 @@ def test_words_without_speech_spans_are_refused():
         compute_metrics(t)
 
 
-def test_fillers_are_counted_case_insensitively_and_without_punctuation():
-    m = compute_metrics(make(["Um,", "I", "uh", "think", "so"]))
-    assert m.filler_count == 2
-    assert m.filler_rate == pytest.approx(2 / 5)
-
-
-def test_common_words_that_are_not_hesitations_are_not_fillers():
-    m = compute_metrics(make(["I", "like", "it", "so", "well"]))
-    assert m.filler_count == 0
-
-
 def test_type_token_ratio_measures_lexical_variety():
     m = compute_metrics(make(["cat", "cat", "dog", "bird"]))
     assert m.type_token_ratio == pytest.approx(0.75)
