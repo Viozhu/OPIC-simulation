@@ -146,7 +146,7 @@ def test_the_session_directory_holds_the_result(tmp_path):
         f"Question {i}?" for i in range(15)
     ]
     for index, answer in enumerate(saved["answers"]):
-        assert f"answer-{index:02d}" in answer["transcript"]
+        assert f"answer-{index:02d}" in answer["transcript"]["text"]
 
 
 def survey_json(tmp_path, **overrides) -> Path:

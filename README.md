@@ -5,28 +5,30 @@ no audio or transcript ever leaves the computer.
 
 ## Status
 
-Phase 1 and Phase 2 complete: the pure engine, the local adapters, and a full
-exam runnable from the command line.
+Phases 1 to 3 complete: the pure engine, the local adapters, and a browser
+interface that runs a whole exam and grades it while you take it.
+
+```bash
+uv run python -m opic.cli --serve      # http://localhost:8000
+```
+
+Needs Ollama running (`ollama serve`) and macOS for `say`. The first run
+downloads the Whisper model.
+
+**One server process.** Evaluation runs in a worker thread inside it; two
+uvicorn workers would be two queues competing for one model. Do not pass
+`--workers`.
+
+Grading an exam takes about 75 minutes of machine time on an M2. Answers are
+queued as you record them, so the wait after the last question is roughly half
+of that. Closing the tab does not stop it, and restarting the server resumes
+where it left off.
+
+The command-line exam still works:
 
 ```bash
 uv run python -m opic.cli --survey my-survey.json --level 4
 ```
-
-Requires macOS (for `say`), `ffmpeg`, and Ollama running with the rating model
-pulled:
-
-```bash
-ollama serve
-ollama pull qwen3:14b
-```
-
-The first run also downloads the Whisper `medium` model.
-
-**Budget about 100 minutes for a full exam:** roughly 25 minutes answering, then
-about 12 minutes of transcription and an hour of rating. The rating model runs at
-under 3 tokens per second on an M2, which is what dominates. Per-answer results
-are written to the session directory as they complete, so a failure late in the
-run does not discard the earlier ones.
 
 Start from `examples/survey.json`.
 

@@ -58,3 +58,13 @@ def test_core_never_imports_the_adapters():
         if "opic.adapters" in path.read_text(encoding="utf-8")
     ]
     assert offenders == []
+
+
+def test_core_never_imports_the_session_or_web_layers():
+    offenders = [
+        path.name
+        for path in sorted(CORE.rglob("*.py"))
+        if "opic.session" in path.read_text(encoding="utf-8")
+        or "opic.web" in path.read_text(encoding="utf-8")
+    ]
+    assert offenders == []
