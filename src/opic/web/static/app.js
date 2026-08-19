@@ -22,8 +22,12 @@ export const api = {
     const form = new FormData();
     form.append("audio", blob, filename);
     const response = await fetch(path, {method: "POST", body: form});
-    if (!response.ok) throw Object.assign(new Error(path), {status: response.status});
-    return response.json();
+    const payload = await response.json().catch(() => ({}));
+    // The `detail` in this payload is what lets a caller tell "someone else
+    // already recorded this answer" apart from "this session has moved past
+    // the test step" — both are a 409, and they call for different UI.
+    if (!response.ok) throw Object.assign(new Error(path), {status: response.status, payload});
+    return payload;
   },
 };
 

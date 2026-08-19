@@ -10,7 +10,7 @@ from opic.session import store
 from opic.session.state import AnswerRecord, AnswerState, Step, advance
 from opic.session.worker import Task, Worker
 
-from doubles import ExplodingRater
+from doubles import ExplodingQuestionWriter, ExplodingRater
 
 
 def a_session(root: Path, survey, level: int = 4):
@@ -381,3 +381,24 @@ def test_a_recorded_answer_with_no_audio_path_fails_with_a_reason(tmp_path, port
     answer = store.load(tmp_path, state.id).answers[0]
     assert answer.state is AnswerState.FAILED
     assert answer.error
+
+
+# --- fix round 1, task 11 (browser-review findings A-E) --------------------
+
+
+def test_a_generate_that_fails_twice_is_retried_and_succeeds(tmp_path, ports, survey):
+    """FINDING D: `_generate` never retried the writer call at all — one
+    throw left `questions_ready` false forever, with nothing left to requeue
+    it. It must now go through `self._attempt`, exactly like `_evaluate`
+    already does for the rater and the transcriber.
+    """
+    ports["writer"] = ExplodingQuestionWriter(failures=2)
+    state = a_session(tmp_path, survey)
+    worker = a_worker(tmp_path, ports)
+
+    worker.submit(Task("generate", state.id))
+    worker.drain()
+
+    loaded = store.load(tmp_path, state.id)
+    assert loaded.questions_ready is True
+    assert ports["writer"].attempts == 3

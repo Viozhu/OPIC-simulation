@@ -85,6 +85,21 @@ class FakeRater:
         )
 
 
+class ExplodingQuestionWriter:
+    """Fails a fixed number of times, then succeeds — mirrors `ExplodingRater`
+    but for `_generate`'s call into the writer port."""
+
+    def __init__(self, failures: int) -> None:
+        self.failures = failures
+        self.attempts = 0
+
+    def write(self, answers, blueprint):
+        self.attempts += 1
+        if self.attempts <= self.failures:
+            raise TimeoutError("ollama timed out")
+        return FakeQuestionWriter().write(answers, blueprint)
+
+
 class ExplodingRater:
     """Fails a fixed number of times, then succeeds — or never, if `always`."""
 

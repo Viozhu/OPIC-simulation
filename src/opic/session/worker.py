@@ -152,7 +152,7 @@ class Worker:
             # whatever the candidate has already recorded.
             return
         blueprint = build_blueprint(state.survey, state.self_assess_level, state.seed)
-        written = self._writer.write(state.survey, blueprint)
+        written = self._attempt(lambda: self._writer.write(state.survey, blueprint))
         records = tuple(
             QuestionRecord(
                 index=question.slot.index,
@@ -175,7 +175,7 @@ class Worker:
         record = state.questions[index]
         if record.audio_path:
             return
-        audio = self._tts.synthesize(record.text_en)
+        audio = self._attempt(lambda: self._tts.synthesize(record.text_en))
         self.update(session_id, lambda s: s.with_question_audio(index, str(audio)))
 
     def _evaluate(self, session_id: str, index: int) -> None:

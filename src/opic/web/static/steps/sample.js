@@ -5,6 +5,32 @@
 import {askForMicrophone, startRecording} from "../recorder.js";
 
 const SAMPLE_TEXT = "Let's start the interview. Tell me a little about yourself.";
+// speak() can hang forever on a machine with speechSynthesis but zero
+// installed voices: speak() then fires neither onend nor onerror. Ten seconds
+// is generous for one sentence, and it is what stops that from being a dead
+// screen.
+const SPEECH_TIMEOUT_MS = 10000;
+
+// Resolves true if the sentence was actually spoken, false if there is no
+// voice to speak it with or speaking it took too long — never rejects, and
+// never hangs.
+async function speak(text) {
+  if (!("speechSynthesis" in window) || speechSynthesis.getVoices().length === 0) {
+    return false;
+  }
+  const speech = new SpeechSynthesisUtterance(text);
+  speech.lang = "en-US";
+  const spoke = await Promise.race([
+    new Promise((resolve) => {
+      speech.onend = () => resolve(true);
+      speech.onerror = () => resolve(false);
+      speechSynthesis.speak(speech);
+    }),
+    new Promise((resolve) => setTimeout(() => resolve(false), SPEECH_TIMEOUT_MS)),
+  ]);
+  if (!spoke) speechSynthesis.cancel(); // in case the timeout won and it is still talking
+  return spoke;
+}
 
 export async function render(state, {api, show}) {
   const app = document.getElementById("app");
@@ -13,6 +39,9 @@ export async function render(state, {api, show}) {
   const note = document.createElement("p");
   note.textContent =
     "질문이 재생된 뒤 자동으로 녹음이 시작됩니다. 답변을 마치면 다음을 누르세요.";
+  const questionText = document.createElement("p");
+  questionText.textContent = `"${SAMPLE_TEXT}"`;
+  questionText.hidden = true;
   const status = document.createElement("p");
   const start = document.createElement("button");
   start.textContent = "시작";
@@ -27,13 +56,15 @@ export async function render(state, {api, show}) {
     start.disabled = true;
     status.textContent = "질문 재생 중…";
 
-    const speech = new SpeechSynthesisUtterance(SAMPLE_TEXT);
-    speech.lang = "en-US";
-    await new Promise((resolve) => {
-      speech.onend = resolve;
-      speech.onerror = resolve;
-      speechSynthesis.speak(speech);
-    });
+    const spoken = await speak(SAMPLE_TEXT);
+    if (!spoken) {
+      // No voice installed, or the browser hung trying: the sample is a
+      // rehearsal of the mechanic, not scored, so losing the spoken prompt
+      // is survivable — being trapped here is not. Show the text and move
+      // straight on to recording.
+      questionText.hidden = false;
+      status.textContent = "이 기기에서는 음성을 재생할 수 없습니다. 위 문장을 보고 답변해 주세요.";
+    }
 
     let stream;
     try {
@@ -59,5 +90,5 @@ export async function render(state, {api, show}) {
     await show(await api.send("POST", `/api/sessions/${state.id}/step`, {step: "test"}));
   });
 
-  app.append(heading, note, start, status, next);
+  app.append(heading, note, questionText, start, status, next);
 }

@@ -4,10 +4,18 @@
 import {askForMicrophone, startRecording} from "./recorder.js";
 
 const POLL_MS = 3000;
+// A generous ceiling on how long "문제를 준비하고 있습니다" is allowed to sit
+// silently polling. Past this, the caller is handed control back instead of
+// spinning forever on a generation that stalled.
+const READY_TIMEOUT_MS = 5 * 60 * 1000;
 
-export async function waitUntilReady(api, sessionId) {
+export async function waitUntilReady(api, sessionId, timeoutMs = READY_TIMEOUT_MS) {
   let state = await api.get(`/api/sessions/${sessionId}`);
+  const deadline = Date.now() + timeoutMs;
   while (!state.questions_ready) {
+    if (Date.now() >= deadline) {
+      throw Object.assign(new Error("question preparation timed out"), {timedOut: true});
+    }
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
     state = await api.get(`/api/sessions/${sessionId}`);
   }
@@ -15,20 +23,25 @@ export async function waitUntilReady(api, sessionId) {
 }
 
 export function askAndRecord({audioUrl, onState}) {
-  // Returns {play, replay, stop}: the caller owns the buttons, this owns the
-  // state machine. `replay` is allowed exactly once, as in the real exam.
+  // Returns {play, replay, skip, stop}: the caller owns the buttons, this
+  // owns the state machine. `replay` is allowed exactly once, as in the real
+  // exam.
   let stream = null;
   let session = null;
   let replays = 0;
   const audio = new Audio(audioUrl);
 
+  async function beginRecording() {
+    stream = await askForMicrophone();
+    session = startRecording(stream);
+    onState("recording");
+  }
+
   async function play() {
     onState("playing");
     await audio.play();
     await new Promise((resolve) => audio.addEventListener("ended", resolve, {once: true}));
-    stream = await askForMicrophone();
-    session = startRecording(stream);
-    onState("recording");
+    await beginRecording();
   }
 
   async function replay() {
@@ -39,16 +52,29 @@ export function askAndRecord({audioUrl, onState}) {
     return true;
   }
 
+  async function skip() {
+    // The question audio could not be played after retrying. The candidate
+    // still has to answer something, so recording starts anyway rather than
+    // trapping them on a screen that will never move — there is nothing left
+    // to replay, so replaysLeft() reports zero from here on.
+    replays = 1;
+    if (session) return;
+    await beginRecording();
+  }
+
   async function stop() {
     // `session.stop()` releases the microphone tracks itself once the final
     // chunk of data is in; stopping them again here would be a double-stop
     // racing the recorder's own cleanup.
     const recorded = await session.stop();
+    // A replay left running past 다음 would otherwise keep talking over the
+    // next question's screen.
+    audio.pause();
     onState("uploading");
     return recorded;
   }
 
-  return {play, replay, stop, replaysLeft: () => 1 - replays};
+  return {play, replay, skip, stop, replaysLeft: () => 1 - replays};
 }
 
 export async function uploadWithRetries(api, path, blob, filename, attempts = 3) {
