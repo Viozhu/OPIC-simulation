@@ -25,6 +25,9 @@ def _run(command: list[str]) -> None:
 class SayTextToSpeech:
     """Speaks a question using macOS `say`, resampled by ffmpeg.
 
+    The cache path is written by rename, so an interrupted conversion cannot
+    leave a corrupt entry that later runs would trust as valid.
+
     `runner` exists so tests can prove the cache short-circuits synthesis
     without shelling out.
     """
@@ -48,16 +51,22 @@ class SayTextToSpeech:
             return target
 
         self._cache_dir.mkdir(parents=True, exist_ok=True)
-        raw = target.with_suffix(".aiff")
-        self._run(["say", "-v", self._voice, "-o", str(raw), text])
-        self._run(
-            [
-                "ffmpeg", "-v", "error", "-y",
-                "-i", str(raw),
-                "-ar", str(config.TTS_SAMPLE_RATE),
-                "-ac", "1",
-                str(target),
-            ]
-        )
-        raw.unlink(missing_ok=True)
+        raw = target.with_name(target.name + ".aiff")
+        pending = target.with_name(target.name + ".part")
+        try:
+            self._run(["say", "-v", self._voice, "-o", str(raw), text])
+            self._run(
+                [
+                    "ffmpeg", "-v", "error", "-y",
+                    "-i", str(raw),
+                    "-ar", str(config.TTS_SAMPLE_RATE),
+                    "-ac", "1",
+                    "-f", "wav",
+                    str(pending),
+                ]
+            )
+            pending.replace(target)
+        finally:
+            raw.unlink(missing_ok=True)
+            pending.unlink(missing_ok=True)
         return target

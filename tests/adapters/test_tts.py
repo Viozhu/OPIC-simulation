@@ -62,3 +62,30 @@ def test_real_synthesis_produces_mono_16k_audio(tmp_path):
         assert wf.getframerate() == config.TTS_SAMPLE_RATE
         assert wf.getnchannels() == 1
         assert wf.getnframes() / wf.getframerate() > 1.0
+
+
+def test_a_failed_conversion_leaves_no_cache_entry(tmp_path):
+    def fail_on_ffmpeg(command: list[str]) -> None:
+        if command[0] == "ffmpeg":
+            raise RuntimeError("ffmpeg blew up")
+        Path(command[command.index("-o") + 1]).write_bytes(b"aiff")
+
+    tts = SayTextToSpeech(cache_dir=tmp_path, runner=fail_on_ffmpeg)
+    with pytest.raises(RuntimeError):
+        tts.synthesize("this will not convert")
+
+    assert not cache_path("this will not convert", "Samantha", tmp_path).exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_successful_synthesis_leaves_only_the_cached_wav(tmp_path):
+    def fake_pipeline(command: list[str]) -> None:
+        if command[0] == "say":
+            Path(command[command.index("-o") + 1]).write_bytes(b"aiff")
+        else:
+            Path(command[-1]).write_bytes(b"wav")
+
+    tts = SayTextToSpeech(cache_dir=tmp_path, runner=fake_pipeline)
+    out = tts.synthesize("hello there")
+    assert out.exists()
+    assert [p.name for p in tmp_path.iterdir()] == [out.name]
