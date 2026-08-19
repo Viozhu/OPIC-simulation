@@ -14,6 +14,7 @@ from opic.core.survey import (
     SURVEY_ITEMS,
     Housing,
     Occupation,
+    RecentCourse,
     SurveyAnswers,
     TopicGroup,
     validate_survey,
@@ -35,6 +36,7 @@ def test_a_full_run_goes_from_survey_to_a_final_level():
             + ids_for(TopicGroup.SPORT, 2)
             + ids_for(TopicGroup.TRAVEL, 2)
         ),
+        recent_course=RecentCourse.LANGUAGE,
     )
     assert validate_survey(answers) == ()
 

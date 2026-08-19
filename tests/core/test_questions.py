@@ -16,6 +16,7 @@ from opic.core.survey import (
     SURVEY_ITEMS,
     Housing,
     Occupation,
+    RecentCourse,
     SurveyAnswers,
     TopicGroup,
     validate_survey,
@@ -38,6 +39,7 @@ def valid_answers() -> SurveyAnswers:
         is_student=False,
         housing=Housing.WITH_FAMILY,
         selected_item_ids=tuple(picks),
+        recent_course=RecentCourse.LANGUAGE,
     )
 
 
@@ -140,6 +142,7 @@ def test_a_lopsided_selection_still_reaches_every_group():
             + ids_for(TopicGroup.SPORT, 1)
             + ids_for(TopicGroup.TRAVEL, 1)
         ),
+        recent_course=RecentCourse.LANGUAGE,
     )
     assert validate_survey(lopsided) == ()
     for seed in range(30):
