@@ -10,6 +10,7 @@ import json
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -49,6 +50,19 @@ class LevelPayload(BaseModel):
 
 class StepPayload(BaseModel):
     step: str
+
+
+# The browser's filename picks the suffix, and the browser is not trusted: it
+# could send a filename that is absurdly long or has no recognisable audio
+# extension at all. Rather than propagate that into a filesystem call (where a
+# too-long name turns into an unhandled OSError), fall back to `.webm` for
+# anything that is not one of the extensions the two supported browsers send.
+ALLOWED_AUDIO_SUFFIXES = frozenset({".webm", ".mp4", ".m4a", ".ogg", ".wav"})
+
+
+def _safe_audio_suffix(filename: str | None) -> str:
+    suffix = Path(filename or "answer.webm").suffix.lower()
+    return suffix if suffix in ALLOWED_AUDIO_SUFFIXES else ".webm"
 
 
 def create_app(
@@ -213,15 +227,36 @@ def create_app(
                 status_code=409, detail=f"answer {index} is already {record.state.value}"
             )
 
-        suffix = Path(audio.filename or "answer.webm").suffix or ".webm"
+        suffix = _safe_audio_suffix(audio.filename)
         target = store.answer_audio_path(root, session_id, index, suffix)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(await audio.read())
+        # Write to a unique temporary file first, and only publish it at the
+        # final path once the claim below succeeds. Two uploads racing for the
+        # same index would otherwise both pass the PENDING check above (it was
+        # read outside any lock) and both write the same final path, silently
+        # discarding whichever recording lost the write.
+        temporary = target.with_name(f"{target.name}.{uuid4().hex}.part")
+        temporary.write_bytes(await audio.read())
 
-        state = worker.update(
-            session_id,
-            lambda s: s.with_answer(AnswerRecord(index, AnswerState.RECORDED, target.name)),
-        )
+        def claim(s):
+            current = next((a for a in s.answers if a.index == index), None)
+            if current is None or current.state is not AnswerState.PENDING:
+                label = current.state.value if current is not None else "missing"
+                raise HTTPException(
+                    status_code=409, detail=f"answer {index} is already {label}"
+                )
+            return s.with_answer(AnswerRecord(index, AnswerState.RECORDED, target.name))
+
+        try:
+            # `worker.update` holds the same lock every other mutation goes
+            # through, so re-checking PENDING here — not just above — is what
+            # actually stops a double-click from recording twice: the loser
+            # sees the winner's RECORDED state inside the lock and is refused.
+            state = worker.update(session_id, claim)
+        except HTTPException:
+            temporary.unlink(missing_ok=True)
+            raise
+        temporary.replace(target)
         worker.submit(Task("evaluate", session_id, index))
         return session_json(state)
 
