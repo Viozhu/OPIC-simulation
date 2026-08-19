@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from opic.core.survey import (
@@ -31,7 +31,7 @@ from opic.core.survey import (
 )
 from opic.session import store
 from opic.session.state import Step, TransitionError, advance
-from opic.session.worker import Worker
+from opic.session.worker import Task, Worker
 
 
 class SurveyPayload(BaseModel):
@@ -40,6 +40,10 @@ class SurveyPayload(BaseModel):
     housing: str
     selected_item_ids: list[str]
     recent_course: str | None = None
+
+
+class LevelPayload(BaseModel):
+    level: int
 
 
 def create_app(
@@ -141,5 +145,36 @@ def create_app(
             session_id, lambda s: advance(s.with_survey(answers), Step.LEVEL)
         )
         return session_json(state)
+
+    @app.put("/api/sessions/{session_id}/level")
+    def put_level(session_id: str, payload: LevelPayload):
+        state = load_or_404(session_id)
+        if state.step is not Step.LEVEL:
+            raise HTTPException(
+                status_code=409,
+                detail=f"expected step level, session is at {state.step.value}",
+            )
+        if payload.level not in range(1, 7):
+            return JSONResponse(
+                status_code=422,
+                content={"issues": [{"error": "bad_level", "detail": str(payload.level)}]},
+            )
+
+        state = worker.update(
+            session_id, lambda s: advance(s.with_level(payload.level), Step.SETUP)
+        )
+        worker.submit(Task("generate", session_id))
+        return session_json(state)
+
+    @app.get("/api/sessions/{session_id}/questions/{index}/audio")
+    def question_audio(session_id: str, index: int):
+        state = load_or_404(session_id)
+        record = next((q for q in state.questions if q.index == index), None)
+        if record is None or not record.audio_path:
+            raise HTTPException(status_code=404, detail="audio not ready")
+        path = Path(record.audio_path)
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="audio not ready")
+        return FileResponse(path, media_type="audio/wav")
 
     return app
