@@ -225,3 +225,18 @@ def test_an_assessment_without_a_matching_slot_is_refused():
 def test_a_slot_with_no_assessment_is_refused():
     with pytest.raises(ValueError):
         aggregate(blueprint_of(3), [assessment(0, flat(ActflLevel.IM2))])
+
+
+def test_by_topic_follows_blueprint_order_not_assessment_order():
+    bp = (
+        slot(0, QuestionType.DESCRIPTION, "movies"),
+        slot(1, QuestionType.DESCRIPTION, "yoga"),
+        slot(2, QuestionType.DESCRIPTION, "camping"),
+    )
+    assessments = [
+        assessment(2, flat(ActflLevel.IM2)),
+        assessment(0, flat(ActflLevel.IM2)),
+        assessment(1, flat(ActflLevel.IM2)),
+    ]
+    topics = [topic for topic, _ in aggregate(bp, assessments).by_topic]
+    assert topics == ["movies", "yoga", "camping"]

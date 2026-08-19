@@ -142,9 +142,7 @@ def aggregate(
             by_type.append((qtype, _median_level(_all_levels(group))))
 
     by_topic: list[tuple[str, ActflLevel]] = []
-    for topic_id in dict.fromkeys(
-        slots[a.question_index].topic_id for a in assessments
-    ):
+    for topic_id in dict.fromkeys(slot.topic_id for slot in blueprint):
         if topic_id is None:
             continue
         group = [a for a in assessments if slots[a.question_index].topic_id == topic_id]
