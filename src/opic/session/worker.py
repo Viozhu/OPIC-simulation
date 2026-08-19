@@ -17,7 +17,7 @@ import threading
 import time
 import traceback
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from opic.core.metrics import compute_metrics
@@ -26,7 +26,6 @@ from opic.core.scoring import AnswerAssessment
 from opic.session import assessments as answers_on_disk
 from opic.session import store
 from opic.session.state import (
-    AnswerRecord,
     AnswerState,
     QuestionRecord,
     SessionState,
@@ -57,6 +56,7 @@ class Worker:
         rater,
         retries: int = 3,
         sleeper: Callable[[float], None] = time.sleep,
+        join_timeout: float = 5.0,
     ) -> None:
         self._root = root
         self._tts = tts
@@ -65,6 +65,7 @@ class Worker:
         self._rater = rater
         self._retries = retries
         self._sleep = sleeper
+        self._join_timeout = join_timeout
         self._queue: queue.Queue[Task | None] = queue.Queue()
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
@@ -110,8 +111,14 @@ class Worker:
         if self._thread is None:
             return
         self._queue.put(None)
-        self._thread.join(timeout=5)
-        self._thread = None
+        self._thread.join(timeout=self._join_timeout)
+        if not self._thread.is_alive():
+            self._thread = None
+        # else: the join timed out — a real model call can run to the client's
+        # own ceiling — so the thread is still out there. Leaving `_thread` set
+        # is what stops a later `start()` from spawning a second one on the
+        # same queue, which is exactly the concurrency this design exists to
+        # prevent.
 
     def _loop(self) -> None:
         while True:
@@ -139,6 +146,11 @@ class Worker:
 
     def _generate(self, session_id: str) -> None:
         state = store.load(self._root, session_id)
+        if state.questions:
+            # Already generated. `with_questions` resets every answer to
+            # PENDING, so re-running this on a live session would throw away
+            # whatever the candidate has already recorded.
+            return
         blueprint = build_blueprint(state.survey, state.self_assess_level, state.seed)
         written = self._writer.write(state.survey, blueprint)
         records = tuple(
@@ -171,34 +183,73 @@ class Worker:
         record = state.answers[index]
         if record.state in (AnswerState.SCORED, AnswerState.FAILED):
             return
-        audio = store.session_dir(self._root, session_id) / record.audio_path
+
+        if record.audio_path is None:
+            # A RECORDED answer with no audio path can never be judged; fail it
+            # explicitly so it settles instead of sitting RECORDED forever and
+            # blocking aggregation.
+            self.update(
+                session_id,
+                lambda s: self._settle(
+                    s, index, record.audio_path, AnswerState.FAILED, "no recorded audio"
+                ),
+            )
+            self._maybe_aggregate(session_id)
+            return
 
         try:
+            audio = store.session_dir(self._root, session_id) / record.audio_path
             assessment = self._judge(state, index, audio)
         except Exception as error:  # noqa: BLE001 - one bad answer must not end the exam
             reason = f"{type(error).__name__}: {error}"
             self.update(
                 session_id,
-                lambda s: s.with_answer(
-                    AnswerRecord(index, AnswerState.FAILED, record.audio_path, reason)
+                lambda s: self._settle(
+                    s, index, record.audio_path, AnswerState.FAILED, reason
                 ),
             )
         else:
             answers_on_disk.write_answer(self._root, session_id, assessment)
             self.update(
                 session_id,
-                lambda s: s.with_answer(
-                    AnswerRecord(index, AnswerState.SCORED, record.audio_path)
+                lambda s: self._settle(
+                    s, index, record.audio_path, AnswerState.SCORED, None
                 ),
             )
 
-        after = store.load(self._root, session_id)
-        settled = sum(
-            1
-            for a in after.answers
-            if a.state in (AnswerState.SCORED, AnswerState.FAILED)
+        self._maybe_aggregate(session_id)
+
+    def _settle(
+        self,
+        s: SessionState,
+        index: int,
+        expected_audio_path: str | None,
+        state: AnswerState,
+        error: str | None,
+    ) -> SessionState:
+        """Write a judged outcome only if the recording hasn't changed under us.
+
+        `record` (and so `expected_audio_path`) was read outside the lock,
+        possibly a long model call ago. If a newer recording landed for this
+        answer in the meantime, `s.answers[index].audio_path` will no longer
+        match — in that case the outcome we are about to write is stale, so we
+        leave the current record untouched and let the newer recording get
+        evaluated on its own task instead of being clobbered back to SCORED
+        with the old audio.
+        """
+        current = s.answers[index]
+        if current.audio_path != expected_audio_path:
+            return s
+        return s.with_answer(replace(current, state=state, error=error))
+
+    def _maybe_aggregate(self, session_id: str) -> None:
+        state = store.load(self._root, session_id)
+        if not state.questions:
+            return
+        settled = all(
+            a.state in (AnswerState.SCORED, AnswerState.FAILED) for a in state.answers
         )
-        if settled == len(after.questions):
+        if settled and not store.result_path(self._root, session_id).exists():
             self.submit(Task(AGGREGATE, session_id))
 
     def _judge(self, state: SessionState, index: int, audio: Path) -> AnswerAssessment:
@@ -258,3 +309,10 @@ class Worker:
             for answer in state.answers:
                 if answer.state is AnswerState.RECORDED:
                     self.submit(Task(EVALUATE, session_id, answer.index))
+            # A restart can land after the last `_evaluate` settled its answer
+            # but before the AGGREGATE it queued ran (or was even queued, if
+            # the settling happened by some path other than `_evaluate`). Since
+            # aggregation is otherwise only triggered from inside `_evaluate`,
+            # a stranded session like that would sit in GRADING forever without
+            # this check.
+            self._maybe_aggregate(session_id)
