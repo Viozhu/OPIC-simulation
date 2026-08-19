@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from opic.cli import run_exam
-from opic.core.questions import Question, QuestionType
+import pytest
+
+from opic.cli import load_survey, run_exam
+from opic.core.questions import Question
 from opic.core.rubric import ActflLevel, Dimension
 from opic.core.scoring import DimensionScore
 from opic.core.survey import (
@@ -51,7 +53,7 @@ class FakeTts:
 
 class FakeStt:
     def transcribe(self, audio: Path) -> Transcript:
-        spoken = "I went to the beach and we take a bath there".split()
+        spoken = f"this is the answer for {audio.stem}".split()
         return Transcript(
             text=" ".join(spoken),
             words=tuple(
@@ -72,10 +74,10 @@ class FakeWriter:
 
 class FakeRater:
     def __init__(self):
-        self.calls = 0
+        self.seen: list[tuple[str, str]] = []
 
     def rate(self, question, transcript, metrics) -> tuple[DimensionScore, ...]:
-        self.calls += 1
+        self.seen.append((question.text_en, transcript.text))
         return tuple(
             DimensionScore(
                 dimension=d,
@@ -114,7 +116,10 @@ def test_a_full_exam_runs_end_to_end(tmp_path):
     assert len(tts.spoken) == 15
     assert len(recorded) == 15
     assert len(played) == 15
-    assert rater.calls == 15
+    assert len(rater.seen) == 15
+    for index, (asked, heard) in enumerate(rater.seen):
+        assert asked == f"Question {index}?"
+        assert f"answer-{index:02d}" in heard
     assert result.final_level is ActflLevel.IM2
     assert len(result.assessments) == 15
     assert result.by_topic
@@ -137,4 +142,51 @@ def test_the_session_directory_holds_the_result(tmp_path):
     saved = json.loads((session / "result.json").read_text())
     assert saved["final_level"] == "IM2"
     assert len(saved["answers"]) == 15
-    assert saved["answers"][0]["question_en"] == "Question 0?"
+    assert [a["question_en"] for a in saved["answers"]] == [
+        f"Question {i}?" for i in range(15)
+    ]
+    for index, answer in enumerate(saved["answers"]):
+        assert f"answer-{index:02d}" in answer["transcript"]
+
+
+def survey_json(tmp_path, **overrides) -> Path:
+    answers = valid_answers()
+    payload = {
+        "occupation": answers.occupation.value,
+        "is_student": answers.is_student,
+        "housing": answers.housing.value,
+        "selected_item_ids": list(answers.selected_item_ids),
+        "recent_course": answers.recent_course.value,
+    }
+    payload.update(overrides)
+    path = tmp_path / "survey.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def test_a_valid_survey_file_loads(tmp_path):
+    assert load_survey(survey_json(tmp_path)) == valid_answers()
+
+
+def test_a_missing_field_is_named(tmp_path):
+    path = survey_json(tmp_path)
+    payload = json.loads(path.read_text())
+    del payload["housing"]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="housing"):
+        load_survey(path)
+
+
+def test_an_unknown_enum_value_lists_the_valid_ones(tmp_path):
+    path = survey_json(tmp_path, occupation="astronaut")
+    with pytest.raises(ValueError) as caught:
+        load_survey(path)
+    assert "astronaut" in str(caught.value)
+    assert "business" in str(caught.value)
+
+
+def test_malformed_json_names_the_file(tmp_path):
+    path = tmp_path / "survey.json"
+    path.write_text("{not json", encoding="utf-8")
+    with pytest.raises(ValueError, match="survey.json"):
+        load_survey(path)

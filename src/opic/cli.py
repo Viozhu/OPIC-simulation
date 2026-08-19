@@ -142,6 +142,43 @@ def _as_json(result: ExamResult) -> dict:
     }
 
 
+REQUIRED_SURVEY_FIELDS = ("occupation", "is_student", "housing", "selected_item_ids")
+
+
+def load_survey(path: Path) -> SurveyAnswers:
+    """Read survey answers from JSON, failing with something a person can act on.
+
+    Everything here happens before `run_exam` gets a chance to validate, so a
+    bare KeyError from this point would be the last thing the user ever sees.
+    """
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{path} is not valid JSON: {exc}") from exc
+
+    missing = [field for field in REQUIRED_SURVEY_FIELDS if field not in raw]
+    if missing:
+        raise ValueError(f"{path} is missing: {', '.join(missing)}")
+
+    def choose(enum, value, field):
+        try:
+            return enum(value)
+        except ValueError as exc:
+            allowed = ", ".join(member.value for member in enum)
+            raise ValueError(
+                f"{field} is {value!r}; expected one of: {allowed}"
+            ) from exc
+
+    course = raw.get("recent_course")
+    return SurveyAnswers(
+        occupation=choose(Occupation, raw["occupation"], "occupation"),
+        is_student=bool(raw["is_student"]),
+        housing=choose(Housing, raw["housing"], "housing"),
+        selected_item_ids=tuple(raw["selected_item_ids"]),
+        recent_course=choose(RecentCourse, course, "recent_course") if course else None,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="opic", description="Run a local OPIc mock exam")
     parser.add_argument("--survey", type=Path, required=True, help="survey answers as JSON")
@@ -150,16 +187,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--session", type=Path, default=Path("data/sessions/latest"))
     args = parser.parse_args(argv)
 
-    raw = json.loads(args.survey.read_text(encoding="utf-8"))
-    answers = SurveyAnswers(
-        occupation=Occupation(raw["occupation"]),
-        is_student=raw["is_student"],
-        housing=Housing(raw["housing"]),
-        selected_item_ids=tuple(raw["selected_item_ids"]),
-        recent_course=(
-            RecentCourse(raw["recent_course"]) if raw.get("recent_course") else None
-        ),
-    )
+    try:
+        answers = load_survey(args.survey)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}")
+        return 1
 
     client = OllamaClient()
     result = run_exam(
