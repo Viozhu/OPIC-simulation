@@ -28,6 +28,19 @@ class QuestionSlot:
     target: ActflLevel
 
 
+@dataclass(frozen=True, slots=True)
+class Question:
+    """A slot once its English text exists.
+
+    The blueprint says what to ask about; this says what was actually asked. The
+    report quotes it, so it is domain data and belongs here rather than in
+    whichever adapter happened to generate the wording.
+    """
+
+    slot: QuestionSlot
+    text_en: str
+
+
 COMBO_TYPES: tuple[QuestionType, ...] = (
     QuestionType.DESCRIPTION,
     QuestionType.HABIT,

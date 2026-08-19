@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from opic.core.metrics import Word, compute_metrics
-from opic.core.questions import EXAM_LENGTH, build_blueprint
+from opic.core.metrics import compute_metrics
+from opic.core.questions import EXAM_LENGTH, QuestionType, build_blueprint
+from opic.core.transcript import Span, Transcript, Word
 from opic.core.rubric import ActflLevel, Dimension
 from opic.core.scoring import (
     AnswerAssessment,
@@ -13,6 +14,7 @@ from opic.core.survey import (
     SURVEY_ITEMS,
     Housing,
     Occupation,
+    RecentCourse,
     SurveyAnswers,
     TopicGroup,
     validate_survey,
@@ -34,17 +36,26 @@ def test_a_full_run_goes_from_survey_to_a_final_level():
             + ids_for(TopicGroup.SPORT, 2)
             + ids_for(TopicGroup.TRAVEL, 2)
         ),
+        recent_course=RecentCourse.LANGUAGE,
     )
     assert validate_survey(answers) == ()
 
     blueprint = build_blueprint(answers, self_assess_level=4, seed=42)
     assert len(blueprint) == EXAM_LENGTH
 
-    words = [
+    spoken = "I usually go to the beach on weekends".split()
+    words = tuple(
         Word(text=text, start=i * 0.4, end=i * 0.4 + 0.3, probability=0.88)
-        for i, text in enumerate("I usually go to the beach on weekends".split())
-    ]
-    metrics = compute_metrics(words, duration_s=30.0)
+        for i, text in enumerate(spoken)
+    )
+    metrics = compute_metrics(
+        Transcript(
+            text=" ".join(spoken),
+            words=words,
+            speech_spans=(Span(0.0, 3.1), Span(5.0, 8.0)),
+            duration_s=30.0,
+        )
+    )
 
     assessments = [
         AnswerAssessment(
@@ -69,8 +80,13 @@ def test_a_full_run_goes_from_survey_to_a_final_level():
         for slot in blueprint
     ]
 
-    result = aggregate(assessments)
+    result = aggregate(blueprint, assessments)
     assert result.final_level is ActflLevel.IM2
     assert len(result.assessments) == EXAM_LENGTH
     assert result.pronunciation.indicative is True
-    assert set(result.dimension_levels) == set(Dimension)
+    assert {dim for dim, _ in result.dimension_levels} == set(Dimension)
+    assert dict(result.by_type)[QuestionType.SELF_INTRO] is ActflLevel.IM2
+    assert len(result.by_topic) == len(
+        {slot.topic_id for slot in blueprint if slot.topic_id is not None}
+    )
+    assert result.level_for(Dimension.FLUENCY) is ActflLevel.IM2

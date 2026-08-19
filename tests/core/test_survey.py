@@ -6,9 +6,11 @@ from opic.core.survey import (
     GROUP_MINIMUMS,
     ITEMS_BY_ID,
     MIN_TOTAL_ITEMS,
+    RECENT_COURSE_LABELS_KO,
     SURVEY_ITEMS,
     Housing,
     Occupation,
+    RecentCourse,
     SurveyAnswers,
     SurveyError,
     TopicGroup,
@@ -32,12 +34,18 @@ def valid_selection() -> tuple[str, ...]:
     return tuple(picks)
 
 
-def answers_with(selection: tuple[str, ...]) -> SurveyAnswers:
+def answers_with(
+    selection: tuple[str, ...],
+    *,
+    is_student: bool = False,
+    recent_course: RecentCourse | None = RecentCourse.LANGUAGE,
+) -> SurveyAnswers:
     return SurveyAnswers(
         occupation=Occupation.BUSINESS,
-        is_student=False,
+        is_student=is_student,
         housing=Housing.WITH_FAMILY,
         selected_item_ids=selection,
+        recent_course=recent_course,
     )
 
 
@@ -107,3 +115,30 @@ def test_twelve_copies_of_one_item_do_not_satisfy_the_minimum():
     errors = {issue.error for issue in issues}
     assert SurveyError.DUPLICATE_ITEM in errors
     assert SurveyError.TOO_FEW_ITEMS in errors
+
+
+def test_every_recent_course_option_has_a_korean_label():
+    assert set(RECENT_COURSE_LABELS_KO) == set(RecentCourse)
+    assert all(label.strip() for label in RECENT_COURSE_LABELS_KO.values())
+
+
+def test_a_non_student_must_report_a_recent_course():
+    issues = validate_survey(answers_with(valid_selection(), recent_course=None))
+    assert SurveyError.MISSING_COURSE in {issue.error for issue in issues}
+
+
+def test_a_student_must_not_report_a_recent_course():
+    issues = validate_survey(
+        answers_with(
+            valid_selection(),
+            is_student=True,
+            recent_course=RecentCourse.DEGREE,
+        )
+    )
+    assert SurveyError.UNEXPECTED_COURSE in {issue.error for issue in issues}
+
+
+def test_a_student_without_a_recent_course_is_valid():
+    assert validate_survey(
+        answers_with(valid_selection(), is_student=True, recent_course=None)
+    ) == ()

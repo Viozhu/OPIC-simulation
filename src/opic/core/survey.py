@@ -19,6 +19,23 @@ class Housing(Enum):
     BARRACKS = "barracks"
 
 
+class RecentCourse(Enum):
+    """Part 2 of the survey: the last course a non-student took."""
+
+    DEGREE = "degree"
+    PROFESSIONAL = "professional"
+    LANGUAGE = "language"
+    OVER_FIVE_YEARS_AGO = "over_5y"
+
+
+RECENT_COURSE_LABELS_KO: dict[RecentCourse, str] = {
+    RecentCourse.DEGREE: "학위 과정 수업",
+    RecentCourse.PROFESSIONAL: "전문 기술 향상을 위한 평생 학습",
+    RecentCourse.LANGUAGE: "어학수업",
+    RecentCourse.OVER_FIVE_YEARS_AGO: "수강 후 5년 이상 지남",
+}
+
+
 class TopicGroup(Enum):
     LEISURE = "leisure"
     HOBBY = "hobby"
@@ -96,6 +113,7 @@ class SurveyAnswers:
     is_student: bool
     housing: Housing
     selected_item_ids: tuple[str, ...]
+    recent_course: RecentCourse | None = None
 
 
 class SurveyError(Enum):
@@ -103,6 +121,8 @@ class SurveyError(Enum):
     DUPLICATE_ITEM = "duplicate_item"
     TOO_FEW_ITEMS = "too_few_items"
     GROUP_MINIMUM = "group_minimum"
+    MISSING_COURSE = "missing_course"
+    UNEXPECTED_COURSE = "unexpected_course"
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,6 +170,16 @@ def validate_survey(answers: SurveyAnswers) -> tuple[ValidationIssue, ...]:
                     f"{group.value}: {chosen}/{minimum}",
                 )
             )
+
+    if answers.is_student and answers.recent_course is not None:
+        issues.append(
+            ValidationIssue(
+                SurveyError.UNEXPECTED_COURSE,
+                answers.recent_course.value,
+            )
+        )
+    elif not answers.is_student and answers.recent_course is None:
+        issues.append(ValidationIssue(SurveyError.MISSING_COURSE, "not a student"))
 
     return tuple(issues)
 

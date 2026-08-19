@@ -6,6 +6,7 @@ from opic.core.questions import (
     COMBO_COUNT,
     COMBO_TYPES,
     EXAM_LENGTH,
+    Question,
     QuestionType,
     build_blueprint,
 )
@@ -16,6 +17,7 @@ from opic.core.survey import (
     SURVEY_ITEMS,
     Housing,
     Occupation,
+    RecentCourse,
     SurveyAnswers,
     TopicGroup,
     validate_survey,
@@ -38,6 +40,7 @@ def valid_answers() -> SurveyAnswers:
         is_student=False,
         housing=Housing.WITH_FAMILY,
         selected_item_ids=tuple(picks),
+        recent_course=RecentCourse.LANGUAGE,
     )
 
 
@@ -140,6 +143,7 @@ def test_a_lopsided_selection_still_reaches_every_group():
             + ids_for(TopicGroup.SPORT, 1)
             + ids_for(TopicGroup.TRAVEL, 1)
         ),
+        recent_course=RecentCourse.LANGUAGE,
     )
     assert validate_survey(lopsided) == ()
     for seed in range(30):
@@ -182,3 +186,17 @@ def test_at_the_top_of_the_scale_the_stretch_clamps_instead_of_overflowing():
     advanced = [slot for slot in blueprint if slot.advanced]
     assert advanced
     assert all(slot.target is ActflLevel.AL for slot in advanced)
+
+
+def test_a_question_pairs_a_slot_with_its_english_text():
+    blueprint = build_blueprint(valid_answers(), self_assess_level=4, seed=7)
+    q = Question(slot=blueprint[0], text_en="Tell me a little about yourself.")
+    assert q.slot.qtype is QuestionType.SELF_INTRO
+    assert q.text_en.endswith(".")
+
+
+def test_a_question_is_frozen():
+    blueprint = build_blueprint(valid_answers(), self_assess_level=4, seed=7)
+    q = Question(slot=blueprint[0], text_en="Tell me a little about yourself.")
+    with pytest.raises(Exception):
+        q.text_en = "something else"
