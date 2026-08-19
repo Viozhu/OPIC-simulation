@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from opic.core.metrics import AnswerMetrics
+from opic.core.questions import QuestionSlot, QuestionType
 from opic.core.rubric import DIMENSION_WEIGHTS, ActflLevel, Dimension
 
 WEAK_DIMENSION_GAP = 3
@@ -56,42 +57,98 @@ class PronunciationProxy:
 @dataclass(frozen=True, slots=True)
 class ExamResult:
     final_level: ActflLevel
-    dimension_levels: dict[Dimension, ActflLevel]
+    dimension_levels: tuple[tuple[Dimension, ActflLevel], ...]
+    by_type: tuple[tuple[QuestionType, ActflLevel], ...]
+    by_topic: tuple[tuple[str, ActflLevel], ...]
     pronunciation: PronunciationProxy
     assessments: tuple[AnswerAssessment, ...]
+
+    def level_for(self, dimension: Dimension) -> ActflLevel:
+        for dim, level in self.dimension_levels:
+            if dim is dimension:
+                return level
+        raise ValueError(f"no level recorded for {dimension.value}")
+
+
+def _median_level(levels: Sequence[ActflLevel]) -> ActflLevel:
+    """The median band; even counts take the lower of the two middles."""
+    ranks = sorted(level.rank for level in levels)
+    if not ranks:
+        raise ValueError("cannot take a median of no levels")
+    return ActflLevel.from_rank(ranks[(len(ranks) - 1) // 2])
 
 
 def dimension_level(
     assessments: Sequence[AnswerAssessment],
     dimension: Dimension,
 ) -> ActflLevel:
-    """The median band for one dimension; even counts take the lower middle."""
-    ranks = sorted(
-        assessment.level_for(dimension).rank for assessment in assessments
-    )
-    if not ranks:
-        raise ValueError("cannot take a median of no assessments")
-    return ActflLevel.from_rank(ranks[(len(ranks) - 1) // 2])
+    """The median band for one dimension across every answer."""
+    return _median_level([a.level_for(dimension) for a in assessments])
 
 
-def aggregate(assessments: Sequence[AnswerAssessment]) -> ExamResult:
-    """Collapse per-answer judgements into one level with a fixed rule."""
+def _all_levels(assessments: Sequence[AnswerAssessment]) -> list[ActflLevel]:
+    return [score.level for a in assessments for score in a.dimension_scores]
+
+
+def aggregate(
+    blueprint: Sequence[QuestionSlot],
+    assessments: Sequence[AnswerAssessment],
+) -> ExamResult:
+    """Collapse per-answer judgements into one level with a fixed rule.
+
+    The blueprint is required because the score depends on what each answer was
+    asked: the report breaks down by topic and question type, and the advanced
+    combo probes above the declared level.
+    """
     if not assessments:
         raise ValueError("cannot aggregate an empty set of assessments")
 
-    levels = {
-        dimension: dimension_level(assessments, dimension) for dimension in Dimension
-    }
+    slots = {slot.index: slot for slot in blueprint}
+    indices = [a.question_index for a in assessments]
+    if len(set(indices)) != len(indices):
+        raise ValueError("two assessments share a question_index")
+    if set(indices) != set(slots):
+        missing = sorted(set(slots) - set(indices))
+        extra = sorted(set(indices) - set(slots))
+        raise ValueError(
+            f"assessments do not match the blueprint (missing {missing}, extra {extra})"
+        )
+
+    levels = tuple(
+        (dimension, dimension_level(assessments, dimension)) for dimension in Dimension
+    )
+    ranked = dict(levels)
 
     weighted = sum(
-        levels[dimension].rank * weight
+        ranked[dimension].rank * weight
         for dimension, weight in DIMENSION_WEIGHTS.items()
     )
     rank = math.floor(weighted)
 
-    weakest = min(level.rank for level in levels.values())
+    weakest = min(level.rank for level in ranked.values())
     if rank - weakest >= WEAK_DIMENSION_GAP:
         rank -= 1
+
+    advanced = [a for a in assessments if slots[a.question_index].advanced]
+    if advanced:
+        stretch = _median_level(_all_levels(advanced))
+        if stretch.rank > rank:
+            rank = min(rank + 1, stretch.rank)
+
+    by_type: list[tuple[QuestionType, ActflLevel]] = []
+    for qtype in QuestionType:
+        group = [a for a in assessments if slots[a.question_index].qtype is qtype]
+        if group:
+            by_type.append((qtype, _median_level(_all_levels(group))))
+
+    by_topic: list[tuple[str, ActflLevel]] = []
+    for topic_id in dict.fromkeys(
+        slots[a.question_index].topic_id for a in assessments
+    ):
+        if topic_id is None:
+            continue
+        group = [a for a in assessments if slots[a.question_index].topic_id == topic_id]
+        by_topic.append((topic_id, _median_level(_all_levels(group))))
 
     count = len(assessments)
     pronunciation = PronunciationProxy(
@@ -104,6 +161,8 @@ def aggregate(assessments: Sequence[AnswerAssessment]) -> ExamResult:
     return ExamResult(
         final_level=ActflLevel.from_rank(rank),
         dimension_levels=levels,
+        by_type=tuple(by_type),
+        by_topic=tuple(by_topic),
         pronunciation=pronunciation,
         assessments=tuple(assessments),
     )

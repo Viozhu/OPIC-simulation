@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from opic.core.metrics import AnswerMetrics
+from opic.core.questions import QuestionSlot, QuestionType
 from opic.core.rubric import ActflLevel, Dimension
 from opic.core.scoring import (
     AnswerAssessment,
@@ -10,6 +11,21 @@ from opic.core.scoring import (
     aggregate,
     dimension_level,
 )
+
+
+def slot(index: int, qtype: QuestionType, topic_id: str | None, advanced: bool = False):
+    return QuestionSlot(
+        index=index,
+        qtype=qtype,
+        topic_id=topic_id,
+        combo_id=None if topic_id is None else 0,
+        advanced=advanced,
+        target=ActflLevel.IM2,
+    )
+
+
+def blueprint_of(n: int) -> tuple[QuestionSlot, ...]:
+    return tuple(slot(i, QuestionType.DESCRIPTION, "movies") for i in range(n))
 
 
 def metrics(mean_confidence: float = 0.9, low_rate: float = 0.1) -> AnswerMetrics:
@@ -71,17 +87,17 @@ def test_an_even_count_takes_the_lower_middle():
 
 def test_a_uniform_performance_lands_on_that_level():
     assessments = [assessment(i, flat(ActflLevel.IM2)) for i in range(3)]
-    result = aggregate(assessments)
+    result = aggregate(blueprint_of(3), assessments)
     assert result.final_level is ActflLevel.IM2
-    assert result.dimension_levels[Dimension.FLUENCY] is ActflLevel.IM2
+    assert result.level_for(Dimension.FLUENCY) is ActflLevel.IM2
 
 
 def test_one_severely_weak_dimension_pulls_the_final_level_down():
     levels = flat(ActflLevel.IH)
     levels[Dimension.GRAMMAR] = ActflLevel.NH
     assessments = [assessment(i, levels) for i in range(3)]
-    result = aggregate(assessments)
-    strong = aggregate([assessment(i, flat(ActflLevel.IH)) for i in range(3)])
+    result = aggregate(blueprint_of(3), assessments)
+    strong = aggregate(blueprint_of(3), [assessment(i, flat(ActflLevel.IH)) for i in range(3)])
     assert result.final_level.rank < strong.final_level.rank
 
 
@@ -90,7 +106,7 @@ def test_the_pronunciation_proxy_is_averaged_and_flagged_as_indicative():
         assessment(0, flat(ActflLevel.IM2), mean_confidence=0.8, low_rate=0.2),
         assessment(1, flat(ActflLevel.IM2), mean_confidence=0.6, low_rate=0.4),
     ]
-    result = aggregate(assessments)
+    result = aggregate(blueprint_of(2), assessments)
     assert result.pronunciation.mean_confidence == pytest.approx(0.7)
     assert result.pronunciation.low_confidence_rate == pytest.approx(0.3)
     assert result.pronunciation.indicative is True
@@ -98,12 +114,12 @@ def test_the_pronunciation_proxy_is_averaged_and_flagged_as_indicative():
 
 def test_aggregation_is_reproducible():
     assessments = [assessment(i, flat(ActflLevel.IM1)) for i in range(4)]
-    assert aggregate(assessments) == aggregate(assessments)
+    assert aggregate(blueprint_of(4), assessments) == aggregate(blueprint_of(4), assessments)
 
 
 def test_no_assessments_is_refused():
     with pytest.raises(ValueError):
-        aggregate([])
+        aggregate((), [])
 
 
 def test_an_assessment_missing_a_dimension_is_refused():
@@ -115,18 +131,97 @@ def test_an_assessment_missing_a_dimension_is_refused():
         metrics=metrics(),
     )
     with pytest.raises(ValueError):
-        aggregate([broken])
+        aggregate(blueprint_of(1), [broken])
 
 
 def test_a_gap_of_exactly_three_drops_the_final_level():
     levels = flat(ActflLevel.AL)
     levels[Dimension.GRAMMAR] = ActflLevel.IM1
-    result = aggregate([assessment(i, levels) for i in range(3)])
+    result = aggregate(blueprint_of(3), [assessment(i, levels) for i in range(3)])
     assert result.final_level is ActflLevel.IM3
 
 
 def test_a_gap_of_two_leaves_the_final_level_alone():
     levels = flat(ActflLevel.AL)
     levels[Dimension.GRAMMAR] = ActflLevel.IM2
-    result = aggregate([assessment(i, levels) for i in range(3)])
+    result = aggregate(blueprint_of(3), [assessment(i, levels) for i in range(3)])
     assert result.final_level is ActflLevel.IH
+
+
+def test_dimension_levels_are_an_immutable_sequence_of_pairs():
+    result = aggregate(blueprint_of(3), [assessment(i, flat(ActflLevel.IM2)) for i in range(3)])
+    assert isinstance(result.dimension_levels, tuple)
+    assert result.level_for(Dimension.GRAMMAR) is ActflLevel.IM2
+    with pytest.raises(Exception):
+        result.dimension_levels[0] = (Dimension.GRAMMAR, ActflLevel.AL)
+
+
+def test_results_break_down_by_question_type():
+    bp = (
+        slot(0, QuestionType.DESCRIPTION, "movies"),
+        slot(1, QuestionType.HABIT, "movies"),
+    )
+    assessments = [
+        assessment(0, flat(ActflLevel.IH)),
+        assessment(1, flat(ActflLevel.IL)),
+    ]
+    by_type = dict(aggregate(bp, assessments).by_type)
+    assert by_type[QuestionType.DESCRIPTION] is ActflLevel.IH
+    assert by_type[QuestionType.HABIT] is ActflLevel.IL
+
+
+def test_results_break_down_by_topic():
+    bp = (
+        slot(0, QuestionType.DESCRIPTION, "movies"),
+        slot(1, QuestionType.DESCRIPTION, "yoga"),
+    )
+    assessments = [
+        assessment(0, flat(ActflLevel.IH)),
+        assessment(1, flat(ActflLevel.IL)),
+    ]
+    by_topic = dict(aggregate(bp, assessments).by_topic)
+    assert by_topic["movies"] is ActflLevel.IH
+    assert by_topic["yoga"] is ActflLevel.IL
+
+
+def test_a_strong_advanced_combo_raises_the_final_level():
+    bp = (
+        slot(0, QuestionType.DESCRIPTION, "movies"),
+        slot(1, QuestionType.DESCRIPTION, "yoga", advanced=True),
+    )
+    assessments = [
+        assessment(0, flat(ActflLevel.IM2)),
+        assessment(1, flat(ActflLevel.AL)),
+    ]
+    plain = aggregate(
+        (slot(0, QuestionType.DESCRIPTION, "movies"), slot(1, QuestionType.DESCRIPTION, "yoga")),
+        assessments,
+    )
+    raised = aggregate(bp, assessments)
+    assert raised.final_level.rank == plain.final_level.rank + 1
+
+
+def test_a_weak_advanced_combo_does_not_lower_the_final_level():
+    bp = (
+        slot(0, QuestionType.DESCRIPTION, "movies"),
+        slot(1, QuestionType.DESCRIPTION, "yoga", advanced=True),
+    )
+    assessments = [
+        assessment(0, flat(ActflLevel.IH)),
+        assessment(1, flat(ActflLevel.NL)),
+    ]
+    plain = aggregate(
+        (slot(0, QuestionType.DESCRIPTION, "movies"), slot(1, QuestionType.DESCRIPTION, "yoga")),
+        assessments,
+    )
+    assert aggregate(bp, assessments).final_level is plain.final_level
+
+
+def test_an_assessment_without_a_matching_slot_is_refused():
+    with pytest.raises(ValueError):
+        aggregate(blueprint_of(1), [assessment(0, flat(ActflLevel.IM2)), assessment(5, flat(ActflLevel.IM2))])
+
+
+def test_a_slot_with_no_assessment_is_refused():
+    with pytest.raises(ValueError):
+        aggregate(blueprint_of(3), [assessment(0, flat(ActflLevel.IM2))])

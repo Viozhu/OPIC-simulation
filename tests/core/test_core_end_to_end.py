@@ -80,8 +80,8 @@ def test_a_full_run_goes_from_survey_to_a_final_level():
         for slot in blueprint
     ]
 
-    result = aggregate(assessments)
+    result = aggregate(blueprint, assessments)
     assert result.final_level is ActflLevel.IM2
     assert len(result.assessments) == EXAM_LENGTH
     assert result.pronunciation.indicative is True
-    assert set(result.dimension_levels) == set(Dimension)
+    assert {dim for dim, _ in result.dimension_levels} == set(Dimension)
