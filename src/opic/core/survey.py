@@ -100,6 +100,7 @@ class SurveyAnswers:
 
 class SurveyError(Enum):
     UNKNOWN_ITEM = "unknown_item"
+    DUPLICATE_ITEM = "duplicate_item"
     TOO_FEW_ITEMS = "too_few_items"
     GROUP_MINIMUM = "group_minimum"
 
@@ -120,9 +121,15 @@ def validate_survey(answers: SurveyAnswers) -> tuple[ValidationIssue, ...]:
     for item_id in unknown:
         issues.append(ValidationIssue(SurveyError.UNKNOWN_ITEM, item_id))
 
+    seen: set[str] = set()
+    for item_id in answers.selected_item_ids:
+        if item_id in seen:
+            issues.append(ValidationIssue(SurveyError.DUPLICATE_ITEM, item_id))
+        seen.add(item_id)
+
     known = [
         ITEMS_BY_ID[item_id]
-        for item_id in answers.selected_item_ids
+        for item_id in dict.fromkeys(answers.selected_item_ids)
         if item_id in ITEMS_BY_ID
     ]
 

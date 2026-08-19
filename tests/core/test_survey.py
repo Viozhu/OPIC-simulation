@@ -94,3 +94,16 @@ def test_selected_items_returns_catalog_entries_in_selection_order():
 def test_selected_items_raises_on_unknown_id():
     with pytest.raises(KeyError):
         selected_items(answers_with(("nope",)))
+
+
+def test_a_repeated_item_is_rejected():
+    selection = valid_selection()
+    issues = validate_survey(answers_with(selection + (selection[0],)))
+    assert SurveyError.DUPLICATE_ITEM in {issue.error for issue in issues}
+
+
+def test_twelve_copies_of_one_item_do_not_satisfy_the_minimum():
+    issues = validate_survey(answers_with(("movies",) * 12))
+    errors = {issue.error for issue in issues}
+    assert SurveyError.DUPLICATE_ITEM in errors
+    assert SurveyError.TOO_FEW_ITEMS in errors
