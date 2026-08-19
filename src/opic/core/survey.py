@@ -36,6 +36,22 @@ RECENT_COURSE_LABELS_KO: dict[RecentCourse, str] = {
 }
 
 
+OCCUPATION_LABELS_KO: dict[Occupation, str] = {
+    Occupation.BUSINESS: "사업/회사",
+    Occupation.HOME_OFFICE: "재택근무/재택사업",
+    Occupation.TEACHER: "교사/교육자",
+    Occupation.NO_EXPERIENCE: "일 경험 없음",
+}
+
+HOUSING_LABELS_KO: dict[Housing, str] = {
+    Housing.ALONE: "개인주택이나 아파트에 홀로 거주",
+    Housing.WITH_ROOMMATE: "친구나 룸메이트와 함께 주택이나 아파트에 거주",
+    Housing.WITH_FAMILY: "가족(배우자/자녀/기타 가족 일원)과 함께 주택이나 아파트에 거주",
+    Housing.DORM: "학교 기숙사",
+    Housing.BARRACKS: "군대 막사",
+}
+
+
 class TopicGroup(Enum):
     LEISURE = "leisure"
     HOBBY = "hobby"
@@ -104,6 +120,13 @@ GROUP_MINIMUMS: dict[TopicGroup, int] = {
     TopicGroup.HOBBY: 1,
     TopicGroup.SPORT: 1,
     TopicGroup.TRAVEL: 1,
+}
+
+GROUP_LABELS_KO: dict[TopicGroup, str] = {
+    TopicGroup.LEISURE: "여가 활동",
+    TopicGroup.HOBBY: "취미나 관심사",
+    TopicGroup.SPORT: "운동",
+    TopicGroup.TRAVEL: "휴가나 출장",
 }
 
 
