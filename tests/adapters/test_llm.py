@@ -9,6 +9,8 @@ from opic.adapters.llm import (
     QUESTIONS_SCHEMA,
     RATING_SCHEMA,
     OllamaClient,
+    RaterError,
+    decode_response,
     parse_rating,
 )
 from opic.core.ports import QuestionWriter, Rater
@@ -86,3 +88,27 @@ def test_the_rating_schema_demands_every_dimension():
 
 def test_the_questions_schema_asks_for_strings():
     assert QUESTIONS_SCHEMA["properties"]["questions"]["items"]["type"] == "string"
+
+
+def test_a_well_formed_envelope_is_unwrapped():
+    assert decode_response({"response": '{"ok": true}'}, "qwen3:8b") == {"ok": True}
+
+
+def test_unparseable_model_output_names_the_model_and_shows_what_it_said():
+    with pytest.raises(RaterError) as caught:
+        decode_response({"response": "I think the answer is IM2"}, "qwen3:8b")
+    assert "qwen3:8b" in str(caught.value)
+    assert "I think the answer is IM2" in str(caught.value)
+
+
+def test_a_rating_payload_without_dimensions_is_refused():
+    with pytest.raises(ValueError):
+        parse_rating({}, SAID)
+
+
+def test_a_rating_entry_missing_a_field_names_that_field():
+    broken = payload()
+    del broken["dimensions"][0]["comment_ko"]
+    with pytest.raises(ValueError) as caught:
+        parse_rating(broken, SAID)
+    assert "comment_ko" in str(caught.value)

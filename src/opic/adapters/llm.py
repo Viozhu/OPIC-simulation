@@ -12,6 +12,11 @@ from opic.core.scoring import DimensionScore, Evidence
 from opic.core.survey import ITEMS_BY_ID, SurveyAnswers
 from opic.core.transcript import Transcript
 
+
+class RaterError(RuntimeError):
+    """The model returned something this adapter cannot use."""
+
+
 RATING_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -69,6 +74,22 @@ _TYPE_BRIEF: dict[QuestionType, str] = {
 }
 
 
+def decode_response(envelope: dict, model: str) -> dict:
+    """Unwrap Ollama's envelope, failing legibly when the model ignores the schema.
+
+    Extracted from the request path so the failure is testable without an HTTP
+    round trip — which is the only way this branch ever gets exercised, since a
+    schema-obeying model never reaches it.
+    """
+    raw = envelope.get("response", "")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RaterError(
+            f"{model} returned unparseable JSON: {raw[:400]!r}"
+        ) from exc
+
+
 def parse_rating(payload: dict, transcript_text: str) -> tuple[DimensionScore, ...]:
     """Turn the model's JSON into scores, dropping quotes it invented.
 
@@ -76,8 +97,14 @@ def parse_rating(payload: dict, transcript_text: str) -> tuple[DimensionScore, .
     never said. Evidence that cannot be found in the transcript is discarded
     rather than shown: a fabricated quote is worse than none.
     """
+    if "dimensions" not in payload:
+        raise ValueError("rating payload has no 'dimensions'")
+
     scores: list[DimensionScore] = []
     for item in payload["dimensions"]:
+        for field in ("dimension", "level", "comment_ko"):
+            if field not in item:
+                raise ValueError(f"rating entry is missing {field!r}")
         try:
             dimension = Dimension(item["dimension"])
         except ValueError as exc:
@@ -141,7 +168,8 @@ class OllamaClient:
             headers={"Content-Type": "application/json"},
         )
         with urllib.request.urlopen(request, timeout=self._timeout_s) as response:
-            return json.loads(json.loads(response.read())["response"])
+            envelope = json.loads(response.read())
+        return decode_response(envelope, self._model)
 
     def write(
         self, answers: SurveyAnswers, blueprint: tuple[QuestionSlot, ...]
