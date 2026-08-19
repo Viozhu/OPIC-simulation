@@ -116,3 +116,17 @@ def test_an_assessment_missing_a_dimension_is_refused():
     )
     with pytest.raises(ValueError):
         aggregate([broken])
+
+
+def test_a_gap_of_exactly_three_drops_the_final_level():
+    levels = flat(ActflLevel.AL)
+    levels[Dimension.GRAMMAR] = ActflLevel.IM1
+    result = aggregate([assessment(i, levels) for i in range(3)])
+    assert result.final_level is ActflLevel.IM3
+
+
+def test_a_gap_of_two_leaves_the_final_level_alone():
+    levels = flat(ActflLevel.AL)
+    levels[Dimension.GRAMMAR] = ActflLevel.IM2
+    result = aggregate([assessment(i, levels) for i in range(3)])
+    assert result.final_level is ActflLevel.IH
