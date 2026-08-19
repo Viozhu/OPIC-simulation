@@ -38,6 +38,26 @@ def payload(dimension="grammar", level="IM2", quote="we take a bath"):
     }
 
 
+def full_payload(dimension="grammar", level="IM2", quote="we take a bath"):
+    """`payload()`'s entry, plus filler for the dimensions it leaves out.
+
+    `parse_rating` refuses a rating that does not cover every dimension exactly
+    once, so any test asserting on a *result* has to send a complete one.
+    """
+    entry = payload(dimension=dimension, level=level, quote=quote)["dimensions"][0]
+    filler = [
+        {
+            "dimension": d.value,
+            "level": "IM2",
+            "comment_ko": "설명",
+            "evidence": [],
+        }
+        for d in Dimension
+        if d is not Dimension.GRAMMAR
+    ]
+    return {"dimensions": [entry, *filler]}
+
+
 def test_the_client_satisfies_both_ports():
     client = OllamaClient()
     assert isinstance(client, Rater)
@@ -45,8 +65,8 @@ def test_the_client_satisfies_both_ports():
 
 
 def test_a_rating_becomes_dimension_scores():
-    scores = parse_rating(payload(), SAID)
-    assert len(scores) == 1
+    scores = parse_rating(full_payload(), SAID)
+    assert len(scores) == len(Dimension)
     assert scores[0].dimension is Dimension.GRAMMAR
     assert scores[0].level is ActflLevel.IM2
     assert scores[0].comment_ko
@@ -54,12 +74,12 @@ def test_a_rating_becomes_dimension_scores():
 
 
 def test_an_invented_quote_is_discarded():
-    scores = parse_rating(payload(quote="I climbed Mount Everest"), SAID)
+    scores = parse_rating(full_payload(quote="I climbed Mount Everest"), SAID)
     assert scores[0].evidence == ()
 
 
 def test_a_real_quote_survives_alongside_an_invented_one():
-    p = payload()
+    p = full_payload()
     p["dimensions"][0]["evidence"].append(
         {"quote": "never said this", "issue_ko": "x", "correction_en": "y"}
     )
@@ -70,12 +90,12 @@ def test_a_real_quote_survives_alongside_an_invented_one():
 
 def test_an_unknown_dimension_is_refused():
     with pytest.raises(ValueError):
-        parse_rating(payload(dimension="charisma"), SAID)
+        parse_rating(full_payload(dimension="charisma"), SAID)
 
 
 def test_an_unknown_level_is_refused():
     with pytest.raises(ValueError):
-        parse_rating(payload(level="SUPERB"), SAID)
+        parse_rating(full_payload(level="SUPERB"), SAID)
 
 
 def test_the_rating_schema_demands_every_dimension():
@@ -107,8 +127,38 @@ def test_a_rating_payload_without_dimensions_is_refused():
 
 
 def test_a_rating_entry_missing_a_field_names_that_field():
-    broken = payload()
+    broken = full_payload()
     del broken["dimensions"][0]["comment_ko"]
     with pytest.raises(ValueError) as caught:
         parse_rating(broken, SAID)
     assert "comment_ko" in str(caught.value)
+
+
+def test_a_duplicated_dimension_is_refused():
+    p = payload()
+    p["dimensions"].append(payload()["dimensions"][0])
+    with pytest.raises(RaterError, match="grammar"):
+        parse_rating(p, SAID)
+
+
+def test_a_rating_missing_a_dimension_is_refused():
+    p = payload()
+    with pytest.raises(RaterError):
+        parse_rating(p, SAID)
+
+
+def test_a_complete_rating_is_accepted():
+    p = {"dimensions": [
+        {
+            "dimension": d.value,
+            "level": "IM2",
+            "comment_ko": "설명",
+            "evidence": [],
+        }
+        for d in Dimension
+    ]}
+    assert len(parse_rating(p, SAID)) == len(Dimension)
+
+
+def test_rater_error_is_a_value_error():
+    assert issubclass(RaterError, ValueError)

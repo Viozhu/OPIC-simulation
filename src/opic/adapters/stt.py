@@ -51,12 +51,18 @@ class WhisperSpeechToText:
         from faster_whisper.audio import decode_audio
 
         model = self._load()
+        options = vad.VadOptions(
+            min_silence_duration_ms=config.VAD_MIN_SILENCE_MS,
+            speech_pad_ms=config.VAD_SPEECH_PAD_MS,
+        )
         segments, info = model.transcribe(
             str(audio),
             language="en",
             word_timestamps=True,
             condition_on_previous_text=False,
             temperature=0.0,
+            vad_filter=True,
+            vad_parameters=options,
         )
 
         text_parts: list[str] = []
@@ -67,10 +73,6 @@ class WhisperSpeechToText:
                 words.append(Word(w.word, w.start, w.end, w.probability))
 
         pcm = decode_audio(str(audio), sampling_rate=SAMPLING_RATE)
-        options = vad.VadOptions(
-            min_silence_duration_ms=config.VAD_MIN_SILENCE_MS,
-            speech_pad_ms=config.VAD_SPEECH_PAD_MS,
-        )
         spans = spans_from_timestamps(
             vad.get_speech_timestamps(pcm, options, sampling_rate=SAMPLING_RATE),
             sampling_rate=SAMPLING_RATE,

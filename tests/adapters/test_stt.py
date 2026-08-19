@@ -79,3 +79,11 @@ def test_real_transcription_preserves_the_speakers_errors():
     assert result.duration_s == pytest.approx(90.0, abs=1.0)
     lowered = result.text.lower()
     assert "a island" in lowered or "we take a bath" in lowered
+
+
+@pytest.mark.models
+def test_the_adapter_itself_produces_many_speech_spans():
+    """With faster-whisper's default VadOptions this recording yields 2 spans and
+    mean_utterance_length 75 — the numbers an earlier phase existed to remove."""
+    result = WhisperSpeechToText().transcribe(FIXTURE_AUDIO)
+    assert len(result.speech_spans) > 10

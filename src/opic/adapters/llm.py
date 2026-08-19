@@ -13,7 +13,7 @@ from opic.core.survey import ITEMS_BY_ID, SurveyAnswers
 from opic.core.transcript import Transcript
 
 
-class RaterError(RuntimeError):
+class RaterError(ValueError):
     """The model returned something this adapter cannot use."""
 
 
@@ -131,6 +131,13 @@ def parse_rating(payload: dict, transcript_text: str) -> tuple[DimensionScore, .
                 evidence=evidence,
             )
         )
+
+    covered = [score.dimension for score in scores]
+    if sorted(d.value for d in covered) != sorted(d.value for d in Dimension):
+        raise RaterError(
+            f"rating covered {[d.value for d in covered]}, "
+            f"expected exactly {[d.value for d in Dimension]}"
+        )
     return tuple(scores)
 
 
@@ -201,6 +208,22 @@ class OllamaClient:
         )
 
     def rate(
+        self,
+        question: Question,
+        transcript: Transcript,
+        metrics: AnswerMetrics,
+    ) -> tuple[DimensionScore, ...]:
+        """Judge one answer, retrying once if the model returns a broken rating.
+
+        A rating costs minutes, but a rejected one costs the whole session, so a
+        single retry is far cheaper than the alternative.
+        """
+        try:
+            return self._rate_once(question, transcript, metrics)
+        except RaterError:
+            return self._rate_once(question, transcript, metrics)
+
+    def _rate_once(
         self,
         question: Question,
         transcript: Transcript,

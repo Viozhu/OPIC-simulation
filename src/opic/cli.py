@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import urllib.error
 from collections.abc import Callable
 from pathlib import Path
 
@@ -57,8 +58,9 @@ def run_exam(
     stt,
     writer,
     rater,
-    recorder: Callable[[Path, int], Path] = record_answer,
+    recorder: Callable[[Path, int, str], Path] = record_answer,
     player: Callable[[Path], None] = play,
+    device: str = ":0",
 ) -> ExamResult:
     """Run a whole exam: ask, record, transcribe, judge, aggregate, save.
 
@@ -74,12 +76,22 @@ def run_exam(
     blueprint = build_blueprint(answers, self_assess_level, seed)
     questions = writer.write(answers, blueprint)
 
+    print(f"\n총 {len(questions)}개의 질문이 있습니다.\n")
+
     recordings: list[Path] = []
     for question in questions:
+        print(f"질문 {question.slot.index + 1} / {len(questions)}")
         player(tts.synthesize(question.text_en))
         recordings.append(
-            recorder(session_dir / f"answer-{question.slot.index:02d}.wav", ANSWER_SECONDS)
+            recorder(
+                session_dir / f"answer-{question.slot.index:02d}.wav",
+                ANSWER_SECONDS,
+                device,
+            )
         )
+        print(f"  녹음 완료: {ANSWER_SECONDS}초")
+
+    print("\n채점 중입니다. 15개 답변에 약 1시간이 걸립니다.\n")
 
     assessments: list[AnswerAssessment] = []
     for question, recording in zip(questions, recordings, strict=True):
@@ -93,6 +105,27 @@ def run_exam(
                 metrics=metrics,
             )
         )
+        (session_dir / f"answer-{question.slot.index:02d}.json").write_text(
+            json.dumps(
+                {
+                    "index": question.slot.index,
+                    "question_en": question.text_en,
+                    "transcript": transcript.text,
+                    "scores": [
+                        {
+                            "dimension": s.dimension.value,
+                            "level": s.level.name,
+                            "comment_ko": s.comment_ko,
+                        }
+                        for s in assessments[-1].dimension_scores
+                    ],
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        print(f"  채점 {len(assessments)} / {len(questions)}")
 
     result = aggregate(blueprint, assessments)
     (session_dir / "result.json").write_text(
@@ -169,12 +202,16 @@ def load_survey(path: Path) -> SurveyAnswers:
                 f"{field} is {value!r}; expected one of: {allowed}"
             ) from exc
 
+    ids = raw["selected_item_ids"]
+    if not isinstance(ids, list):
+        raise ValueError("selected_item_ids must be a list of item ids")
+
     course = raw.get("recent_course")
     return SurveyAnswers(
         occupation=choose(Occupation, raw["occupation"], "occupation"),
         is_student=bool(raw["is_student"]),
         housing=choose(Housing, raw["housing"], "housing"),
-        selected_item_ids=tuple(raw["selected_item_ids"]),
+        selected_item_ids=tuple(ids),
         recent_course=choose(RecentCourse, course, "recent_course") if course else None,
     )
 
@@ -185,6 +222,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--level", type=int, required=True, choices=range(1, 7))
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--session", type=Path, default=Path("data/sessions/latest"))
+    parser.add_argument(
+        "--device",
+        default=":0",
+        help="avfoundation input, e.g. ':2'. List them with: "
+        "ffmpeg -f avfoundation -list_devices true -i ''",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -194,16 +237,26 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     client = OllamaClient()
-    result = run_exam(
-        answers=answers,
-        self_assess_level=args.level,
-        seed=args.seed,
-        session_dir=args.session,
-        tts=SayTextToSpeech(cache_dir=Path("data/tts_cache")),
-        stt=WhisperSpeechToText(),
-        writer=client,
-        rater=client,
-    )
+    try:
+        result = run_exam(
+            answers=answers,
+            self_assess_level=args.level,
+            seed=args.seed,
+            session_dir=args.session,
+            tts=SayTextToSpeech(cache_dir=Path("data/tts_cache")),
+            stt=WhisperSpeechToText(),
+            writer=client,
+            rater=client,
+            device=args.device,
+        )
+    except urllib.error.URLError as exc:
+        print(f"error: cannot reach Ollama at {config.OLLAMA_URL} ({exc.reason}).")
+        print(f"       start it with `ollama serve` and pull {config.OLLAMA_MODEL}.")
+        return 1
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}")
+        print(f"       per-answer results, if any, are under {args.session}")
+        return 1
     print(f"\n최종 등급: {result.final_level.name}")
     print(f"결과 파일: {args.session / 'result.json'}")
     return 0

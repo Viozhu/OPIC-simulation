@@ -93,7 +93,7 @@ def test_a_full_exam_runs_end_to_end(tmp_path):
     tts, rater = FakeTts(tmp_path), FakeRater()
     recorded: list[Path] = []
 
-    def fake_recorder(path: Path, seconds: int) -> Path:
+    def fake_recorder(path: Path, seconds: int, device: str) -> Path:
         path.write_bytes(b"answer")
         recorded.append(path)
         return path
@@ -136,7 +136,7 @@ def test_the_session_directory_holds_the_result(tmp_path):
         stt=FakeStt(),
         writer=FakeWriter(),
         rater=FakeRater(),
-        recorder=lambda path, seconds: (path.write_bytes(b"a"), path)[1],
+        recorder=lambda path, seconds, device: (path.write_bytes(b"a"), path)[1],
         player=lambda path: None,
     )
     saved = json.loads((session / "result.json").read_text())
@@ -190,3 +190,14 @@ def test_malformed_json_names_the_file(tmp_path):
     path.write_text("{not json", encoding="utf-8")
     with pytest.raises(ValueError, match="survey.json"):
         load_survey(path)
+
+
+def test_a_non_list_selection_is_refused(tmp_path):
+    with pytest.raises(ValueError, match="selected_item_ids"):
+        load_survey(survey_json(tmp_path, selected_item_ids=42))
+
+
+def test_the_shipped_example_survey_is_valid():
+    from opic.core.survey import validate_survey
+
+    assert validate_survey(load_survey(Path("examples/survey.json"))) == ()

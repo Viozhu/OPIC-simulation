@@ -12,8 +12,23 @@ exam runnable from the command line.
 uv run python -m opic.cli --survey my-survey.json --level 4
 ```
 
-Needs Ollama running (`ollama serve`) and macOS for `say`. The first run
-downloads the Whisper model.
+Requires macOS (for `say`), `ffmpeg`, and Ollama running with the rating model
+pulled:
+
+```bash
+ollama serve
+ollama pull qwen3:14b
+```
+
+The first run also downloads the Whisper `medium` model.
+
+**Budget about 100 minutes for a full exam:** roughly 25 minutes answering, then
+about 12 minutes of transcription and an hour of rating. The rating model runs at
+under 3 tokens per second on an M2, which is what dominates. Per-answer results
+are written to the session directory as they complete, so a failure late in the
+run does not discard the earlier ones.
+
+Start from `examples/survey.json`.
 
 ## Development
 
