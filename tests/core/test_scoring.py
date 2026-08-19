@@ -152,7 +152,7 @@ def test_dimension_levels_are_an_immutable_sequence_of_pairs():
     result = aggregate(blueprint_of(3), [assessment(i, flat(ActflLevel.IM2)) for i in range(3)])
     assert isinstance(result.dimension_levels, tuple)
     assert result.level_for(Dimension.GRAMMAR) is ActflLevel.IM2
-    with pytest.raises(Exception):
+    with pytest.raises(TypeError):
         result.dimension_levels[0] = (Dimension.GRAMMAR, ActflLevel.AL)
 
 
@@ -225,6 +225,34 @@ def test_an_assessment_without_a_matching_slot_is_refused():
 def test_a_slot_with_no_assessment_is_refused():
     with pytest.raises(ValueError):
         aggregate(blueprint_of(3), [assessment(0, flat(ActflLevel.IM2))])
+
+
+def test_a_breakdown_agrees_with_the_headline_level():
+    levels = flat(ActflLevel.AL)
+    levels[Dimension.GRAMMAR] = ActflLevel.IM1
+    bp = tuple(slot(i, QuestionType.DESCRIPTION, "movies") for i in range(3))
+    result = aggregate(bp, [assessment(i, levels) for i in range(3)])
+    assert dict(result.by_type)[QuestionType.DESCRIPTION] is result.final_level
+    assert dict(result.by_topic)["movies"] is result.final_level
+
+
+def test_a_strong_advanced_answer_cannot_cancel_the_weak_dimension_cap():
+    levels = flat(ActflLevel.AL)
+    levels[Dimension.GRAMMAR] = ActflLevel.IM1
+    assessments = [assessment(i, levels) for i in range(3)]
+    without = aggregate(
+        tuple(slot(i, QuestionType.DESCRIPTION, "movies") for i in range(3)),
+        assessments,
+    )
+    with_advanced = aggregate(
+        (
+            slot(0, QuestionType.DESCRIPTION, "movies"),
+            slot(1, QuestionType.DESCRIPTION, "movies"),
+            slot(2, QuestionType.DESCRIPTION, "movies", advanced=True),
+        ),
+        assessments,
+    )
+    assert with_advanced.final_level is without.final_level
 
 
 def test_by_topic_follows_blueprint_order_not_assessment_order():

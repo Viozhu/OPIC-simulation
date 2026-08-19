@@ -84,16 +84,15 @@ def test_mean_utterance_length_divides_words_by_utterances():
     assert m.mean_utterance_length == pytest.approx(1.5)
 
 
-def test_without_speech_spans_the_answer_counts_as_one_utterance():
+def test_words_without_speech_spans_are_refused():
     t = Transcript(
         text="a b c",
         words=tuple(Word(x, 0.0, 0.1, 0.9) for x in ("a", "b", "c")),
         speech_spans=(),
         duration_s=10.0,
     )
-    m = compute_metrics(t)
-    assert m.mean_utterance_length == pytest.approx(3.0)
-    assert m.pause_ratio == 0.0
+    with pytest.raises(ValueError):
+        compute_metrics(t)
 
 
 def test_fillers_are_counted_case_insensitively_and_without_punctuation():

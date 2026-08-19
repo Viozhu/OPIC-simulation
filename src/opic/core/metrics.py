@@ -68,6 +68,13 @@ def compute_metrics(transcript: Transcript) -> AnswerMetrics:
     Pauses come from voice activity spans rather than from gaps between word
     timings. Whisper aligns words continuously, so those gaps stay near zero
     however long the speaker actually hesitated.
+
+    The spans must come from a detector tuned to split on ordinary hesitation:
+    silences of roughly a quarter second, with no padding added around speech.
+    faster-whisper's defaults (min_silence_duration_ms=2000, speech_pad_ms=400)
+    are far too coarse — under them no gap below about 1.2s can exist, the
+    merge threshold never fires, and these metrics collapse back to the values
+    that made them useless in the first place.
     """
     words = transcript.words
     duration_s = transcript.duration_s
@@ -97,8 +104,10 @@ def compute_metrics(transcript: Transcript) -> AnswerMetrics:
         pause_ratio = min(1.0, paused / window) if window > 0 else 0.0
         mean_utterance_length = count / len(utterances)
     else:
-        pause_ratio = 0.0
-        mean_utterance_length = float(count)
+        raise ValueError(
+            "transcript has words but no speech_spans; pause and utterance "
+            "metrics require voice activity detection"
+        )
 
     tokens = [_normalise(word.text) for word in words]
     spoken = [token for token in tokens if token]

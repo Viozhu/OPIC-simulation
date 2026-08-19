@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from opic.core.transcript import Span, Transcript, Word
@@ -26,5 +28,5 @@ def test_a_non_positive_duration_is_refused(duration):
 
 def test_a_transcript_is_frozen():
     t = Transcript(text="hi", words=(), speech_spans=(), duration_s=1.0)
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         t.text = "bye"

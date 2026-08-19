@@ -86,8 +86,29 @@ def dimension_level(
     return _median_level([a.level_for(dimension) for a in assessments])
 
 
-def _all_levels(assessments: Sequence[AnswerAssessment]) -> list[ActflLevel]:
-    return [score.level for a in assessments for score in a.dimension_scores]
+def _weighted_rank(assessments: Sequence[AnswerAssessment]) -> int:
+    """The floored weighted mean of the per-dimension medians."""
+    return math.floor(
+        sum(
+            dimension_level(assessments, dimension).rank * weight
+            for dimension, weight in DIMENSION_WEIGHTS.items()
+        )
+    )
+
+
+def _capped(rank: int, assessments: Sequence[AnswerAssessment]) -> int:
+    """Drop one band when any dimension sits WEAK_DIMENSION_GAP or more below.
+
+    A serious weakness in one axis caps the result rather than being averaged
+    away, so this is applied last — after any raise, never before one.
+    """
+    weakest = min(dimension_level(assessments, d).rank for d in Dimension)
+    return rank - 1 if rank - weakest >= WEAK_DIMENSION_GAP else rank
+
+
+def _level_for_answers(assessments: Sequence[AnswerAssessment]) -> ActflLevel:
+    """The band a subset of answers earns, under the same rule as the whole exam."""
+    return ActflLevel.from_rank(_capped(_weighted_rank(assessments), assessments))
 
 
 def aggregate(
@@ -117,36 +138,29 @@ def aggregate(
     levels = tuple(
         (dimension, dimension_level(assessments, dimension)) for dimension in Dimension
     )
-    ranked = dict(levels)
 
-    weighted = sum(
-        ranked[dimension].rank * weight
-        for dimension, weight in DIMENSION_WEIGHTS.items()
-    )
-    rank = math.floor(weighted)
-
-    weakest = min(level.rank for level in ranked.values())
-    if rank - weakest >= WEAK_DIMENSION_GAP:
-        rank -= 1
+    rank = _weighted_rank(assessments)
 
     advanced = [a for a in assessments if slots[a.question_index].advanced]
     if advanced:
-        stretch = _median_level(_all_levels(advanced))
+        stretch = _level_for_answers(advanced)
         if stretch.rank > rank:
             rank = min(rank + 1, stretch.rank)
+
+    rank = _capped(rank, assessments)
 
     by_type: list[tuple[QuestionType, ActflLevel]] = []
     for qtype in QuestionType:
         group = [a for a in assessments if slots[a.question_index].qtype is qtype]
         if group:
-            by_type.append((qtype, _median_level(_all_levels(group))))
+            by_type.append((qtype, _level_for_answers(group)))
 
     by_topic: list[tuple[str, ActflLevel]] = []
     for topic_id in dict.fromkeys(slot.topic_id for slot in blueprint):
         if topic_id is None:
             continue
         group = [a for a in assessments if slots[a.question_index].topic_id == topic_id]
-        by_topic.append((topic_id, _median_level(_all_levels(group))))
+        by_topic.append((topic_id, _level_for_answers(group)))
 
     count = len(assessments)
     pronunciation = PronunciationProxy(
