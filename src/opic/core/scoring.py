@@ -5,7 +5,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from opic.core.metrics import AnswerMetrics
-from opic.core.questions import QuestionSlot, QuestionType
+from opic.core.questions import Question, QuestionSlot, QuestionType
+from opic.core.transcript import Transcript
 from opic.core.rubric import DIMENSION_WEIGHTS, ActflLevel, Dimension
 
 WEAK_DIMENSION_GAP = 3
@@ -28,9 +29,22 @@ class DimensionScore:
 
 @dataclass(frozen=True, slots=True)
 class AnswerAssessment:
-    question_index: int
+    """One answer, judged — together with what was asked and what was said.
+
+    The report quotes the question, and every piece of evidence has to be
+    checkable against the transcript it came from. Holding both here is what
+    keeps the result object self-contained instead of something the caller has
+    to carry side tables for.
+    """
+
+    question: Question
+    transcript: Transcript
     dimension_scores: tuple[DimensionScore, ...]
     metrics: AnswerMetrics
+
+    @property
+    def question_index(self) -> int:
+        return self.question.slot.index
 
     def level_for(self, dimension: Dimension) -> ActflLevel:
         for score in self.dimension_scores:
