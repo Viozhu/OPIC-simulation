@@ -237,6 +237,45 @@ accurate Korean. Both full outputs are quoted above verbatim so the comparison
 can be made without re-running anything. This note does not attempt that
 judgement — the pin below is decided on criteria 1 and 2 alone.
 
+## Why the 8B timed out
+
+The obvious untested hypothesis: `OllamaClient._generate` passes
+`"format": RATING_SCHEMA` on every call, forcing grammar-constrained decoding,
+while the ~25s/5.3 tok/s figure quoted for `qwen3:8b` in `config.py` was
+measured *without* a forced schema. Grammar-constrained decoding is known to
+cost an order of magnitude in throughput, so it was worth isolating as the
+cause of the 4/5 timeouts rather than leaving it unexplained.
+
+Two same-session `qwen3:8b` calls, same question/transcript/metrics as the
+five trials above, `qwen3:8b` evicted and reloaded first so neither call
+inherited state from the earlier failing runs:
+
+| Call | `"format"` | Elapsed | Parses as JSON | Dimensions |
+|---|---|---|---|---|
+| Unconstrained | omitted entirely | 30.13s | **No** — free-text Markdown | n/a |
+| Constrained | `RATING_SCHEMA` (as in `OllamaClient`) | 161.72s | Yes | 5 |
+
+The unconstrained reply is not JSON at all: it is Markdown prose using its own
+invented dimension names (`Content`, `Pronunciation`, `Interaction`, ...)
+that don't match the app's rubric (`fluency`, `grammar`, `vocabulary`,
+`coherence`, `relevance`). That is the "silently answer with the wrong shape"
+failure mode the brief already anticipated — an unconstrained 8B is not a
+usable rater regardless of speed.
+
+**Verdict:** the schema is a real, substantial cost — 161.72s vs. 30.13s is a
+5.4x slowdown, in the direction the hypothesis predicted — but it does not
+fully explain the earlier 4/5 timeouts: this constrained comparison call
+finished in 162s, comfortably under the 600s limit, under the same conditions
+that produced four straight 600.02s timeouts in the original trials. So
+`qwen3:8b` under a forced schema is not reliably ~600s+; it is highly
+variable, sometimes finishing in 130-160s (trial 0 and this comparison call)
+and sometimes not finishing at all within 600s (trials 1-4). **For future
+work: the schema is a real cost and a partial lever, but loosening it is not
+an actually-usable lever for this workload** — the unconstrained model
+abandons the rubric's dimension taxonomy and JSON contract entirely, and even
+under the schema the 8B's timeout behavior is too variable to trust, so the
+8B remains unusable here regardless of the schema question.
+
 ## Decision
 
 Pinned `OLLAMA_MODEL = "qwen3:14b"`. `qwen3:8b` failed criterion 1 outright:

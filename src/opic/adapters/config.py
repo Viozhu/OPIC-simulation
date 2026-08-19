@@ -18,12 +18,12 @@ WHISPER_COMPUTE_TYPE = "int8"
 VAD_MIN_SILENCE_MS = 250
 VAD_SPEECH_PAD_MS = 0
 
-# The rater. Qwen3 8B runs at 5.3 tok/s on an M2 against 2.8 for the 14B, but
-# measured against evidence/sample-transcript.json (see
-# docs/superpowers/notes/2026-08-19-rater-model.md) the 8B failed 4 of 5 rating
-# calls with a timeout at OLLAMA_TIMEOUT_S, and its one completed call
-# duplicated one rubric dimension while omitting another. The 14B passed 5/5
-# with all five dimensions distinct and zero evidence discarded.
+# The rater. Measured against evidence/sample-transcript.json (see
+# docs/superpowers/notes/2026-08-19-rater-model.md): qwen3:8b failed 4 of 5
+# rating calls with a timeout at OLLAMA_TIMEOUT_S, and its one completed call
+# duplicated one rubric dimension while omitting another. qwen3:14b passed 5/5
+# with all five dimensions distinct and zero evidence discarded, so it is
+# pinned here despite being the slower model per raw tokens/second.
 OLLAMA_URL = "http://127.0.0.1:11434"
 OLLAMA_MODEL = "qwen3:14b"
 OLLAMA_TIMEOUT_S = 600
