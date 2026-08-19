@@ -3,7 +3,7 @@ name = "opic"
 version = "0.1.0"
 description = "Local OPIc speaking-test simulator"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = ["faster-whisper>=1.2"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
@@ -18,3 +18,7 @@ packages = ["src/opic"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "models: needs a real local model (Ollama, Whisper) or macOS `say`; excluded by default",
+]
+addopts = "-m 'not models'"
