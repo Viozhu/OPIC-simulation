@@ -62,6 +62,10 @@ def create_app(
     def session_json(state) -> dict:
         payload = store.to_json(state)
         payload["questions_ready"] = state.questions_ready
+        # The browser fetches audio through its own route; the host's directory
+        # layout is not its business.
+        for question in payload["questions"]:
+            question["audio_ready"] = question.pop("audio_path") is not None
         return payload
 
     def load_or_404(session_id: str):

@@ -52,9 +52,44 @@ def test_a_question_that_does_not_exist_is_a_404(client, worker, a_valid_survey)
     assert client.get(f"/api/sessions/{session_id}/questions/99/audio").status_code == 404
 
 
-def test_the_questions_come_back_without_leaking_a_disk_path(client, worker, a_valid_survey):
+def test_the_questions_come_back_without_leaking_a_disk_path(client, worker, a_valid_survey, tmp_path):
     session_id = at_level(client, a_valid_survey)
     worker.drain()
-    questions = client.get(f"/api/sessions/{session_id}").json()["questions"]
+    response = client.get(f"/api/sessions/{session_id}")
+    questions = response.json()["questions"]
+
+    # Verify the redacted field is gone
+    assert "audio_path" not in questions[0], "audio_path should not leak to the browser"
+
+    # Keep existing assertions
     assert questions[0]["text_en"] == "Question 0."
     assert questions[0]["qtype"] == "self_intro"
+
+    # Verify no filesystem path leaks anywhere in the serialised response
+    response_str = str(response.json())
+    session_root = str(tmp_path / "sessions")
+    assert session_root not in response_str, f"session root path leaked in response: {session_root}"
+
+
+def test_audio_ready_is_false_before_synthesis_and_true_after(client, worker, a_valid_survey):
+    session_id = client.post("/api/sessions").json()["id"]
+    client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
+    client.put(f"/api/sessions/{session_id}/level", json={"level": 4})
+
+    # Before draining, check if questions exist and audio_ready is False
+    response_before = client.get(f"/api/sessions/{session_id}")
+    questions_before = response_before.json()["questions"]
+
+    if questions_before:
+        # If questions exist before drain, audio_ready should be False (no synthesis yet)
+        assert questions_before[0]["audio_ready"] is False, "audio_ready should be False before synthesis"
+        assert "audio_path" not in questions_before[0], "audio_path should not leak"
+
+    # After draining, audio_ready should be True
+    worker.drain()
+    response_after = client.get(f"/api/sessions/{session_id}")
+    questions_after = response_after.json()["questions"]
+
+    assert len(questions_after) > 0, "should have questions after generation"
+    assert questions_after[0]["audio_ready"] is True, "audio_ready should be True after synthesis"
+    assert "audio_path" not in questions_after[0], "audio_path should not leak"
