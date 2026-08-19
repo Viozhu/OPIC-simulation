@@ -6,7 +6,7 @@ from enum import Enum
 
 from opic.core.rubric import ActflLevel
 from opic.core.selfassess import target_level
-from opic.core.survey import SurveyAnswers, selected_items, validate_survey
+from opic.core.survey import SurveyAnswers, TopicGroup, selected_items, validate_survey
 
 
 class QuestionType(Enum):
@@ -33,7 +33,7 @@ COMBO_TYPES: tuple[QuestionType, ...] = (
     QuestionType.HABIT,
     QuestionType.EXPERIENCE,
 )
-COMBO_COUNT = 4
+COMBO_COUNT = len(TopicGroup)
 EXAM_LENGTH = 1 + COMBO_COUNT * len(COMBO_TYPES) + 2
 
 
@@ -46,7 +46,8 @@ def build_blueprint(
 
     Building the shape up front keeps the LLM off the critical path: by the time
     the test-taker reaches Setup, every question is known and its audio can be
-    synthesised in advance.
+    synthesised in advance. Combo topics are drawn one per survey group so the
+    exam always exercises every group the test-taker opted into.
     """
     issues = validate_survey(answers)
     if issues:
@@ -57,8 +58,15 @@ def build_blueprint(
     stretched = ActflLevel.from_rank(base.rank + 1)
 
     rng = random.Random(seed)
-    pool = [item.id for item in selected_items(answers)]
-    combo_topics = rng.sample(pool, COMBO_COUNT)
+    chosen = selected_items(answers)
+    by_group: dict[TopicGroup, list[str]] = {group: [] for group in TopicGroup}
+    for item in chosen:
+        by_group[item.group].append(item.id)
+
+    combo_topics = [rng.choice(by_group[group]) for group in TopicGroup]
+    rng.shuffle(combo_topics)
+
+    pool = [item.id for item in chosen]
 
     remaining = [topic for topic in pool if topic not in combo_topics]
     roleplay_topic = rng.choice(remaining or pool)

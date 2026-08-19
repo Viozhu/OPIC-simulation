@@ -9,13 +9,16 @@ from opic.core.questions import (
     QuestionType,
     build_blueprint,
 )
+from opic.core.rubric import ActflLevel
 from opic.core.selfassess import target_level
 from opic.core.survey import (
+    ITEMS_BY_ID,
     SURVEY_ITEMS,
     Housing,
     Occupation,
     SurveyAnswers,
     TopicGroup,
+    validate_survey,
 )
 
 
@@ -112,3 +115,70 @@ def test_an_invalid_survey_is_refused():
     )
     with pytest.raises(ValueError):
         build_blueprint(answers, self_assess_level=3, seed=1)
+
+
+def test_every_combo_comes_from_a_different_survey_group():
+    answers = valid_answers()
+    for seed in range(30):
+        blueprint = build_blueprint(answers, self_assess_level=4, seed=seed)
+        groups = [
+            ITEMS_BY_ID[slot.topic_id].group
+            for slot in blueprint
+            if slot.combo_id is not None
+        ]
+        assert set(groups) == set(TopicGroup)
+
+
+def test_a_lopsided_selection_still_reaches_every_group():
+    lopsided = SurveyAnswers(
+        occupation=Occupation.BUSINESS,
+        is_student=False,
+        housing=Housing.ALONE,
+        selected_item_ids=tuple(
+            ids_for(TopicGroup.LEISURE, 9)
+            + ids_for(TopicGroup.HOBBY, 1)
+            + ids_for(TopicGroup.SPORT, 1)
+            + ids_for(TopicGroup.TRAVEL, 1)
+        ),
+    )
+    assert validate_survey(lopsided) == ()
+    for seed in range(30):
+        blueprint = build_blueprint(lopsided, self_assess_level=4, seed=seed)
+        groups = {
+            ITEMS_BY_ID[slot.topic_id].group
+            for slot in blueprint
+            if slot.combo_id is not None
+        }
+        assert groups == set(TopicGroup)
+
+
+def test_the_role_play_uses_a_topic_no_combo_covered():
+    answers = valid_answers()
+    blueprint = build_blueprint(answers, self_assess_level=4, seed=7)
+    combo_topics = {slot.topic_id for slot in blueprint if slot.combo_id is not None}
+    role_play = [
+        slot
+        for slot in blueprint
+        if slot.qtype
+        in (QuestionType.ROLEPLAY_SETUP, QuestionType.ROLEPLAY_FOLLOWUP)
+    ]
+    assert len(role_play) == 2
+    assert {slot.topic_id for slot in role_play} == {role_play[0].topic_id}
+    assert role_play[0].topic_id in answers.selected_item_ids
+    assert role_play[0].topic_id not in combo_topics
+
+
+def test_the_role_play_pair_holds_across_seeds():
+    answers = valid_answers()
+    for seed in range(30):
+        blueprint = build_blueprint(answers, self_assess_level=4, seed=seed)
+        combo_topics = {slot.topic_id for slot in blueprint if slot.combo_id is not None}
+        assert blueprint[-1].topic_id == blueprint[-2].topic_id
+        assert blueprint[-1].topic_id not in combo_topics
+
+
+def test_at_the_top_of_the_scale_the_stretch_clamps_instead_of_overflowing():
+    blueprint = build_blueprint(valid_answers(), self_assess_level=6, seed=7)
+    advanced = [slot for slot in blueprint if slot.advanced]
+    assert advanced
+    assert all(slot.target is ActflLevel.AL for slot in advanced)
