@@ -6,11 +6,12 @@ No exam logic lives here. Anything that decides what happens next belongs in
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -30,7 +31,7 @@ from opic.core.survey import (
     validate_survey,
 )
 from opic.session import store
-from opic.session.state import Step, TransitionError, advance
+from opic.session.state import AnswerRecord, AnswerState, Step, TransitionError, advance
 from opic.session.worker import Task, Worker
 
 
@@ -46,12 +47,17 @@ class LevelPayload(BaseModel):
     level: int
 
 
+class StepPayload(BaseModel):
+    step: str
+
+
 def create_app(
     root: Path,
     worker: Worker,
     clock: Callable[[], datetime] = datetime.now,
 ) -> FastAPI:
     app = FastAPI(title="OPIc simulator")
+    app.state.root = root
 
     @app.exception_handler(TransitionError)
     async def transition_error_handler(request, exc: TransitionError):
@@ -180,5 +186,66 @@ def create_app(
         if not path.exists():
             raise HTTPException(status_code=404, detail="audio not ready")
         return FileResponse(path, media_type="audio/wav")
+
+    @app.post("/api/sessions/{session_id}/step")
+    def post_step(session_id: str, payload: StepPayload):
+        load_or_404(session_id)
+        try:
+            target = Step(payload.step)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="unknown step") from None
+        state = worker.update(session_id, lambda s: advance(s, target))
+        return session_json(state)
+
+    @app.post("/api/sessions/{session_id}/answers/{index}", status_code=202)
+    async def post_answer(session_id: str, index: int, audio: UploadFile = File(...)):
+        state = load_or_404(session_id)
+        if state.step is not Step.TEST:
+            raise HTTPException(
+                status_code=409,
+                detail=f"answers are only accepted during the test, not at {state.step.value}",
+            )
+        record = next((a for a in state.answers if a.index == index), None)
+        if record is None:
+            raise HTTPException(status_code=404, detail="no such question")
+        if record.state is not AnswerState.PENDING:
+            raise HTTPException(
+                status_code=409, detail=f"answer {index} is already {record.state.value}"
+            )
+
+        suffix = Path(audio.filename or "answer.webm").suffix or ".webm"
+        target = store.answer_audio_path(root, session_id, index, suffix)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(await audio.read())
+
+        state = worker.update(
+            session_id,
+            lambda s: s.with_answer(AnswerRecord(index, AnswerState.RECORDED, target.name)),
+        )
+        worker.submit(Task("evaluate", session_id, index))
+        return session_json(state)
+
+    @app.get("/api/sessions/{session_id}/progress")
+    def progress(session_id: str) -> dict:
+        state = load_or_404(session_id)
+        counted = {value: 0 for value in ("pending", "recorded", "transcribed", "scored", "failed")}
+        for answer in state.answers:
+            counted[answer.state.value] += 1
+        return {
+            "expected": len(state.questions),
+            "total": len(state.answers),
+            "scored": counted["scored"],
+            "failed": counted["failed"],
+            "recorded": counted["recorded"],
+            "done": store.result_path(root, session_id).exists(),
+        }
+
+    @app.get("/api/sessions/{session_id}/result")
+    def result(session_id: str):
+        load_or_404(session_id)
+        path = store.result_path(root, session_id)
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="not scored yet")
+        return JSONResponse(content=json.loads(path.read_text(encoding="utf-8")))
 
     return app
