@@ -5,28 +5,30 @@ no audio or transcript ever leaves the computer.
 
 ## Status
 
-Phase 1 and Phase 2 complete: the pure engine, the local adapters, and a full
-exam runnable from the command line.
+Phases 1 to 3 complete: the pure engine, the local adapters, and a browser
+interface that runs a whole exam and grades it while you take it.
+
+```bash
+uv run python -m opic.cli --serve      # http://localhost:8000
+```
+
+Needs Ollama running (`ollama serve`) and macOS for `say`. The first run
+downloads the Whisper model.
+
+**One server process.** Evaluation runs in a worker thread inside it; two
+uvicorn workers would be two queues competing for one model. Do not pass
+`--workers`.
+
+Grading an exam takes about 75 minutes of machine time on an M2. Answers are
+queued as you record them, so the wait after the last question is roughly half
+of that. Closing the tab does not stop it, and restarting the server resumes
+where it left off.
+
+The command-line exam still works:
 
 ```bash
 uv run python -m opic.cli --survey my-survey.json --level 4
 ```
-
-Requires macOS (for `say`), `ffmpeg`, and Ollama running with the rating model
-pulled:
-
-```bash
-ollama serve
-ollama pull qwen3:14b
-```
-
-The first run also downloads the Whisper `medium` model.
-
-**Budget about 100 minutes for a full exam:** roughly 25 minutes answering, then
-about 12 minutes of transcription and an hour of rating. The rating model runs at
-under 3 tokens per second on an M2, which is what dominates. Per-answer results
-are written to the session directory as they complete, so a failure late in the
-run does not discard the earlier ones.
 
 Start from `examples/survey.json`.
 
@@ -45,15 +47,10 @@ uv run --extra dev pytest
 
 ## What comes next
 
-Phase 1 ends here with a library that plans an exam and scores it. The
-following phases each get their own plan, written once this one lands:
+Phases 1 to 3 are done: the pure engine, the local adapters, and the browser
+interface — including deferred evaluation in a background worker with a 채점 중
+progress screen, folded into Phase 3 rather than staying a phase of its own.
 
-- **Phase 2 — Adapters.** Install Ollama; wrap Qwen3, faster-whisper and Piper
-  behind narrow interfaces. Verify two things empirically before building on
-  them: that Qwen3 writes acceptable Korean, and that Whisper does not silently
-  repair the speaker's grammar.
-- **Phase 3 — Web.** FastAPI serving the five steps, microphone capture, TTS
-  playback.
-- **Phase 4 — Deferred evaluation.** Background pipeline with the 채점 중 progress
-  screen over a WebSocket.
-- **Phase 5 — Report.** The Korean-language score report with evidence.
+- **Phase 4 — Report.** A readable, Korean-language score report: the
+  per-dimension breakdown, quoted evidence for each score, and the
+  pronunciation proxy the pipeline already computes but does not yet show.

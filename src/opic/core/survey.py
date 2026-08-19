@@ -36,6 +36,22 @@ RECENT_COURSE_LABELS_KO: dict[RecentCourse, str] = {
 }
 
 
+OCCUPATION_LABELS_KO: dict[Occupation, str] = {
+    Occupation.BUSINESS: "사업/회사",
+    Occupation.HOME_OFFICE: "재택근무/재택사업",
+    Occupation.TEACHER: "교사/교육자",
+    Occupation.NO_EXPERIENCE: "일 경험 없음",
+}
+
+HOUSING_LABELS_KO: dict[Housing, str] = {
+    Housing.ALONE: "개인주택이나 아파트에 홀로 거주",
+    Housing.WITH_ROOMMATE: "친구나 룸메이트와 함께 주택이나 아파트에 거주",
+    Housing.WITH_FAMILY: "가족(배우자/자녀/기타 가족 일원)과 함께 주택이나 아파트에 거주",
+    Housing.DORM: "학교 기숙사",
+    Housing.BARRACKS: "군대 막사",
+}
+
+
 class TopicGroup(Enum):
     LEISURE = "leisure"
     HOBBY = "hobby"
@@ -104,6 +120,28 @@ GROUP_MINIMUMS: dict[TopicGroup, int] = {
     TopicGroup.HOBBY: 1,
     TopicGroup.SPORT: 1,
     TopicGroup.TRAVEL: 1,
+}
+
+GROUP_LABELS_KO: dict[TopicGroup, str] = {
+    TopicGroup.LEISURE: "여가 활동",
+    TopicGroup.HOBBY: "취미나 관심사",
+    TopicGroup.SPORT: "운동",
+    TopicGroup.TRAVEL: "휴가나 출장",
+}
+
+# The four question stems the survey form asks, keyed by the field they
+# answer. The front end fetches these at runtime; it carries no copy of its
+# own, so this dict is the one place the wording can change.
+QUESTION_LABELS_KO: dict[str, str] = {
+    "occupation": "현재 귀하는 어느 분야에 종사하고 계십니까?",
+    "is_student": "현재 학생이십니까?",
+    "recent_course": "최근 어떤 강의를 수강했습니까?",
+    "housing": "현재 귀하는 어디에 살고 계십니까?",
+}
+
+YES_NO_LABELS_KO: dict[bool, str] = {
+    True: "예",
+    False: "아니오",
 }
 
 
@@ -182,6 +220,45 @@ def validate_survey(answers: SurveyAnswers) -> tuple[ValidationIssue, ...]:
         issues.append(ValidationIssue(SurveyError.MISSING_COURSE, "not a student"))
 
     return tuple(issues)
+
+
+def describe_issue_ko(issue: ValidationIssue) -> str:
+    """A full Korean sentence a candidate can act on.
+
+    Never the enum name and never a raw item id or group id — those are
+    internal identifiers, not something a candidate reads. `detail` carries
+    the specifics `validate_survey` produced; this derives the message from
+    those same fields rather than surfacing them verbatim.
+    """
+    if issue.error is SurveyError.UNKNOWN_ITEM:
+        return "선택한 항목 중 존재하지 않는 항목이 있습니다. 항목을 다시 선택해 주세요."
+
+    if issue.error is SurveyError.DUPLICATE_ITEM:
+        item = ITEMS_BY_ID.get(issue.detail)
+        name = item.label_ko if item is not None else "동일한 항목"
+        return f"{name}을(를) 두 번 선택했습니다. 한 번만 선택해 주세요."
+
+    if issue.error is SurveyError.TOO_FEW_ITEMS:
+        chosen, _, total = issue.detail.partition("/")
+        needed = int(total) - int(chosen)
+        return f"관심 항목을 최소 {total}개 선택해야 합니다. {needed}개 더 선택해 주세요."
+
+    if issue.error is SurveyError.GROUP_MINIMUM:
+        group_part, _, counts = issue.detail.partition(":")
+        group = TopicGroup(group_part.strip())
+        chosen, _, minimum = counts.strip().partition("/")
+        return (
+            f"{GROUP_LABELS_KO[group]} 항목을 최소 {minimum}개 선택해야 합니다. "
+            f"현재 {chosen}개를 선택했습니다."
+        )
+
+    if issue.error is SurveyError.MISSING_COURSE:
+        return "학생이 아닌 경우에는 최근 수강한 강의를 선택해야 합니다."
+
+    if issue.error is SurveyError.UNEXPECTED_COURSE:
+        return "학생인 경우에는 최근 수강한 강의를 선택할 수 없습니다."
+
+    raise AssertionError(f"unhandled survey error: {issue.error}")
 
 
 def selected_items(answers: SurveyAnswers) -> tuple[SurveyItem, ...]:

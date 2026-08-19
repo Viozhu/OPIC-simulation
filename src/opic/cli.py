@@ -11,9 +11,7 @@ from opic.adapters import config
 from opic.adapters.llm import OllamaClient
 from opic.adapters.stt import WhisperSpeechToText
 from opic.adapters.tts import SayTextToSpeech
-from opic.core.metrics import compute_metrics
-from opic.core.questions import build_blueprint
-from opic.core.scoring import AnswerAssessment, ExamResult, aggregate
+from opic.core.scoring import ExamResult
 from opic.core.survey import (
     Housing,
     Occupation,
@@ -21,6 +19,10 @@ from opic.core.survey import (
     SurveyAnswers,
     validate_survey,
 )
+from opic.session import assessments, store
+from opic.session.state import AnswerRecord, AnswerState, SessionState
+from opic.session.worker import Task, Worker
+from opic.web.serve import LockedError, claim_the_lock
 
 ANSWER_SECONDS = 90
 
@@ -62,117 +64,79 @@ def run_exam(
     player: Callable[[Path], None] = play,
     device: str = ":0",
 ) -> ExamResult:
-    """Run a whole exam: ask, record, transcribe, judge, aggregate, save.
+    """Run a whole exam over the same session machinery the web interface uses.
 
-    Every collaborator is an argument so the flow can be exercised without a
-    microphone or a model.
+    `session_dir` keeps meaning what it meant: this session's folder. It is
+    split into the sessions root and the session id so `store` and `Worker` —
+    which think in those terms — can be handed the exact layout the CLI already
+    wrote.
+
+    Two guards protect a directory that already holds a finished (or
+    in-progress) exam: this refuses to run at all if `session_dir` already has
+    a `session.json` — reusing one silently overwrote it while leaving the
+    previous run's `answer-NN.json` files behind, which used to make a second,
+    broken exam report the FIRST exam's grade — and it takes the same
+    single-process lock the web server holds over `root`, so a CLI exam can
+    never run concurrently with a server evaluating over the same sessions
+    folder.
     """
     issues = validate_survey(answers)
     if issues:
         detail = ", ".join(f"{i.error.value}({i.detail})" for i in issues)
         raise ValueError(f"invalid survey: {detail}")
 
-    session_dir.mkdir(parents=True, exist_ok=True)
-    blueprint = build_blueprint(answers, self_assess_level, seed)
-    questions = writer.write(answers, blueprint)
+    root = session_dir.parent
+    session_id = session_dir.name
 
-    print(f"\n총 {len(questions)}개의 질문이 있습니다.\n")
-
-    recordings: list[Path] = []
-    for question in questions:
-        print(f"질문 {question.slot.index + 1} / {len(questions)}")
-        player(tts.synthesize(question.text_en))
-        recordings.append(
-            recorder(
-                session_dir / f"answer-{question.slot.index:02d}.wav",
-                ANSWER_SECONDS,
-                device,
-            )
+    existing = session_dir / store.SESSION_FILE
+    if existing.exists():
+        raise ValueError(
+            f"{session_dir} already holds a session ({existing}); "
+            "pass a different --session, or its previous answers and result "
+            "will be mixed up with this run's"
         )
+
+    claim_the_lock(root)
+
+    worker = Worker(root=root, tts=tts, stt=stt, writer=writer, rater=rater)
+
+    session_dir.mkdir(parents=True, exist_ok=True)
+    state = (
+        SessionState.new(session_id, seed)
+        .with_survey(answers)
+        .with_level(self_assess_level)
+    )
+    store.save(root, state)
+
+    worker.submit(Task("generate", session_id))
+    worker.drain()
+
+    state = store.load(root, session_id)
+    print(f"\n총 {len(state.questions)}개의 질문이 있습니다.\n")
+
+    for question in state.questions:
+        print(f"질문 {question.index + 1} / {len(state.questions)}")
+        player(Path(question.audio_path))
+        recording = store.answer_audio_path(root, session_id, question.index, ".wav")
+        recorder(recording, ANSWER_SECONDS, device)
+        worker.update(
+            session_id,
+            lambda s, i=question.index, name=recording.name: s.with_answer(
+                AnswerRecord(i, AnswerState.RECORDED, name)
+            ),
+        )
+        worker.submit(Task("evaluate", session_id, question.index))
         print(f"  녹음 완료: {ANSWER_SECONDS}초")
 
     print("\n채점 중입니다. 15개 답변에 약 1시간이 걸립니다.\n")
+    worker.drain()
 
-    assessments: list[AnswerAssessment] = []
-    for question, recording in zip(questions, recordings, strict=True):
-        transcript = stt.transcribe(recording)
-        metrics = compute_metrics(transcript)
-        assessments.append(
-            AnswerAssessment(
-                question=question,
-                transcript=transcript,
-                dimension_scores=rater.rate(question, transcript, metrics),
-                metrics=metrics,
-            )
-        )
-        (session_dir / f"answer-{question.slot.index:02d}.json").write_text(
-            json.dumps(
-                {
-                    "index": question.slot.index,
-                    "question_en": question.text_en,
-                    "transcript": transcript.text,
-                    "scores": [
-                        {
-                            "dimension": s.dimension.value,
-                            "level": s.level.name,
-                            "comment_ko": s.comment_ko,
-                        }
-                        for s in assessments[-1].dimension_scores
-                    ],
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        print(f"  채점 {len(assessments)} / {len(questions)}")
-
-    result = aggregate(blueprint, assessments)
-    (session_dir / "result.json").write_text(
-        json.dumps(_as_json(result), ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    return result
-
-
-def _as_json(result: ExamResult) -> dict:
-    return {
-        "final_level": result.final_level.name,
-        "dimensions": {d.value: level.name for d, level in result.dimension_levels},
-        "by_type": {t.value: level.name for t, level in result.by_type},
-        "by_topic": {topic: level.name for topic, level in result.by_topic},
-        "pronunciation": {
-            "mean_confidence": result.pronunciation.mean_confidence,
-            "low_confidence_rate": result.pronunciation.low_confidence_rate,
-            "indicative": result.pronunciation.indicative,
-        },
-        "answers": [
-            {
-                "index": a.question_index,
-                "question_en": a.question.text_en,
-                "transcript": a.transcript.text,
-                "words_per_minute": a.metrics.words_per_minute,
-                "pause_ratio": a.metrics.pause_ratio,
-                "scores": [
-                    {
-                        "dimension": s.dimension.value,
-                        "level": s.level.name,
-                        "comment_ko": s.comment_ko,
-                        "evidence": [
-                            {
-                                "quote": e.quote,
-                                "issue_ko": e.issue_ko,
-                                "correction_en": e.correction_en,
-                            }
-                            for e in s.evidence
-                        ],
-                    }
-                    for s in a.dimension_scores
-                ],
-            }
-            for a in result.assessments
-        ],
-    }
+    state = store.load(root, session_id)
+    judged = assessments.read_all_answers(root, session_id, state)
+    if not judged:
+        raise RuntimeError("no answer could be scored; is Ollama running?")
+    print(f"  채점 {len(judged)} / {len(state.questions)}")
+    return assessments.aggregate_available(state.questions, judged)
 
 
 REQUIRED_SURVEY_FIELDS = ("occupation", "is_student", "housing", "selected_item_ids")
@@ -218,8 +182,8 @@ def load_survey(path: Path) -> SurveyAnswers:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="opic", description="Run a local OPIc mock exam")
-    parser.add_argument("--survey", type=Path, required=True, help="survey answers as JSON")
-    parser.add_argument("--level", type=int, required=True, choices=range(1, 7))
+    parser.add_argument("--survey", type=Path, help="survey answers as JSON")
+    parser.add_argument("--level", type=int, choices=range(1, 7))
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--session", type=Path, default=Path("data/sessions/latest"))
     parser.add_argument(
@@ -228,7 +192,24 @@ def main(argv: list[str] | None = None) -> int:
         help="avfoundation input, e.g. ':2'. List them with: "
         "ffmpeg -f avfoundation -list_devices true -i ''",
     )
+    parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="run the web interface instead of the command-line exam",
+    )
     args = parser.parse_args(argv)
+
+    if args.serve:
+        import uvicorn
+
+        from opic.web.serve import app
+
+        uvicorn.run(app(), host="127.0.0.1", port=8000)
+        return 0
+
+    if args.survey is None or args.level is None:
+        print("error: --survey and --level are required unless --serve is given")
+        return 1
 
     try:
         answers = load_survey(args.survey)
@@ -252,6 +233,14 @@ def main(argv: list[str] | None = None) -> int:
     except urllib.error.URLError as exc:
         print(f"error: cannot reach Ollama at {config.OLLAMA_URL} ({exc.reason}).")
         print(f"       start it with `ollama serve` and pull {config.OLLAMA_MODEL}.")
+        return 1
+    except LockedError as exc:
+        print(f"error: {exc}")
+        return 1
+    except RuntimeError as exc:
+        print(f"error: {exc}")
+        print(f"       this usually means Ollama stopped answering partway through;")
+        print(f"       per-answer results, if any, are under {args.session}")
         return 1
     except (OSError, ValueError) as exc:
         print(f"error: {exc}")
