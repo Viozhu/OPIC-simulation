@@ -17,8 +17,8 @@ from opic.core.questions import Question, QuestionSlot, QuestionType
 from opic.core.rubric import DIMENSION_LABELS_KO, ActflLevel, Dimension
 from opic.core.scoring import AnswerAssessment, DimensionScore, Evidence, ExamResult, aggregate
 from opic.core.transcript import Span, Transcript, Word
-from opic.session.state import QuestionRecord
-from opic.session.store import answer_result_path, session_dir
+from opic.session.state import QuestionRecord, SessionState
+from opic.session.store import answer_result_path
 
 
 def question_from_record(record: QuestionRecord) -> Question:
@@ -53,12 +53,22 @@ def read_answer(root: Path, session_id: str, index: int) -> AnswerAssessment:
 
 
 def read_all_answers(
-    root: Path, session_id: str, questions: Sequence[QuestionRecord]
+    root: Path, session_id: str, state: SessionState
 ) -> tuple[AnswerAssessment, ...]:
-    """Every answer already judged, in question order. Missing ones are skipped."""
+    """Every answer whose CURRENT state is SCORED, in question order.
+
+    `session.json` — `state` here — is the source of truth for what this run
+    judged, not which `answer-NN.json` files happen to sit on disk. A second
+    exam run into the same directory overwrites `session.json` but leaves the
+    previous run's answer files behind; selecting by file existence would
+    silently mix those stale answers into a fresh exam's result. Going by
+    `state.scored_indices()` instead means an answer only counts if THIS run's
+    state says it was scored.
+    """
+    scored = set(state.scored_indices())
     found = []
-    for record in questions:
-        if answer_result_path(root, session_id, record.index).exists():
+    for record in state.questions:
+        if record.index in scored:
             found.append(read_answer(root, session_id, record.index))
     return tuple(found)
 

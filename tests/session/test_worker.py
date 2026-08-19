@@ -439,6 +439,75 @@ def test_aggregation_finishing_while_still_on_test_still_reaches_done(
     assert loaded.step is Step.DONE
 
 
+# --- fix round 3 (whole-branch review, FINDING 1) ---------------------------
+
+
+def test_aggregate_ignores_answer_files_left_by_a_previous_run_in_this_directory(
+    tmp_path, ports, survey
+):
+    """A second exam into the same session directory overwrites `session.json`
+    but leaves the previous run's `answer-NN.json` files on disk. `_aggregate`
+    has to go by the CURRENT session state (SCORED), not by whichever files
+    happen to exist — otherwise a rater that fails every call in THIS run
+    would still make the exam report the PREVIOUS run's level.
+    """
+    from opic.core.metrics import AnswerMetrics
+    from opic.core.rubric import ActflLevel, Dimension
+    from opic.core.scoring import AnswerAssessment, DimensionScore
+    from opic.core.transcript import Span, Transcript, Word
+    from opic.session import assessments
+
+    state = a_session(tmp_path, survey)
+    worker = a_worker(tmp_path, ports)
+    worker.submit(Task("generate", state.id))
+    worker.drain()
+    state = store.load(tmp_path, state.id)
+
+    def a_previous_runs_assessment(index: int) -> AnswerAssessment:
+        return AnswerAssessment(
+            question=assessments.question_from_record(state.questions[index]),
+            transcript=Transcript(
+                text="previous exam's answer",
+                words=(Word("previous", 0.0, 0.3, 0.9),),
+                speech_spans=(Span(0.0, 0.3),),
+                duration_s=1.0,
+            ),
+            dimension_scores=tuple(
+                DimensionScore(dimension=d, level=ActflLevel.IM1, comment_ko="이전 답변입니다.")
+                for d in Dimension
+            ),
+            metrics=AnswerMetrics(
+                duration_s=1.0,
+                word_count=1,
+                words_per_minute=60.0,
+                pause_ratio=0.0,
+                type_token_ratio=1.0,
+                mean_utterance_length=1.0,
+                mean_confidence=0.9,
+                low_confidence_rate=0.0,
+            ),
+        )
+
+    # Leftover files from a previous run: every answer already has a judged
+    # file on disk...
+    for index in range(EXAM_LENGTH):
+        assessments.write_answer(tmp_path, state.id, a_previous_runs_assessment(index))
+
+    # ...but THIS run's session state says every one of them FAILED.
+    for index in range(EXAM_LENGTH):
+        worker.update(
+            state.id,
+            lambda s, i=index: s.with_answer(
+                AnswerRecord(i, AnswerState.FAILED, None, "boom")
+            ),
+        )
+
+    worker.submit(Task("aggregate", state.id))
+    worker.drain()
+
+    assert not (tmp_path / state.id / "result.json").exists()
+
+
 def test_a_second_aggregate_on_a_session_already_done_does_not_raise(
     tmp_path, ports, survey
 ):

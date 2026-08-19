@@ -10,16 +10,21 @@ const POLL_MS = 3000;
 const READY_TIMEOUT_MS = 5 * 60 * 1000;
 
 export async function waitUntilReady(api, sessionId, timeoutMs = READY_TIMEOUT_MS) {
-  let state = await api.get(`/api/sessions/${sessionId}`);
   const deadline = Date.now() + timeoutMs;
-  while (!state.questions_ready) {
+  while (true) {
     if (Date.now() >= deadline) {
       throw Object.assign(new Error("question preparation timed out"), {timedOut: true});
     }
+    try {
+      const state = await api.get(`/api/sessions/${sessionId}`);
+      if (state.questions_ready) return state;
+    } catch (error) {
+      // A dropped fetch here looks identical to a server that is still
+      // preparing questions; keep polling instead of throwing out of
+      // render() and leaving a blank page — the deadline above still applies.
+    }
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-    state = await api.get(`/api/sessions/${sessionId}`);
   }
-  return state;
 }
 
 export function askAndRecord({audioUrl, onState}) {

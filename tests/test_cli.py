@@ -149,6 +149,49 @@ def test_the_session_directory_holds_the_result(tmp_path):
         assert f"answer-{index:02d}" in answer["transcript"]["text"]
 
 
+def run_it(session_dir, tmp_path, seed=7):
+    return run_exam(
+        answers=valid_answers(),
+        self_assess_level=4,
+        seed=seed,
+        session_dir=session_dir,
+        tts=FakeTts(tmp_path),
+        stt=FakeStt(),
+        writer=FakeWriter(),
+        rater=FakeRater(),
+        recorder=lambda path, seconds, device: (path.write_bytes(b"a"), path)[1],
+        player=lambda path: None,
+    )
+
+
+def test_a_second_exam_into_the_same_directory_is_refused(tmp_path):
+    """FINDING 1(b): `run_exam` calls `SessionState.new()` and overwrites
+    `session.json`, so reusing a directory that already holds one used to
+    silently mix a new exam's answers with the previous run's. Refuse it
+    outright instead, and name the path so the user knows what to change.
+    """
+    session = tmp_path / "session"
+    run_it(session, tmp_path)
+
+    with pytest.raises(ValueError) as caught:
+        run_it(session, tmp_path, seed=8)
+    assert str(session) in str(caught.value)
+
+
+def test_run_exam_refuses_to_run_while_a_server_holds_the_lock(tmp_path):
+    """FINDING 2: a CLI exam must take the same single-process lock the web
+    server holds over the sessions root, so the two can never evaluate over
+    Ollama at once.
+    """
+    from opic.web.serve import LockedError, claim_the_lock
+
+    root = tmp_path / "sessions"
+    claim_the_lock(root)  # simulate a running server: the current pid is alive
+
+    with pytest.raises(LockedError):
+        run_it(root / "session", tmp_path)
+
+
 def survey_json(tmp_path, **overrides) -> Path:
     answers = valid_answers()
     payload = {
@@ -232,3 +275,33 @@ def test_a_scoring_failure_prints_one_line_instead_of_a_traceback(
     out = capsys.readouterr().out
     assert "Traceback" not in out
     assert "error: no answer could be scored" in out
+
+
+def test_a_locked_session_root_prints_one_line_instead_of_the_ollama_message(
+    tmp_path, monkeypatch, capsys
+):
+    """FINDING 2: `LockedError` is a `RuntimeError`, but the generic
+    `RuntimeError` handler's "this usually means Ollama stopped answering"
+    follow-up would be a misleading message for a lock conflict — it must get
+    its own, accurate message instead.
+    """
+    import opic.cli as cli
+    from opic.web.serve import LockedError
+
+    def failing_run_exam(**kwargs):
+        raise LockedError("a server is already running on ... (pid 123)")
+
+    monkeypatch.setattr(cli, "run_exam", failing_run_exam)
+
+    exit_code = cli.main(
+        [
+            "--survey", str(survey_json(tmp_path)),
+            "--level", "4",
+            "--session", str(tmp_path / "session"),
+        ]
+    )
+
+    assert exit_code == 1
+    out = capsys.readouterr().out
+    assert "error: a server is already running" in out
+    assert "Ollama stopped answering" not in out

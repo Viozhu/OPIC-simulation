@@ -22,13 +22,21 @@ export async function render(state, {api, show}) {
   const submit = document.createElement("button");
   submit.type = "submit";
   submit.textContent = "다음";
-  form.append(box, submit);
+  const status = document.createElement("p");
+  status.className = "issues";
+  form.append(box, submit, status);
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     submit.disabled = true;
+    status.textContent = "";
     const level = Number(new FormData(form).get("level"));
-    await show(await api.send("PUT", `/api/sessions/${state.id}/level`, {level}));
+    try {
+      await show(await api.send("PUT", `/api/sessions/${state.id}/level`, {level}));
+    } catch (error) {
+      status.textContent = "서버와 연결할 수 없습니다. 다시 시도해 주세요.";
+      submit.disabled = false;
+    }
   });
 
   document.getElementById("app").append(form);

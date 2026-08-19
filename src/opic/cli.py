@@ -22,6 +22,7 @@ from opic.core.survey import (
 from opic.session import assessments, store
 from opic.session.state import AnswerRecord, AnswerState, SessionState
 from opic.session.worker import Task, Worker
+from opic.web.serve import LockedError, claim_the_lock
 
 ANSWER_SECONDS = 90
 
@@ -69,6 +70,15 @@ def run_exam(
     split into the sessions root and the session id so `store` and `Worker` —
     which think in those terms — can be handed the exact layout the CLI already
     wrote.
+
+    Two guards protect a directory that already holds a finished (or
+    in-progress) exam: this refuses to run at all if `session_dir` already has
+    a `session.json` — reusing one silently overwrote it while leaving the
+    previous run's `answer-NN.json` files behind, which used to make a second,
+    broken exam report the FIRST exam's grade — and it takes the same
+    single-process lock the web server holds over `root`, so a CLI exam can
+    never run concurrently with a server evaluating over the same sessions
+    folder.
     """
     issues = validate_survey(answers)
     if issues:
@@ -77,6 +87,17 @@ def run_exam(
 
     root = session_dir.parent
     session_id = session_dir.name
+
+    existing = session_dir / store.SESSION_FILE
+    if existing.exists():
+        raise ValueError(
+            f"{session_dir} already holds a session ({existing}); "
+            "pass a different --session, or its previous answers and result "
+            "will be mixed up with this run's"
+        )
+
+    claim_the_lock(root)
+
     worker = Worker(root=root, tts=tts, stt=stt, writer=writer, rater=rater)
 
     session_dir.mkdir(parents=True, exist_ok=True)
@@ -111,7 +132,7 @@ def run_exam(
     worker.drain()
 
     state = store.load(root, session_id)
-    judged = assessments.read_all_answers(root, session_id, state.questions)
+    judged = assessments.read_all_answers(root, session_id, state)
     if not judged:
         raise RuntimeError("no answer could be scored; is Ollama running?")
     print(f"  채점 {len(judged)} / {len(state.questions)}")
@@ -212,6 +233,9 @@ def main(argv: list[str] | None = None) -> int:
     except urllib.error.URLError as exc:
         print(f"error: cannot reach Ollama at {config.OLLAMA_URL} ({exc.reason}).")
         print(f"       start it with `ollama serve` and pull {config.OLLAMA_MODEL}.")
+        return 1
+    except LockedError as exc:
+        print(f"error: {exc}")
         return 1
     except RuntimeError as exc:
         print(f"error: {exc}")

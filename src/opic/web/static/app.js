@@ -69,8 +69,19 @@ async function boot() {
     }
   }
   if (!state) {
-    state = await api.send("POST", "/api/sessions", {});
-    localStorage.setItem("opic.session", state.id);
+    try {
+      state = await api.send("POST", "/api/sessions", {});
+      localStorage.setItem("opic.session", state.id);
+    } catch (error) {
+      // The server is unreachable at load — leaving "불러오는 중…" up forever
+      // would look identical to a page that just never loaded.
+      root.textContent = "서버와 연결할 수 없습니다. ";
+      const reload = document.createElement("button");
+      reload.textContent = "새로고침";
+      reload.addEventListener("click", () => window.location.reload());
+      root.append(reload);
+      return;
+    }
   }
   await show(state);
 }

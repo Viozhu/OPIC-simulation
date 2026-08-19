@@ -11,7 +11,7 @@ from opic.core.rubric import DIMENSION_LABELS_KO, ActflLevel, Dimension
 from opic.core.scoring import AnswerAssessment, DimensionScore, Evidence
 from opic.core.transcript import Span, Transcript, Word
 from opic.session import assessments as sut
-from opic.session.state import QuestionRecord
+from opic.session.state import AnswerRecord, AnswerState, QuestionRecord, SessionState, Step
 
 
 def a_record(index: int, advanced: bool = False) -> QuestionRecord:
@@ -63,6 +63,27 @@ def an_assessment(index: int) -> AnswerAssessment:
     )
 
 
+def a_state(questions: tuple[QuestionRecord, ...], scored: set[int]) -> SessionState:
+    """A session whose questions exist, with the given indices SCORED and
+    every other index left PENDING."""
+    answers = tuple(
+        AnswerRecord(
+            index=q.index,
+            state=AnswerState.SCORED if q.index in scored else AnswerState.PENDING,
+        )
+        for q in questions
+    )
+    return SessionState(
+        id="s",
+        step=Step.GRADING,
+        seed=1,
+        survey=None,
+        self_assess_level=4,
+        questions=questions,
+        answers=answers,
+    )
+
+
 def test_a_record_becomes_the_question_core_expects():
     question = sut.question_from_record(a_record(2))
     assert isinstance(question, Question)
@@ -91,11 +112,46 @@ def test_the_saved_file_is_readable_by_a_human(tmp_path: Path):
     assert payload["scores"][0]["comment_ko"] == "문장이 짧습니다."
 
 
-def test_reading_them_all_skips_the_ones_not_written_yet(tmp_path: Path):
+def test_reading_them_all_skips_answers_not_yet_scored(tmp_path: Path):
     questions = (a_record(0), a_record(1))
     sut.write_answer(tmp_path, "s", an_assessment(0))
-    loaded = sut.read_all_answers(tmp_path, "s", questions)
+    state = a_state(questions, scored={0})
+    loaded = sut.read_all_answers(tmp_path, "s", state)
     assert [a.question_index for a in loaded] == [0]
+
+
+def test_reading_them_all_ignores_stale_files_from_a_previous_run(tmp_path: Path):
+    """A second exam into the same directory overwrites `session.json` but
+    leaves the previous run's `answer-NN.json` files on disk. Selection has to
+    go by the CURRENT state (SCORED), not by which files happen to exist —
+    otherwise a fresh exam whose rater failed every call would silently pick
+    up the previous exam's answers and report ITS level instead.
+    """
+    questions = (a_record(0), a_record(1), a_record(2))
+    for record in questions:
+        sut.write_answer(tmp_path, "s", an_assessment(record.index))
+
+    # Every answer in THIS run failed, even though their files still exist
+    # from a previous run.
+    state = a_state(questions, scored=set())
+    loaded = sut.read_all_answers(tmp_path, "s", state)
+    assert loaded == ()
+
+
+def test_stale_answer_files_do_not_survive_into_a_new_aggregate(tmp_path: Path):
+    """Same scenario, run through the exact path `_aggregate` and `run_exam`
+    use: write the files, mark every answer FAILED, then aggregate. It must
+    not produce a level from the stale files — aggregating zero answers is an
+    error, not a grade.
+    """
+    questions = (a_record(0), a_record(1), a_record(2))
+    for record in questions:
+        sut.write_answer(tmp_path, "s", an_assessment(record.index))
+
+    state = a_state(questions, scored=set())
+    judged = sut.read_all_answers(tmp_path, "s", state)
+    with pytest.raises(ValueError):
+        sut.aggregate_available(questions, judged)
 
 
 def test_aggregating_uses_only_the_answers_that_exist():

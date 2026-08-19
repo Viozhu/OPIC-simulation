@@ -87,7 +87,13 @@ export async function render(state, {api, show}) {
     // chunk is in — recorder.js owns that now, so there is nothing left to
     // stop here.
     await session.stop();
-    await show(await api.send("POST", `/api/sessions/${state.id}/step`, {step: "test"}));
+    try {
+      await show(await api.send("POST", `/api/sessions/${state.id}/step`, {step: "test"}));
+    } catch (error) {
+      status.textContent = "서버와 연결할 수 없습니다. 다시 시도해 주세요.";
+      status.className = "issues";
+      next.disabled = false;
+    }
   });
 
   app.append(heading, note, questionText, start, status, next);

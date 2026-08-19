@@ -21,6 +21,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from opic.core.metrics import compute_metrics
+from opic.core.ports import QuestionWriter, Rater, SpeechToText, TextToSpeech
 from opic.core.questions import build_blueprint
 from opic.core.scoring import AnswerAssessment
 from opic.session import assessments as answers_on_disk
@@ -51,10 +52,10 @@ class Worker:
     def __init__(
         self,
         root: Path,
-        tts,
-        stt,
-        writer,
-        rater,
+        tts: TextToSpeech,
+        stt: SpeechToText,
+        writer: QuestionWriter,
+        rater: Rater,
         retries: int = 3,
         sleeper: Callable[[float], None] = time.sleep,
         join_timeout: float = 5.0,
@@ -93,7 +94,13 @@ class Worker:
         self._queue.put(task)
 
     def drain(self) -> None:
-        """Run every queued task in this thread. Used by tests and by `resume`."""
+        """Run every queued task in this thread, synchronously.
+
+        Used by tests (and by the CLI exam, which drives the worker without a
+        background thread); `resume()` only re-`submit`s tasks onto the queue,
+        it never calls this itself — whoever starts the worker afterwards
+        (`start()` or a test's own `drain()`) is what actually runs them.
+        """
         while True:
             try:
                 task = self._queue.get_nowait()
@@ -278,7 +285,7 @@ class Worker:
 
     def _aggregate(self, session_id: str) -> None:
         state = store.load(self._root, session_id)
-        judged = answers_on_disk.read_all_answers(self._root, session_id, state.questions)
+        judged = answers_on_disk.read_all_answers(self._root, session_id, state)
         if not judged:
             return
         result = answers_on_disk.aggregate_available(state.questions, judged)
