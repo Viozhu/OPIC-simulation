@@ -1,0 +1,1857 @@
+{
+  "_note": "Real faster-whisper medium output over evidence/sample-answer.wav (90s, 16kHz mono). Ground truth reported by the speaker: 'we was', dropped subjects, 'we take a bath' (meaning: went swimming). Kept as a fixture so adapter and metrics tests run against real speech, not invented data.",
+  "audio": "evidence/sample-answer.wav",
+  "model": "faster-whisper medium, int8, cpu",
+  "configs": {
+    "default": {
+      "options": "language=en, word_timestamps=True",
+      "text": "Hello, I will tell you about my memory trip I took, I think the most memorable trip was when I visited Jeju-do, Jeju-do is a island in South Korea and I visited there with my girlfriend at the moment, it was honestly an amazing experience because Jeju-do is like Hawaii but in Korea something like that and honestly it was so beautiful everything was new for me so it was amazing, I think the most memorable part was just stay there, we saw the sunset together and I remember we bought some beers so we just sit in there, see the sunset and honestly it was a wonderful afternoon we spent together and after that I remember we came to the hotel and we ate some barbecue where it was amazing so delicious and after that in our room we had a jacuzzi so we take a bath there and just relax in",
+      "words": [
+        {
+          "text": " Hello,",
+          "start": 3.9800000000000004,
+          "end": 4.82,
+          "probability": 0.3855908215045929
+        },
+        {
+          "text": " I",
+          "start": 4.92,
+          "end": 5.14,
+          "probability": 0.9663722515106201
+        },
+        {
+          "text": " will",
+          "start": 5.14,
+          "end": 5.44,
+          "probability": 0.9836785197257996
+        },
+        {
+          "text": " tell",
+          "start": 5.44,
+          "end": 5.68,
+          "probability": 0.9975435137748718
+        },
+        {
+          "text": " you",
+          "start": 5.68,
+          "end": 5.9,
+          "probability": 0.9941946864128113
+        },
+        {
+          "text": " about",
+          "start": 5.9,
+          "end": 6.32,
+          "probability": 0.9954274892807007
+        },
+        {
+          "text": " my",
+          "start": 6.32,
+          "end": 7.1,
+          "probability": 0.989186704158783
+        },
+        {
+          "text": " memory",
+          "start": 7.1,
+          "end": 7.5,
+          "probability": 0.9717661738395691
+        },
+        {
+          "text": " trip",
+          "start": 7.5,
+          "end": 7.88,
+          "probability": 0.972405195236206
+        },
+        {
+          "text": " I",
+          "start": 7.88,
+          "end": 8.4,
+          "probability": 0.8087372779846191
+        },
+        {
+          "text": " took,",
+          "start": 8.4,
+          "end": 8.78,
+          "probability": 0.9819740056991577
+        },
+        {
+          "text": " I",
+          "start": 9.74,
+          "end": 9.74,
+          "probability": 0.9778949618339539
+        },
+        {
+          "text": " think",
+          "start": 9.74,
+          "end": 10.22,
+          "probability": 0.9925441741943359
+        },
+        {
+          "text": " the",
+          "start": 10.22,
+          "end": 11.2,
+          "probability": 0.9230815768241882
+        },
+        {
+          "text": " most",
+          "start": 11.2,
+          "end": 11.56,
+          "probability": 0.9548589587211609
+        },
+        {
+          "text": " memorable",
+          "start": 11.56,
+          "end": 12.24,
+          "probability": 0.8919687867164612
+        },
+        {
+          "text": " trip",
+          "start": 12.24,
+          "end": 12.62,
+          "probability": 0.816019594669342
+        },
+        {
+          "text": " was",
+          "start": 12.62,
+          "end": 14.28,
+          "probability": 0.9759899377822876
+        },
+        {
+          "text": " when",
+          "start": 14.540000000000001,
+          "end": 14.96,
+          "probability": 0.336142897605896
+        },
+        {
+          "text": " I",
+          "start": 14.96,
+          "end": 15.5,
+          "probability": 0.9850929379463196
+        },
+        {
+          "text": " visited",
+          "start": 15.5,
+          "end": 16.26,
+          "probability": 0.968176543712616
+        },
+        {
+          "text": " Jeju",
+          "start": 16.26,
+          "end": 16.82,
+          "probability": 0.8742189407348633
+        },
+        {
+          "text": "-do,",
+          "start": 16.82,
+          "end": 17.48,
+          "probability": 0.8209426999092102
+        },
+        {
+          "text": " Jeju",
+          "start": 17.64,
+          "end": 17.88,
+          "probability": 0.8727582693099976
+        },
+        {
+          "text": "-do",
+          "start": 17.88,
+          "end": 18.16,
+          "probability": 0.9515476226806641
+        },
+        {
+          "text": " is",
+          "start": 18.16,
+          "end": 18.4,
+          "probability": 0.9640272259712219
+        },
+        {
+          "text": " a",
+          "start": 18.4,
+          "end": 19.02,
+          "probability": 0.185683935880661
+        },
+        {
+          "text": " island",
+          "start": 19.02,
+          "end": 19.44,
+          "probability": 0.7911058068275452
+        },
+        {
+          "text": " in",
+          "start": 19.44,
+          "end": 19.66,
+          "probability": 0.9474068284034729
+        },
+        {
+          "text": " South",
+          "start": 19.66,
+          "end": 19.98,
+          "probability": 0.9451735615730286
+        },
+        {
+          "text": " Korea",
+          "start": 19.98,
+          "end": 20.54,
+          "probability": 0.9870936274528503
+        },
+        {
+          "text": " and",
+          "start": 20.54,
+          "end": 21.16,
+          "probability": 0.6687681078910828
+        },
+        {
+          "text": " I",
+          "start": 21.16,
+          "end": 21.32,
+          "probability": 0.9829946756362915
+        },
+        {
+          "text": " visited",
+          "start": 21.32,
+          "end": 21.64,
+          "probability": 0.6839309930801392
+        },
+        {
+          "text": " there",
+          "start": 21.64,
+          "end": 21.98,
+          "probability": 0.9782147407531738
+        },
+        {
+          "text": " with",
+          "start": 21.98,
+          "end": 22.74,
+          "probability": 0.9871403574943542
+        },
+        {
+          "text": " my",
+          "start": 22.74,
+          "end": 23.96,
+          "probability": 0.9849706292152405
+        },
+        {
+          "text": " girlfriend",
+          "start": 23.96,
+          "end": 24.44,
+          "probability": 0.09791601449251175
+        },
+        {
+          "text": " at",
+          "start": 24.44,
+          "end": 24.7,
+          "probability": 0.960391104221344
+        },
+        {
+          "text": " the",
+          "start": 24.7,
+          "end": 24.86,
+          "probability": 0.9785028696060181
+        },
+        {
+          "text": " moment,",
+          "start": 24.86,
+          "end": 25.52,
+          "probability": 0.9977757334709167
+        },
+        {
+          "text": " it",
+          "start": 26.8,
+          "end": 26.96,
+          "probability": 0.6335049867630005
+        },
+        {
+          "text": " was",
+          "start": 26.96,
+          "end": 27.68,
+          "probability": 0.9893966317176819
+        },
+        {
+          "text": " honestly",
+          "start": 27.68,
+          "end": 28.46,
+          "probability": 0.9092636108398438
+        },
+        {
+          "text": " an",
+          "start": 28.46,
+          "end": 28.94,
+          "probability": 0.8129503726959229
+        },
+        {
+          "text": " amazing",
+          "start": 28.94,
+          "end": 29.56,
+          "probability": 0.9938451647758484
+        },
+        {
+          "text": " experience",
+          "start": 29.56,
+          "end": 30.68,
+          "probability": 0.9952154159545898
+        },
+        {
+          "text": " because",
+          "start": 30.68,
+          "end": 32.7,
+          "probability": 0.8528304100036621
+        },
+        {
+          "text": " Jeju",
+          "start": 32.7,
+          "end": 33.12,
+          "probability": 0.8468044996261597
+        },
+        {
+          "text": "-do",
+          "start": 33.12,
+          "end": 33.52,
+          "probability": 0.6145598590373993
+        },
+        {
+          "text": " is",
+          "start": 33.52,
+          "end": 35.06,
+          "probability": 0.9499906897544861
+        },
+        {
+          "text": " like",
+          "start": 35.06,
+          "end": 35.66,
+          "probability": 0.9208068251609802
+        },
+        {
+          "text": " Hawaii",
+          "start": 35.66,
+          "end": 36.28,
+          "probability": 0.9365562796592712
+        },
+        {
+          "text": " but",
+          "start": 36.28,
+          "end": 36.58,
+          "probability": 0.3885081112384796
+        },
+        {
+          "text": " in",
+          "start": 36.58,
+          "end": 36.76,
+          "probability": 0.9863077998161316
+        },
+        {
+          "text": " Korea",
+          "start": 36.76,
+          "end": 37.2,
+          "probability": 0.9793204069137573
+        },
+        {
+          "text": " something",
+          "start": 37.2,
+          "end": 37.6,
+          "probability": 0.563274621963501
+        },
+        {
+          "text": " like",
+          "start": 37.6,
+          "end": 37.88,
+          "probability": 0.9967093467712402
+        },
+        {
+          "text": " that",
+          "start": 37.88,
+          "end": 39.04,
+          "probability": 0.9944378137588501
+        },
+        {
+          "text": " and",
+          "start": 39.04,
+          "end": 40.12,
+          "probability": 0.7303794622421265
+        },
+        {
+          "text": " honestly",
+          "start": 40.12,
+          "end": 40.74,
+          "probability": 0.9792101979255676
+        },
+        {
+          "text": " it",
+          "start": 40.74,
+          "end": 40.86,
+          "probability": 0.5326126217842102
+        },
+        {
+          "text": " was",
+          "start": 40.86,
+          "end": 41.02,
+          "probability": 0.9971555471420288
+        },
+        {
+          "text": " so",
+          "start": 41.02,
+          "end": 41.26,
+          "probability": 0.9803407192230225
+        },
+        {
+          "text": " beautiful",
+          "start": 41.26,
+          "end": 41.74,
+          "probability": 0.9992497563362122
+        },
+        {
+          "text": " everything",
+          "start": 41.74,
+          "end": 42.28,
+          "probability": 0.7507957816123962
+        },
+        {
+          "text": " was",
+          "start": 42.28,
+          "end": 42.64,
+          "probability": 0.9978044629096985
+        },
+        {
+          "text": " new",
+          "start": 42.64,
+          "end": 42.64,
+          "probability": 0.004274420905858278
+        },
+        {
+          "text": " for",
+          "start": 42.64,
+          "end": 43.08,
+          "probability": 0.7890722155570984
+        },
+        {
+          "text": " me",
+          "start": 43.08,
+          "end": 44.28,
+          "probability": 0.9944248199462891
+        },
+        {
+          "text": " so",
+          "start": 44.28,
+          "end": 44.98,
+          "probability": 0.5034497976303101
+        },
+        {
+          "text": " it",
+          "start": 44.98,
+          "end": 45.12,
+          "probability": 0.4406432807445526
+        },
+        {
+          "text": " was",
+          "start": 45.12,
+          "end": 45.38,
+          "probability": 0.9940548539161682
+        },
+        {
+          "text": " amazing,",
+          "start": 45.38,
+          "end": 46.18,
+          "probability": 0.9855355024337769
+        },
+        {
+          "text": " I",
+          "start": 46.52,
+          "end": 46.58,
+          "probability": 0.7956998944282532
+        },
+        {
+          "text": " think",
+          "start": 46.58,
+          "end": 46.76,
+          "probability": 0.9884850978851318
+        },
+        {
+          "text": " the",
+          "start": 46.76,
+          "end": 46.92,
+          "probability": 0.9895346760749817
+        },
+        {
+          "text": " most",
+          "start": 46.92,
+          "end": 47.24,
+          "probability": 0.9965167045593262
+        },
+        {
+          "text": " memorable",
+          "start": 47.24,
+          "end": 48.22,
+          "probability": 0.9192839860916138
+        },
+        {
+          "text": " part",
+          "start": 48.22,
+          "end": 48.74,
+          "probability": 0.9776991605758667
+        },
+        {
+          "text": " was",
+          "start": 48.74,
+          "end": 50.42,
+          "probability": 0.9744760990142822
+        },
+        {
+          "text": " just",
+          "start": 50.42,
+          "end": 52.56,
+          "probability": 0.3982585370540619
+        },
+        {
+          "text": " stay",
+          "start": 52.56,
+          "end": 52.94,
+          "probability": 0.4558948576450348
+        },
+        {
+          "text": " there,",
+          "start": 52.94,
+          "end": 53.42,
+          "probability": 0.9904666543006897
+        },
+        {
+          "text": " we",
+          "start": 53.92,
+          "end": 54.22,
+          "probability": 0.9725689888000488
+        },
+        {
+          "text": " saw",
+          "start": 54.22,
+          "end": 54.4,
+          "probability": 0.9736169576644897
+        },
+        {
+          "text": " the",
+          "start": 54.4,
+          "end": 54.66,
+          "probability": 0.9876157641410828
+        },
+        {
+          "text": " sunset",
+          "start": 54.66,
+          "end": 55.0,
+          "probability": 0.9844945073127747
+        },
+        {
+          "text": " together",
+          "start": 55.0,
+          "end": 55.82,
+          "probability": 0.9905045628547668
+        },
+        {
+          "text": " and",
+          "start": 55.82,
+          "end": 58.06,
+          "probability": 0.8491492867469788
+        },
+        {
+          "text": " I",
+          "start": 58.06,
+          "end": 58.36,
+          "probability": 0.9597322940826416
+        },
+        {
+          "text": " remember",
+          "start": 58.36,
+          "end": 58.68,
+          "probability": 0.974013090133667
+        },
+        {
+          "text": " we",
+          "start": 58.68,
+          "end": 59.34,
+          "probability": 0.9877542853355408
+        },
+        {
+          "text": " bought",
+          "start": 59.34,
+          "end": 59.62,
+          "probability": 0.9685870409011841
+        },
+        {
+          "text": " some",
+          "start": 59.62,
+          "end": 59.98,
+          "probability": 0.9954804182052612
+        },
+        {
+          "text": " beers",
+          "start": 59.98,
+          "end": 60.44,
+          "probability": 0.9906076192855835
+        },
+        {
+          "text": " so",
+          "start": 60.44,
+          "end": 61.6,
+          "probability": 0.7795031070709229
+        },
+        {
+          "text": " we",
+          "start": 61.6,
+          "end": 61.82,
+          "probability": 0.9480770826339722
+        },
+        {
+          "text": " just",
+          "start": 61.82,
+          "end": 62.02,
+          "probability": 0.8655591607093811
+        },
+        {
+          "text": " sit",
+          "start": 62.02,
+          "end": 62.24,
+          "probability": 0.5676913261413574
+        },
+        {
+          "text": " in",
+          "start": 62.24,
+          "end": 62.44,
+          "probability": 0.789832592010498
+        },
+        {
+          "text": " there,",
+          "start": 62.44,
+          "end": 62.94,
+          "probability": 0.9355994462966919
+        },
+        {
+          "text": " see",
+          "start": 63.06,
+          "end": 63.24,
+          "probability": 0.834315299987793
+        },
+        {
+          "text": " the",
+          "start": 63.24,
+          "end": 63.46,
+          "probability": 0.9947338104248047
+        },
+        {
+          "text": " sunset",
+          "start": 63.46,
+          "end": 64.3,
+          "probability": 0.9817905426025391
+        },
+        {
+          "text": " and",
+          "start": 64.3,
+          "end": 65.16,
+          "probability": 0.8809036612510681
+        },
+        {
+          "text": " honestly",
+          "start": 65.16,
+          "end": 65.54,
+          "probability": 0.9920942187309265
+        },
+        {
+          "text": " it",
+          "start": 65.54,
+          "end": 65.6,
+          "probability": 0.20692352950572968
+        },
+        {
+          "text": " was",
+          "start": 65.6,
+          "end": 65.9,
+          "probability": 0.9962723255157471
+        },
+        {
+          "text": " a",
+          "start": 65.9,
+          "end": 66.08,
+          "probability": 0.9660526514053345
+        },
+        {
+          "text": " wonderful",
+          "start": 66.08,
+          "end": 67.76,
+          "probability": 0.9383861422538757
+        },
+        {
+          "text": " afternoon",
+          "start": 67.76,
+          "end": 68.9,
+          "probability": 0.43393394351005554
+        },
+        {
+          "text": " we",
+          "start": 68.9,
+          "end": 69.88,
+          "probability": 0.7954766154289246
+        },
+        {
+          "text": " spent",
+          "start": 69.88,
+          "end": 70.22,
+          "probability": 0.9306087493896484
+        },
+        {
+          "text": " together",
+          "start": 70.22,
+          "end": 70.62,
+          "probability": 0.9950824975967407
+        },
+        {
+          "text": " and",
+          "start": 70.62,
+          "end": 70.86,
+          "probability": 0.8625878095626831
+        },
+        {
+          "text": " after",
+          "start": 70.86,
+          "end": 71.16,
+          "probability": 0.9903489351272583
+        },
+        {
+          "text": " that",
+          "start": 71.16,
+          "end": 71.96,
+          "probability": 0.994783341884613
+        },
+        {
+          "text": " I",
+          "start": 71.96,
+          "end": 72.28,
+          "probability": 0.6986570954322815
+        },
+        {
+          "text": " remember",
+          "start": 72.28,
+          "end": 72.7,
+          "probability": 0.898476243019104
+        },
+        {
+          "text": " we",
+          "start": 72.7,
+          "end": 72.96,
+          "probability": 0.9475502371788025
+        },
+        {
+          "text": " came",
+          "start": 72.96,
+          "end": 73.26,
+          "probability": 0.2812710404396057
+        },
+        {
+          "text": " to",
+          "start": 73.26,
+          "end": 74.94,
+          "probability": 0.979534924030304
+        },
+        {
+          "text": " the",
+          "start": 74.94,
+          "end": 75.2,
+          "probability": 0.984993577003479
+        },
+        {
+          "text": " hotel",
+          "start": 75.2,
+          "end": 75.92,
+          "probability": 0.6008285284042358
+        },
+        {
+          "text": " and",
+          "start": 76.62,
+          "end": 77.28,
+          "probability": 0.916123628616333
+        },
+        {
+          "text": " we",
+          "start": 77.28,
+          "end": 77.7,
+          "probability": 0.9881402254104614
+        },
+        {
+          "text": " ate",
+          "start": 77.7,
+          "end": 77.94,
+          "probability": 0.7833607196807861
+        },
+        {
+          "text": " some",
+          "start": 77.94,
+          "end": 78.26,
+          "probability": 0.9697317481040955
+        },
+        {
+          "text": " barbecue",
+          "start": 78.26,
+          "end": 78.86,
+          "probability": 0.5795067548751831
+        },
+        {
+          "text": " where",
+          "start": 78.86,
+          "end": 79.2,
+          "probability": 0.8202968239784241
+        },
+        {
+          "text": " it",
+          "start": 79.2,
+          "end": 79.46,
+          "probability": 0.41723209619522095
+        },
+        {
+          "text": " was",
+          "start": 79.46,
+          "end": 79.72,
+          "probability": 0.9981003403663635
+        },
+        {
+          "text": " amazing",
+          "start": 79.72,
+          "end": 80.34,
+          "probability": 0.9863568544387817
+        },
+        {
+          "text": " so",
+          "start": 80.34,
+          "end": 80.82,
+          "probability": 0.5706307291984558
+        },
+        {
+          "text": " delicious",
+          "start": 80.82,
+          "end": 81.42,
+          "probability": 0.9906408190727234
+        },
+        {
+          "text": " and",
+          "start": 81.42,
+          "end": 82.68,
+          "probability": 0.9086668491363525
+        },
+        {
+          "text": " after",
+          "start": 82.68,
+          "end": 83.14,
+          "probability": 0.9937845468521118
+        },
+        {
+          "text": " that",
+          "start": 83.14,
+          "end": 83.36,
+          "probability": 0.9907335042953491
+        },
+        {
+          "text": " in",
+          "start": 83.36,
+          "end": 83.64,
+          "probability": 0.944390058517456
+        },
+        {
+          "text": " our",
+          "start": 83.64,
+          "end": 83.88,
+          "probability": 0.8822734355926514
+        },
+        {
+          "text": " room",
+          "start": 83.88,
+          "end": 84.1,
+          "probability": 0.9898552894592285
+        },
+        {
+          "text": " we",
+          "start": 84.1,
+          "end": 84.38,
+          "probability": 0.9807115197181702
+        },
+        {
+          "text": " had",
+          "start": 84.38,
+          "end": 84.5,
+          "probability": 0.0012080332962796092
+        },
+        {
+          "text": " a",
+          "start": 84.5,
+          "end": 84.76,
+          "probability": 0.8596550226211548
+        },
+        {
+          "text": " jacuzzi",
+          "start": 84.76,
+          "end": 85.92,
+          "probability": 0.9062623232603073
+        },
+        {
+          "text": " so",
+          "start": 85.92,
+          "end": 86.6,
+          "probability": 0.48967045545578003
+        },
+        {
+          "text": " we",
+          "start": 86.6,
+          "end": 86.86,
+          "probability": 0.9357340931892395
+        },
+        {
+          "text": " take",
+          "start": 86.86,
+          "end": 87.12,
+          "probability": 0.9224386215209961
+        },
+        {
+          "text": " a",
+          "start": 87.12,
+          "end": 87.26,
+          "probability": 0.9794526100158691
+        },
+        {
+          "text": " bath",
+          "start": 87.26,
+          "end": 87.56,
+          "probability": 0.8883944749832153
+        },
+        {
+          "text": " there",
+          "start": 87.56,
+          "end": 88.16,
+          "probability": 0.9681546688079834
+        },
+        {
+          "text": " and",
+          "start": 88.16,
+          "end": 88.94,
+          "probability": 0.9357014894485474
+        },
+        {
+          "text": " just",
+          "start": 88.94,
+          "end": 89.22,
+          "probability": 0.9785692691802979
+        },
+        {
+          "text": " relax",
+          "start": 89.22,
+          "end": 89.66,
+          "probability": 0.7296872735023499
+        },
+        {
+          "text": " in",
+          "start": 89.66,
+          "end": 89.98,
+          "probability": 0.8871315121650696
+        }
+      ],
+      "duration_s": 90.0
+    },
+    "mitigated": {
+      "options": "language=en, word_timestamps=True, condition_on_previous_text=False, temperature=0.0",
+      "text": "Hello, I will tell you about my memory trip I took, I think the most memorable trip was when I visited Jeju-do, Jeju-do is a island in South Korea and I visited there with my girlfriend at the moment was honestly an amazing experience because Jeju is like Hawaii but in Korea something like that and honestly was so beautiful everything was new for me so was amazing I think the most part was just stay there we saw the sunset together and I remember we bought some beers so we just sit in there I see the sunset and honestly was a wonderful wonderful afternoon we spent together and after that I remember we to the the hotel and we eat some barbecue where was amazing so delicious and after that in our room we have a jacuzzi so we take a bath there and just relaxing",
+      "words": [
+        {
+          "text": " Hello,",
+          "start": 3.9800000000000004,
+          "end": 4.82,
+          "probability": 0.3855908215045929
+        },
+        {
+          "text": " I",
+          "start": 4.92,
+          "end": 5.14,
+          "probability": 0.9663722515106201
+        },
+        {
+          "text": " will",
+          "start": 5.14,
+          "end": 5.44,
+          "probability": 0.9836785197257996
+        },
+        {
+          "text": " tell",
+          "start": 5.44,
+          "end": 5.68,
+          "probability": 0.9975435137748718
+        },
+        {
+          "text": " you",
+          "start": 5.68,
+          "end": 5.9,
+          "probability": 0.9941946864128113
+        },
+        {
+          "text": " about",
+          "start": 5.9,
+          "end": 6.32,
+          "probability": 0.9954274892807007
+        },
+        {
+          "text": " my",
+          "start": 6.32,
+          "end": 7.1,
+          "probability": 0.989186704158783
+        },
+        {
+          "text": " memory",
+          "start": 7.1,
+          "end": 7.5,
+          "probability": 0.9717661738395691
+        },
+        {
+          "text": " trip",
+          "start": 7.5,
+          "end": 7.88,
+          "probability": 0.972405195236206
+        },
+        {
+          "text": " I",
+          "start": 7.88,
+          "end": 8.4,
+          "probability": 0.8087372779846191
+        },
+        {
+          "text": " took,",
+          "start": 8.4,
+          "end": 8.78,
+          "probability": 0.9819740056991577
+        },
+        {
+          "text": " I",
+          "start": 9.74,
+          "end": 9.74,
+          "probability": 0.9778949618339539
+        },
+        {
+          "text": " think",
+          "start": 9.74,
+          "end": 10.22,
+          "probability": 0.9925441741943359
+        },
+        {
+          "text": " the",
+          "start": 10.22,
+          "end": 11.2,
+          "probability": 0.9230815768241882
+        },
+        {
+          "text": " most",
+          "start": 11.2,
+          "end": 11.56,
+          "probability": 0.9548589587211609
+        },
+        {
+          "text": " memorable",
+          "start": 11.56,
+          "end": 12.24,
+          "probability": 0.8919687867164612
+        },
+        {
+          "text": " trip",
+          "start": 12.24,
+          "end": 12.62,
+          "probability": 0.816019594669342
+        },
+        {
+          "text": " was",
+          "start": 12.62,
+          "end": 14.28,
+          "probability": 0.9759899377822876
+        },
+        {
+          "text": " when",
+          "start": 14.540000000000001,
+          "end": 14.96,
+          "probability": 0.336142897605896
+        },
+        {
+          "text": " I",
+          "start": 14.96,
+          "end": 15.5,
+          "probability": 0.9850929379463196
+        },
+        {
+          "text": " visited",
+          "start": 15.5,
+          "end": 16.26,
+          "probability": 0.968176543712616
+        },
+        {
+          "text": " Jeju",
+          "start": 16.26,
+          "end": 16.82,
+          "probability": 0.8742189407348633
+        },
+        {
+          "text": "-do,",
+          "start": 16.82,
+          "end": 17.48,
+          "probability": 0.8209426999092102
+        },
+        {
+          "text": " Jeju",
+          "start": 17.64,
+          "end": 17.88,
+          "probability": 0.8727582693099976
+        },
+        {
+          "text": "-do",
+          "start": 17.88,
+          "end": 18.16,
+          "probability": 0.9515476226806641
+        },
+        {
+          "text": " is",
+          "start": 18.16,
+          "end": 18.4,
+          "probability": 0.9640272259712219
+        },
+        {
+          "text": " a",
+          "start": 18.4,
+          "end": 19.02,
+          "probability": 0.185683935880661
+        },
+        {
+          "text": " island",
+          "start": 19.02,
+          "end": 19.44,
+          "probability": 0.7911058068275452
+        },
+        {
+          "text": " in",
+          "start": 19.44,
+          "end": 19.66,
+          "probability": 0.9474068284034729
+        },
+        {
+          "text": " South",
+          "start": 19.66,
+          "end": 19.98,
+          "probability": 0.9451735615730286
+        },
+        {
+          "text": " Korea",
+          "start": 19.98,
+          "end": 20.54,
+          "probability": 0.9870936274528503
+        },
+        {
+          "text": " and",
+          "start": 20.54,
+          "end": 21.16,
+          "probability": 0.6687681078910828
+        },
+        {
+          "text": " I",
+          "start": 21.16,
+          "end": 21.32,
+          "probability": 0.9829946756362915
+        },
+        {
+          "text": " visited",
+          "start": 21.32,
+          "end": 21.64,
+          "probability": 0.6839309930801392
+        },
+        {
+          "text": " there",
+          "start": 21.64,
+          "end": 21.98,
+          "probability": 0.9782147407531738
+        },
+        {
+          "text": " with",
+          "start": 21.98,
+          "end": 22.74,
+          "probability": 0.9871403574943542
+        },
+        {
+          "text": " my",
+          "start": 22.74,
+          "end": 23.96,
+          "probability": 0.9849706292152405
+        },
+        {
+          "text": " girlfriend",
+          "start": 23.96,
+          "end": 24.44,
+          "probability": 0.09791601449251175
+        },
+        {
+          "text": " at",
+          "start": 24.44,
+          "end": 24.7,
+          "probability": 0.960391104221344
+        },
+        {
+          "text": " the",
+          "start": 24.7,
+          "end": 24.86,
+          "probability": 0.9785028696060181
+        },
+        {
+          "text": " moment",
+          "start": 24.86,
+          "end": 25.52,
+          "probability": 0.9977757334709167
+        },
+        {
+          "text": " was",
+          "start": 25.52,
+          "end": 27.38,
+          "probability": 0.16466161608695984
+        },
+        {
+          "text": " honestly",
+          "start": 27.38,
+          "end": 28.46,
+          "probability": 0.8952502608299255
+        },
+        {
+          "text": " an",
+          "start": 28.46,
+          "end": 28.96,
+          "probability": 0.7721389532089233
+        },
+        {
+          "text": " amazing",
+          "start": 28.96,
+          "end": 29.58,
+          "probability": 0.9899313449859619
+        },
+        {
+          "text": " experience",
+          "start": 29.58,
+          "end": 30.92,
+          "probability": 0.9917396306991577
+        },
+        {
+          "text": " because",
+          "start": 30.92,
+          "end": 32.72,
+          "probability": 0.8818052411079407
+        },
+        {
+          "text": " Jeju",
+          "start": 32.72,
+          "end": 33.12,
+          "probability": 0.7942025065422058
+        },
+        {
+          "text": " is",
+          "start": 33.12,
+          "end": 34.88,
+          "probability": 0.5941435098648071
+        },
+        {
+          "text": " like",
+          "start": 34.88,
+          "end": 35.68,
+          "probability": 0.9048260450363159
+        },
+        {
+          "text": " Hawaii",
+          "start": 35.68,
+          "end": 36.26,
+          "probability": 0.920157253742218
+        },
+        {
+          "text": " but",
+          "start": 36.26,
+          "end": 36.58,
+          "probability": 0.5227453112602234
+        },
+        {
+          "text": " in",
+          "start": 36.58,
+          "end": 36.76,
+          "probability": 0.9795702695846558
+        },
+        {
+          "text": " Korea",
+          "start": 36.76,
+          "end": 37.2,
+          "probability": 0.9745395183563232
+        },
+        {
+          "text": " something",
+          "start": 37.2,
+          "end": 37.6,
+          "probability": 0.6347581744194031
+        },
+        {
+          "text": " like",
+          "start": 37.6,
+          "end": 37.88,
+          "probability": 0.9958130717277527
+        },
+        {
+          "text": " that",
+          "start": 37.88,
+          "end": 39.04,
+          "probability": 0.9926089644432068
+        },
+        {
+          "text": " and",
+          "start": 39.04,
+          "end": 40.2,
+          "probability": 0.7306340336799622
+        },
+        {
+          "text": " honestly",
+          "start": 40.2,
+          "end": 40.74,
+          "probability": 0.978175163269043
+        },
+        {
+          "text": " was",
+          "start": 40.74,
+          "end": 41.02,
+          "probability": 0.6187722682952881
+        },
+        {
+          "text": " so",
+          "start": 41.02,
+          "end": 41.3,
+          "probability": 0.9656945466995239
+        },
+        {
+          "text": " beautiful",
+          "start": 41.3,
+          "end": 41.74,
+          "probability": 0.9986987113952637
+        },
+        {
+          "text": " everything",
+          "start": 41.74,
+          "end": 42.28,
+          "probability": 0.852802038192749
+        },
+        {
+          "text": " was",
+          "start": 42.28,
+          "end": 42.64,
+          "probability": 0.9975671768188477
+        },
+        {
+          "text": " new",
+          "start": 42.64,
+          "end": 42.82,
+          "probability": 0.9964120984077454
+        },
+        {
+          "text": " for",
+          "start": 42.82,
+          "end": 43.1,
+          "probability": 0.9945622086524963
+        },
+        {
+          "text": " me",
+          "start": 43.1,
+          "end": 44.24,
+          "probability": 0.9994248151779175
+        },
+        {
+          "text": " so",
+          "start": 44.24,
+          "end": 45.0,
+          "probability": 0.885351836681366
+        },
+        {
+          "text": " was",
+          "start": 45.0,
+          "end": 45.38,
+          "probability": 0.7404183149337769
+        },
+        {
+          "text": " amazing",
+          "start": 45.38,
+          "end": 46.14,
+          "probability": 0.9955471754074097
+        },
+        {
+          "text": " I",
+          "start": 46.14,
+          "end": 46.62,
+          "probability": 0.7308400869369507
+        },
+        {
+          "text": " think",
+          "start": 46.62,
+          "end": 46.72,
+          "probability": 0.9650700688362122
+        },
+        {
+          "text": " the",
+          "start": 46.72,
+          "end": 46.96,
+          "probability": 0.9953917264938354
+        },
+        {
+          "text": " most",
+          "start": 46.96,
+          "end": 47.22,
+          "probability": 0.9989307522773743
+        },
+        {
+          "text": " part",
+          "start": 47.22,
+          "end": 47.86,
+          "probability": 0.007441380061209202
+        },
+        {
+          "text": " was",
+          "start": 47.86,
+          "end": 50.56,
+          "probability": 0.7367357015609741
+        },
+        {
+          "text": " just",
+          "start": 50.56,
+          "end": 52.56,
+          "probability": 0.35001900792121887
+        },
+        {
+          "text": " stay",
+          "start": 52.56,
+          "end": 52.92,
+          "probability": 0.6278070211410522
+        },
+        {
+          "text": " there",
+          "start": 52.92,
+          "end": 53.42,
+          "probability": 0.988335907459259
+        },
+        {
+          "text": " we",
+          "start": 53.42,
+          "end": 54.06,
+          "probability": 0.490021288394928
+        },
+        {
+          "text": " saw",
+          "start": 54.06,
+          "end": 54.38,
+          "probability": 0.8285817503929138
+        },
+        {
+          "text": " the",
+          "start": 54.38,
+          "end": 54.66,
+          "probability": 0.9805864095687866
+        },
+        {
+          "text": " sunset",
+          "start": 54.66,
+          "end": 55.0,
+          "probability": 0.9783341884613037
+        },
+        {
+          "text": " together",
+          "start": 55.0,
+          "end": 55.76,
+          "probability": 0.9865086674690247
+        },
+        {
+          "text": " and",
+          "start": 55.76,
+          "end": 58.06,
+          "probability": 0.9339130520820618
+        },
+        {
+          "text": " I",
+          "start": 58.06,
+          "end": 58.38,
+          "probability": 0.8903413414955139
+        },
+        {
+          "text": " remember",
+          "start": 58.38,
+          "end": 58.66,
+          "probability": 0.9860144853591919
+        },
+        {
+          "text": " we",
+          "start": 58.66,
+          "end": 59.36,
+          "probability": 0.9945071339607239
+        },
+        {
+          "text": " bought",
+          "start": 59.36,
+          "end": 59.62,
+          "probability": 0.9809609651565552
+        },
+        {
+          "text": " some",
+          "start": 59.62,
+          "end": 59.96,
+          "probability": 0.9975621700286865
+        },
+        {
+          "text": " beers",
+          "start": 59.96,
+          "end": 60.44,
+          "probability": 0.9852994680404663
+        },
+        {
+          "text": " so",
+          "start": 60.44,
+          "end": 61.58,
+          "probability": 0.883222222328186
+        },
+        {
+          "text": " we",
+          "start": 61.58,
+          "end": 61.82,
+          "probability": 0.9837320446968079
+        },
+        {
+          "text": " just",
+          "start": 61.82,
+          "end": 62.04,
+          "probability": 0.856377124786377
+        },
+        {
+          "text": " sit",
+          "start": 62.04,
+          "end": 62.22,
+          "probability": 0.7304984927177429
+        },
+        {
+          "text": " in",
+          "start": 62.22,
+          "end": 62.44,
+          "probability": 0.9182366728782654
+        },
+        {
+          "text": " there",
+          "start": 62.44,
+          "end": 62.9,
+          "probability": 0.8294582962989807
+        },
+        {
+          "text": " I",
+          "start": 62.9,
+          "end": 63.16,
+          "probability": 0.11213710904121399
+        },
+        {
+          "text": " see",
+          "start": 63.16,
+          "end": 63.22,
+          "probability": 0.9418059587478638
+        },
+        {
+          "text": " the",
+          "start": 63.22,
+          "end": 63.52,
+          "probability": 0.992960512638092
+        },
+        {
+          "text": " sunset",
+          "start": 63.52,
+          "end": 64.2,
+          "probability": 0.9649268388748169
+        },
+        {
+          "text": " and",
+          "start": 64.2,
+          "end": 65.18,
+          "probability": 0.9796129465103149
+        },
+        {
+          "text": " honestly",
+          "start": 65.18,
+          "end": 65.56,
+          "probability": 0.995941698551178
+        },
+        {
+          "text": " was",
+          "start": 65.56,
+          "end": 65.88,
+          "probability": 0.814928412437439
+        },
+        {
+          "text": " a",
+          "start": 65.88,
+          "end": 66.14,
+          "probability": 0.9942001104354858
+        },
+        {
+          "text": " wonderful",
+          "start": 66.14,
+          "end": 67.56,
+          "probability": 0.9852100014686584
+        },
+        {
+          "text": " wonderful",
+          "start": 67.56,
+          "end": 68.26,
+          "probability": 0.53959059715271
+        },
+        {
+          "text": " afternoon",
+          "start": 68.26,
+          "end": 68.92,
+          "probability": 0.9798648357391357
+        },
+        {
+          "text": " we",
+          "start": 68.92,
+          "end": 69.9,
+          "probability": 0.9329186677932739
+        },
+        {
+          "text": " spent",
+          "start": 69.9,
+          "end": 70.2,
+          "probability": 0.890238881111145
+        },
+        {
+          "text": " together",
+          "start": 70.2,
+          "end": 70.6,
+          "probability": 0.9725481271743774
+        },
+        {
+          "text": " and",
+          "start": 70.6,
+          "end": 70.84,
+          "probability": 0.9260578751564026
+        },
+        {
+          "text": " after",
+          "start": 70.84,
+          "end": 71.18,
+          "probability": 0.9950593709945679
+        },
+        {
+          "text": " that",
+          "start": 71.18,
+          "end": 71.84,
+          "probability": 0.9961355924606323
+        },
+        {
+          "text": " I",
+          "start": 71.84,
+          "end": 72.3,
+          "probability": 0.9519668221473694
+        },
+        {
+          "text": " remember",
+          "start": 72.3,
+          "end": 72.68,
+          "probability": 0.9415180087089539
+        },
+        {
+          "text": " we",
+          "start": 72.68,
+          "end": 73.04,
+          "probability": 0.9872522354125977
+        },
+        {
+          "text": " to",
+          "start": 73.04,
+          "end": 73.42,
+          "probability": 0.5318870544433594
+        },
+        {
+          "text": " the",
+          "start": 73.42,
+          "end": 75.16,
+          "probability": 0.989200234413147
+        },
+        {
+          "text": " the",
+          "start": 75.16,
+          "end": 75.4,
+          "probability": 0.39378270506858826
+        },
+        {
+          "text": " hotel",
+          "start": 75.4,
+          "end": 75.92,
+          "probability": 0.98362135887146
+        },
+        {
+          "text": " and",
+          "start": 75.92,
+          "end": 77.18,
+          "probability": 0.9633157253265381
+        },
+        {
+          "text": " we",
+          "start": 77.18,
+          "end": 77.7,
+          "probability": 0.9961705803871155
+        },
+        {
+          "text": " eat",
+          "start": 77.7,
+          "end": 77.94,
+          "probability": 0.5925161838531494
+        },
+        {
+          "text": " some",
+          "start": 77.94,
+          "end": 78.22,
+          "probability": 0.9881263971328735
+        },
+        {
+          "text": " barbecue",
+          "start": 78.22,
+          "end": 78.84,
+          "probability": 0.8501520752906799
+        },
+        {
+          "text": " where",
+          "start": 78.84,
+          "end": 79.18,
+          "probability": 0.9091660380363464
+        },
+        {
+          "text": " was",
+          "start": 79.18,
+          "end": 79.7,
+          "probability": 0.8714144229888916
+        },
+        {
+          "text": " amazing",
+          "start": 79.7,
+          "end": 80.3,
+          "probability": 0.9902814626693726
+        },
+        {
+          "text": " so",
+          "start": 80.3,
+          "end": 80.82,
+          "probability": 0.8225436806678772
+        },
+        {
+          "text": " delicious",
+          "start": 80.82,
+          "end": 81.38,
+          "probability": 0.995815098285675
+        },
+        {
+          "text": " and",
+          "start": 81.38,
+          "end": 82.66,
+          "probability": 0.9358038306236267
+        },
+        {
+          "text": " after",
+          "start": 82.66,
+          "end": 83.1,
+          "probability": 0.9923617839813232
+        },
+        {
+          "text": " that",
+          "start": 83.1,
+          "end": 83.34,
+          "probability": 0.9656032919883728
+        },
+        {
+          "text": " in",
+          "start": 83.34,
+          "end": 83.62,
+          "probability": 0.9686092138290405
+        },
+        {
+          "text": " our",
+          "start": 83.62,
+          "end": 83.86,
+          "probability": 0.6524501442909241
+        },
+        {
+          "text": " room",
+          "start": 83.86,
+          "end": 84.1,
+          "probability": 0.992104172706604
+        },
+        {
+          "text": " we",
+          "start": 84.1,
+          "end": 84.36,
+          "probability": 0.9878178834915161
+        },
+        {
+          "text": " have",
+          "start": 84.36,
+          "end": 84.54,
+          "probability": 0.6040201783180237
+        },
+        {
+          "text": " a",
+          "start": 84.54,
+          "end": 84.78,
+          "probability": 0.9223303198814392
+        },
+        {
+          "text": " jacuzzi",
+          "start": 84.78,
+          "end": 85.9,
+          "probability": 0.8807307183742523
+        },
+        {
+          "text": " so",
+          "start": 85.9,
+          "end": 86.48,
+          "probability": 0.9414227604866028
+        },
+        {
+          "text": " we",
+          "start": 86.48,
+          "end": 86.86,
+          "probability": 0.9841769933700562
+        },
+        {
+          "text": " take",
+          "start": 86.86,
+          "end": 87.12,
+          "probability": 0.9843250513076782
+        },
+        {
+          "text": " a",
+          "start": 87.12,
+          "end": 87.28,
+          "probability": 0.9641060829162598
+        },
+        {
+          "text": " bath",
+          "start": 87.28,
+          "end": 87.54,
+          "probability": 0.9260351657867432
+        },
+        {
+          "text": " there",
+          "start": 87.54,
+          "end": 88.14,
+          "probability": 0.9631083011627197
+        },
+        {
+          "text": " and",
+          "start": 88.14,
+          "end": 88.92,
+          "probability": 0.9750911593437195
+        },
+        {
+          "text": " just",
+          "start": 88.92,
+          "end": 89.16,
+          "probability": 0.9911705255508423
+        },
+        {
+          "text": " relaxing",
+          "start": 89.16,
+          "end": 89.74,
+          "probability": 0.6837433576583862
+        }
+      ],
+      "duration_s": 90.0
+    }
+  }
+}
