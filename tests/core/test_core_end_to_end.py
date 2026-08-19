@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from opic.core.metrics import compute_metrics
-from opic.core.questions import EXAM_LENGTH, build_blueprint
+from opic.core.questions import EXAM_LENGTH, QuestionType, build_blueprint
 from opic.core.transcript import Span, Transcript, Word
 from opic.core.rubric import ActflLevel, Dimension
 from opic.core.scoring import (
@@ -85,3 +85,8 @@ def test_a_full_run_goes_from_survey_to_a_final_level():
     assert len(result.assessments) == EXAM_LENGTH
     assert result.pronunciation.indicative is True
     assert {dim for dim, _ in result.dimension_levels} == set(Dimension)
+    assert dict(result.by_type)[QuestionType.SELF_INTRO] is ActflLevel.IM2
+    assert len(result.by_topic) == len(
+        {slot.topic_id for slot in blueprint if slot.topic_id is not None}
+    )
+    assert result.level_for(Dimension.FLUENCY) is ActflLevel.IM2

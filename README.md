@@ -6,7 +6,9 @@ no audio or transcript ever leaves the computer.
 ## Status
 
 Phase 1 complete: the pure scoring and exam-planning engine under
-`src/opic/core/`. Adapters, web interface and report come next.
+`src/opic/core/`. Phase 2 Plan A complete: transcript types, speech-span
+metrics, and blueprint-aware aggregation. Adapters, web interface and report
+come next.
 
 ## Development
 

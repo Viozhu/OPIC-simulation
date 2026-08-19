@@ -46,4 +46,5 @@ def test_the_purity_guard_actually_reads_the_core_modules():
         "questions.py",
         "metrics.py",
         "scoring.py",
+        "transcript.py",
     } <= modules
