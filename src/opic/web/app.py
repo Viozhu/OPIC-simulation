@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from opic.core.selfassess import SELF_ASSESS_OPTIONS
 from opic.core.survey import (
     GROUP_LABELS_KO,
     GROUP_MINIMUMS,
@@ -197,6 +198,19 @@ def create_app(
             session_id, lambda s: advance(s.with_survey(answers), Step.LEVEL)
         )
         return session_json(state)
+
+    @app.get("/api/levels")
+    def levels() -> dict:
+        return {
+            "options": [
+                {
+                    "level": option.level,
+                    "description_ko": option.description_ko,
+                    "sample_audio_id": option.sample_audio_id,
+                }
+                for option in SELF_ASSESS_OPTIONS
+            ]
+        }
 
     @app.put("/api/sessions/{session_id}/level")
     def put_level(session_id: str, payload: LevelPayload):
