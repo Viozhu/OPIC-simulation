@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from opic.core.metrics import Word, compute_metrics
+from opic.core.metrics import compute_metrics
 from opic.core.questions import EXAM_LENGTH, build_blueprint
+from opic.core.transcript import Span, Transcript, Word
 from opic.core.rubric import ActflLevel, Dimension
 from opic.core.scoring import (
     AnswerAssessment,
@@ -40,11 +41,19 @@ def test_a_full_run_goes_from_survey_to_a_final_level():
     blueprint = build_blueprint(answers, self_assess_level=4, seed=42)
     assert len(blueprint) == EXAM_LENGTH
 
-    words = [
+    spoken = "I usually go to the beach on weekends".split()
+    words = tuple(
         Word(text=text, start=i * 0.4, end=i * 0.4 + 0.3, probability=0.88)
-        for i, text in enumerate("I usually go to the beach on weekends".split())
-    ]
-    metrics = compute_metrics(words, duration_s=30.0)
+        for i, text in enumerate(spoken)
+    )
+    metrics = compute_metrics(
+        Transcript(
+            text=" ".join(spoken),
+            words=words,
+            speech_spans=(Span(0.0, 3.1), Span(5.0, 8.0)),
+            duration_s=30.0,
+        )
+    )
 
     assessments = [
         AnswerAssessment(
