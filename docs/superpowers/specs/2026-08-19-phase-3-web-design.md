@@ -28,6 +28,7 @@ Fuera:
 
 - El informe presentable, con desglose por dimensiones, citas y proxy de
   pronunciación. Es la Fase 4.
+- Los audios de muestra del Self Assessment: no existe el material.
 - Histórico entre sesiones, SQLite, gráficas de progreso.
 - Multiusuario y autenticación. Un usuario, una máquina.
 
@@ -153,7 +154,12 @@ quiere el informe en vivo, se reconsidera entonces.
 1. **Survey.** Cuatro partes. Contador de doce ítems en vivo, como el original.
    La validación es la de `core/survey.py`; los errores se pintan junto a su
    campo.
-2. **Self Assessment.** Seis niveles con su audio de muestra. Al elegir, se
+2. **Self Assessment.** Seis niveles, cada uno con su descripción coreana. **Sin
+   audio de muestra**: el original acompaña cada nivel con una grabación de
+   ejemplo y no tenemos ese material —grabarlo son seis muestras de seis niveles
+   distintos de inglés hablado, que no es algo que esta fase pueda fabricar—. La
+   descripción es la que decide, como en el examen real. `sample_audio_id` ya
+   está en `SelfAssessOption` esperando a que existan. Al elegir, se
    encola la generación: blueprint, las quince preguntas en una llamada al
    escritor, y la síntesis de los quince audios.
 3. **Setup.** Prueba de micrófono: grabar, reproducir, confirmar. Aquí se pide
