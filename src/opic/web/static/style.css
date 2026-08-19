@@ -1,0 +1,45 @@
+:root {
+  --ink: #1b1b1f;
+  --paper: #fbfbfd;
+  --line: #d9d9e0;
+  --accent: #2f5d8a;
+  --warn: #9a3412;
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+header {
+  padding: 1.5rem 2rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+h1 { font-size: 1.25rem; margin: 0; }
+#step-label { color: #55555f; margin: 0.25rem 0 0; font-size: 0.9rem; }
+main { max-width: 46rem; margin: 0 auto; padding: 2rem; }
+
+fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 1.5rem; }
+legend { font-weight: 600; padding: 0 0.5rem; }
+label { display: block; padding: 0.25rem 0; }
+
+button {
+  font: inherit;
+  padding: 0.6rem 1.4rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+}
+button[disabled] { opacity: 0.45; cursor: not-allowed; }
+button.secondary { background: transparent; color: var(--accent); }
+
+.counter { font-variant-numeric: tabular-nums; font-weight: 600; }
+.counter.short { color: var(--warn); }
+.issues { color: var(--warn); }
+.recording { color: var(--warn); font-weight: 600; }

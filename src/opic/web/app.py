@@ -13,7 +13,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from opic.core.survey import (
@@ -72,6 +73,13 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="OPIc simulator")
     app.state.root = root
+
+    here = Path(__file__).parent
+    app.mount("/static", StaticFiles(directory=here / "static"), name="static")
+
+    @app.get("/", response_class=HTMLResponse)
+    def index() -> str:
+        return (here / "templates" / "index.html").read_text(encoding="utf-8")
 
     @app.exception_handler(TransitionError)
     async def transition_error_handler(request, exc: TransitionError):
