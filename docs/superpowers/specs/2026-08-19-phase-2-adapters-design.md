@@ -235,9 +235,9 @@ vigente sin cambios.
 
 Las tres implementaciones viven en `src/opic/adapters/`:
 
-- **`tts.py`** — Piper con la voz `en_US-lessac-medium`. La síntesis se cachea en
-  `data/tts_cache/<sha256(texto)>.wav`; una pregunta ya sintetizada no se vuelve
-  a generar nunca.
+- **`tts.py`** — el `say` de macOS con la voz `Samantha`, convertido a 16 kHz mono
+  con `ffmpeg`. La síntesis se cachea en `data/tts_cache/<sha256(texto)>.wav`; una
+  pregunta ya sintetizada no se vuelve a generar nunca. Ver 6 bis.
 - **`stt.py`** — faster-whisper `medium`, `int8`, con
   `condition_on_previous_text=False`, `temperature=0.0`, `word_timestamps=True`
   y `vad_filter=True`. El VAD es lo que alimenta `speech_spans`.
@@ -247,6 +247,22 @@ Las tres implementaciones viven en `src/opic/adapters/`:
   llevando un esquema JSON que obliga a las cinco dimensiones. El adaptador
   valida que cada cita aparezca literalmente en el transcript y descarta las que
   no; una cita inventada es peor que ninguna evidencia.
+
+## 6 bis. Por qué no Piper
+
+El diseño original fijaba Piper con la voz `en_US-lessac-medium`. Al probarlo,
+el paquete `piper-tts` instala correctamente en Python 3.13 sobre ARM pero su
+binario de espeak-ng lleva incrustada la ruta de datos de la máquina donde lo
+compilaron (`/Users/runner/work/piper1-gpl/...`). Falla en el import, antes de
+que ningún código propio pueda intervenir, y no lo redirigen ni la variable
+`ESPEAK_DATA_PATH` ni la API interna del paquete. Es un defecto de empaquetado
+suyo, no algo que se rodee limpiamente.
+
+`say` viene con macOS, sintetiza la frase de prueba en 0,9 segundos, ofrece 43
+voces inglesas y funciona sin conexión. A cambio, ata esta implementación a
+macOS. El coste es asumible porque todo lo demás también corre en local sobre
+esta máquina, y porque el adaptador queda detrás del puerto `TextToSpeech`:
+sustituirlo más adelante es reescribir un archivo, sin tocar el núcleo.
 
 ## 7. Modelos y configuración
 
@@ -269,6 +285,35 @@ la medición delante, no antes.
 Toda la configuración de modelos vive en un único módulo
 `adapters/config.py`, para que cambiar de modelo sea editar un valor y no
 buscar por el árbol.
+
+### 7.1 El contrato del detector de voz, que no es negociable
+
+`core/metrics.py` fija `PAUSE_THRESHOLD_S` en 0,5 segundos y calcula pausas y
+enunciados a partir de los tramos de voz. Los valores por defecto de
+faster-whisper —`min_silence_duration_ms=2000`, `speech_pad_ms=400`— nunca
+parten en silencios menores a dos segundos y añaden 0,4 s de relleno a cada
+lado. Bajo ellos no puede existir un hueco por debajo de 1,2 s, el umbral de
+fusión no dispara jamás, y las métricas vuelven exactamente a los valores
+inservibles que motivaron esta fase: se comprobó sobre el fixture y reproducen
+`pause_ratio` 0,0112 y `mean_utterance_length` 75,0.
+
+El adaptador **debe** pasar `min_silence_duration_ms≈250` y `speech_pad_ms=0`,
+y el plan incluye una tarea que verifica los números resultantes contra
+`evidence/sample-transcript.json`. Sin esa verificación, esta fase reabre el
+defecto que la fase anterior cerró.
+
+### 7.2 La primera tarea del plan: enlazar la evaluación con su pregunta
+
+La revisión final de la fase anterior dejó esto pendiente por decisión
+explícita. Hoy `AnswerAssessment` guarda solo `question_index`, y `ExamResult`
+no guarda nada más. Pero la sección 4.4 exige que el texto de la pregunta
+aparezca en el informe, y `Evidence.quote` solo es verificable contra la
+transcripción de esa respuesta.
+
+Sin el enlace, la capa de informe arrastra diccionarios paralelos junto a un
+resultado que se declara inmutable. `AnswerAssessment` gana `question: Question`
+y `transcript: Transcript`, y esa es la tarea que abre el plan — antes de los
+puertos, porque los puertos se declaran sobre estos tipos.
 
 ## 7 bis. La fase se implementa en dos planes
 
@@ -312,6 +357,9 @@ el fallback al 14B es un cambio de una línea en `adapters/config.py`.
 
 **El `initial_prompt` no recupera las muletillas.** Entonces se borran las dos
 métricas. Está previsto, no es un imprevisto.
+
+**`say` ata la implementación a macOS.** Asumido a sabiendas en 6 bis. El puerto
+`TextToSpeech` es la frontera que mantiene barato el cambio.
 
 **El VAD segmenta de forma distinta a como percibe un evaluador humano.** Los
 tramos de Silero se ajustan a energía, no a sintaxis. Mitigación: la fusión por
