@@ -5,10 +5,15 @@ no audio or transcript ever leaves the computer.
 
 ## Status
 
-Phase 1 complete: the pure scoring and exam-planning engine under
-`src/opic/core/`. Phase 2 Plan A complete: transcript types, speech-span
-metrics, and blueprint-aware aggregation. Adapters, web interface and report
-come next.
+Phase 1 and Phase 2 complete: the pure engine, the local adapters, and a full
+exam runnable from the command line.
+
+```bash
+uv run python -m opic.cli --survey my-survey.json --level 4
+```
+
+Needs Ollama running (`ollama serve`) and macOS for `say`. The first run
+downloads the Whisper model.
 
 ## Development
 
