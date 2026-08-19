@@ -265,16 +265,27 @@ def create_app(
     async def post_answer(session_id: str, index: int, audio: UploadFile = File(...)):
         state = load_or_404(session_id)
         if state.step is not Step.TEST:
+            # `reason` is what the browser is meant to branch on; the sentence
+            # in `detail` is only for whoever is reading devtools. Keeping
+            # them separate means a future rewording of the sentence can never
+            # silently flip which 409 case the client thinks it got.
             raise HTTPException(
                 status_code=409,
-                detail=f"answers are only accepted during the test, not at {state.step.value}",
+                detail={
+                    "detail": f"answers are only accepted during the test, not at {state.step.value}",
+                    "reason": "not_in_test_step",
+                },
             )
         record = next((a for a in state.answers if a.index == index), None)
         if record is None:
             raise HTTPException(status_code=404, detail="no such question")
         if record.state is not AnswerState.PENDING:
             raise HTTPException(
-                status_code=409, detail=f"answer {index} is already {record.state.value}"
+                status_code=409,
+                detail={
+                    "detail": f"answer {index} is already {record.state.value}",
+                    "reason": "answer_already_recorded",
+                },
             )
 
         suffix = _safe_audio_suffix(audio.filename)
@@ -293,7 +304,11 @@ def create_app(
             if current is None or current.state is not AnswerState.PENDING:
                 label = current.state.value if current is not None else "missing"
                 raise HTTPException(
-                    status_code=409, detail=f"answer {index} is already {label}"
+                    status_code=409,
+                    detail={
+                        "detail": f"answer {index} is already {label}",
+                        "reason": "answer_already_recorded",
+                    },
                 )
             return s.with_answer(AnswerRecord(index, AnswerState.RECORDED, target.name))
 

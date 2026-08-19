@@ -3,11 +3,19 @@
 // server queues the evaluation and answers straight away.
 import {askAndRecord, uploadWithRetries, waitUntilReady} from "../question.js";
 
-// The exact phrasing the server uses for a PENDING-check refusal versus a
-// wrong-step refusal — both come back as 409, and only the wording tells them
-// apart. See `opic.web.app.post_answer`.
-function answerAlreadyExists(detail) {
-  return typeof detail === "string" && detail.includes("already");
+// `opic.web.app.post_answer` returns 409 for two different reasons: the
+// answer is already recorded, or the session has left the test step. The
+// server attaches a machine-readable `reason` alongside its human sentence
+// precisely so this does not have to guess from prose — that field is
+// authoritative. The substring match on the English sentence is only a
+// fallback for an older server that predates the `reason` field; it must
+// never be trusted over a `reason` that is actually present.
+function answerAlreadyExists(payload) {
+  const detail = payload?.detail;
+  const reason = detail && typeof detail === "object" ? detail.reason : undefined;
+  if (reason) return reason === "answer_already_recorded";
+  const text = detail && typeof detail === "object" ? detail.detail : detail;
+  return typeof text === "string" && text.includes("already");
 }
 
 export async function render(state, {api, show}) {
@@ -79,7 +87,7 @@ export async function render(state, {api, show}) {
         );
         await show(updated);
       } catch (error) {
-        if (error.status === 409 && answerAlreadyExists(error.payload?.detail)) {
+        if (error.status === 409 && answerAlreadyExists(error.payload)) {
           // The server already holds this answer — most likely our own
           // earlier attempt landed and only its response was lost in
           // transit. That is a success, not a failure, so move on instead of

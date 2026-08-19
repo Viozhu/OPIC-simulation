@@ -72,6 +72,46 @@ def test_uploading_the_same_answer_twice_is_refused(client, worker, a_valid_surv
     assert upload(client, session_id, 0).status_code == 409
 
 
+def test_the_wrong_step_409_carries_a_machine_readable_reason(client, worker, a_valid_survey):
+    """FIX ROUND 2: the browser must not have to guess this cause from the
+    English sentence — a `reason` field is what it actually branches on."""
+    session_id = client.post("/api/sessions").json()["id"]
+    client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
+
+    response = upload(client, session_id, 0)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["reason"] == "not_in_test_step"
+
+
+def test_the_already_recorded_409_carries_a_machine_readable_reason(client, worker, a_valid_survey):
+    """FIX ROUND 2: same as above, for the other 409 cause — recorded via the
+    pre-lock PENDING check this time."""
+    session_id = ready_for_the_test(client, worker, a_valid_survey)
+    upload(client, session_id, 0)
+
+    response = upload(client, session_id, 0)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["reason"] == "answer_already_recorded"
+
+
+def test_the_two_409_reasons_are_never_the_same_value(client, worker, a_valid_survey):
+    """FIX ROUND 2: pins the two reason codes apart, so a future refactor
+    cannot quietly collapse them into one value and reintroduce the bug this
+    round fixed — a wrong-step 409 misread as a prior success, discarding a
+    recording and leaving that answer PENDING forever."""
+    not_in_test_session = client.post("/api/sessions").json()["id"]
+    client.put(f"/api/sessions/{not_in_test_session}/survey", json=a_valid_survey)
+    not_in_test_reason = upload(client, not_in_test_session, 0).json()["detail"]["reason"]
+
+    already_recorded_session = ready_for_the_test(client, worker, a_valid_survey)
+    upload(client, already_recorded_session, 0)
+    already_recorded_reason = upload(client, already_recorded_session, 0).json()["detail"]["reason"]
+
+    assert not_in_test_reason != already_recorded_reason
+
+
 def test_the_result_is_a_404_until_it_exists(client, worker, a_valid_survey):
     session_id = ready_for_the_test(client, worker, a_valid_survey)
     assert client.get(f"/api/sessions/{session_id}/result").status_code == 404
