@@ -23,13 +23,16 @@ from opic.core.survey import (
     HOUSING_LABELS_KO,
     MIN_TOTAL_ITEMS,
     OCCUPATION_LABELS_KO,
+    QUESTION_LABELS_KO,
     RECENT_COURSE_LABELS_KO,
     SURVEY_ITEMS,
+    YES_NO_LABELS_KO,
     Housing,
     Occupation,
     RecentCourse,
     SurveyAnswers,
     TopicGroup,
+    describe_issue_ko,
     validate_survey,
 )
 from opic.session import store
@@ -115,6 +118,11 @@ def create_app(
     def survey_schema() -> dict:
         return {
             "min_total_items": MIN_TOTAL_ITEMS,
+            "question_labels": QUESTION_LABELS_KO,
+            "yes_no": [
+                {"id": "yes", "label_ko": YES_NO_LABELS_KO[True]},
+                {"id": "no", "label_ko": YES_NO_LABELS_KO[False]},
+            ],
             "occupations": [
                 {"id": occupation.value, "label_ko": label}
                 for occupation, label in OCCUPATION_LABELS_KO.items()
@@ -158,7 +166,15 @@ def create_app(
         except ValueError as error:
             return JSONResponse(
                 status_code=422,
-                content={"issues": [{"error": "unknown_value", "detail": str(error)}]},
+                content={
+                    "issues": [
+                        {
+                            "error": "unknown_value",
+                            "detail": str(error),
+                            "message_ko": "입력한 값 중 알 수 없는 값이 있습니다. 다시 선택해 주세요.",
+                        }
+                    ]
+                },
             )
 
         issues = validate_survey(answers)
@@ -167,7 +183,11 @@ def create_app(
                 status_code=422,
                 content={
                     "issues": [
-                        {"error": issue.error.value, "detail": issue.detail}
+                        {
+                            "error": issue.error.value,
+                            "detail": issue.detail,
+                            "message_ko": describe_issue_ko(issue),
+                        }
                         for issue in issues
                     ]
                 },
@@ -189,7 +209,15 @@ def create_app(
         if payload.level not in range(1, 7):
             return JSONResponse(
                 status_code=422,
-                content={"issues": [{"error": "bad_level", "detail": str(payload.level)}]},
+                content={
+                    "issues": [
+                        {
+                            "error": "bad_level",
+                            "detail": str(payload.level),
+                            "message_ko": "1부터 6 사이의 레벨을 선택해 주세요.",
+                        }
+                    ]
+                },
             )
 
         state = worker.update(

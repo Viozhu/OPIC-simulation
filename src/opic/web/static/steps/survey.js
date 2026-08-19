@@ -5,15 +5,27 @@ export async function render(state, {api, show}) {
   const form = document.createElement("form");
   const chosen = new Set();
 
-  form.append(
-    radioGroup("occupation", "현재 귀하는 어느 분야에 종사하고 계십니까?", schema.occupations),
-    radioGroup("is_student", "현재 학생이십니까?", [
-      {id: "yes", label_ko: "예"},
-      {id: "no", label_ko: "아니오"},
-    ]),
-    radioGroup("recent_course", "최근 어떤 강의를 수강했습니까?", schema.recent_courses),
-    radioGroup("housing", "현재 귀하는 어디에 살고 계십니까?", schema.housing),
+  const occupationGroup = radioGroup(
+    "occupation", schema.question_labels.occupation, schema.occupations,
   );
+  const isStudentGroup = radioGroup(
+    "is_student", schema.question_labels.is_student, schema.yes_no,
+  );
+  const recentCourseGroup = radioGroup(
+    "recent_course", schema.question_labels.recent_course, schema.recent_courses,
+  );
+  const housingGroup = radioGroup(
+    "housing", schema.question_labels.housing, schema.housing,
+  );
+  form.append(occupationGroup, isStudentGroup, recentCourseGroup, housingGroup);
+
+  // A student did not take the "recent course" question, so it stays out of
+  // the way — and its value is already ignored on submit below.
+  const updateCourseVisibility = () => {
+    recentCourseGroup.hidden = form.elements["is_student"].value === "yes";
+  };
+  isStudentGroup.addEventListener("change", updateCourseVisibility);
+  updateCourseVisibility();
 
   const counter = document.createElement("p");
   counter.className = "counter";
@@ -67,9 +79,10 @@ export async function render(state, {api, show}) {
       });
       await show(next);
     } catch (error) {
-      for (const issue of error.payload?.issues ?? [{error: "unknown", detail: ""}]) {
+      const fallback = [{message_ko: "요청을 처리하는 중 문제가 발생했습니다. 다시 시도해 주세요."}];
+      for (const issue of error.payload?.issues ?? fallback) {
         const line = document.createElement("li");
-        line.textContent = `${issue.error} ${issue.detail}`;
+        line.textContent = issue.message_ko ?? `${issue.error} ${issue.detail}`;
         issues.append(line);
       }
       submit.disabled = false;

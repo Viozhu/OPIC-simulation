@@ -33,6 +33,17 @@ def test_the_survey_schema_carries_the_korean_the_ui_renders(client):
     assert groups["leisure"]["items"][0]["id"]
 
 
+def test_the_survey_schema_carries_the_question_stems(client):
+    body = client.get("/api/survey").json()
+    assert body["question_labels"]["occupation"]
+    assert body["question_labels"]["is_student"]
+    assert body["question_labels"]["recent_course"]
+    assert body["question_labels"]["housing"]
+    yes_no_ids = {option["id"] for option in body["yes_no"]}
+    assert yes_no_ids == {"yes", "no"}
+    assert all(option["label_ko"] for option in body["yes_no"])
+
+
 def test_a_valid_survey_is_stored_and_moves_the_step(client, a_valid_survey):
     session_id = client.post("/api/sessions").json()["id"]
     response = client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
@@ -52,6 +63,7 @@ def test_an_invalid_survey_comes_back_with_every_issue(client, a_valid_survey):
     assert "too_few_items" in errors
     assert "group_minimum" in errors
     assert all("detail" in issue for issue in issues)
+    assert all(issue["message_ko"].strip() for issue in issues)
 
 
 def test_a_rejected_survey_leaves_the_session_where_it_was(client, a_valid_survey):
@@ -69,6 +81,9 @@ def test_an_unknown_occupation_is_rejected_without_a_traceback(client, a_valid_s
     a_valid_survey["occupation"] = "astronaut"
     response = client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
     assert response.status_code == 422
+    issues = response.json()["issues"]
+    assert issues[0]["error"] == "unknown_value"
+    assert issues[0]["message_ko"].strip()
 
 
 def test_resubmitting_the_survey_after_it_already_advanced_is_a_409(client, a_valid_survey):
