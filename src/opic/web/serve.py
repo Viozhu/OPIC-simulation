@@ -40,7 +40,12 @@ def claim_the_lock(root: Path, pid: int | None = None, is_running=_is_running) -
     root.mkdir(parents=True, exist_ok=True)
     lock = root / LOCK_NAME
     if lock.exists():
-        held = lock.read_text(encoding="utf-8").strip()
+        try:
+            held = lock.read_text(encoding="utf-8").strip()
+        except OSError:
+            # An unreadable lock file is not evidence that a server is
+            # running — take it over the same as a stale or garbage one.
+            held = ""
         if held.isdigit() and is_running(int(held)):
             raise LockedError(
                 f"a server is already running on {root} (pid {held}); "

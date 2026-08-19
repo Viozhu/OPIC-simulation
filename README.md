@@ -47,15 +47,10 @@ uv run --extra dev pytest
 
 ## What comes next
 
-Phase 1 ends here with a library that plans an exam and scores it. The
-following phases each get their own plan, written once this one lands:
+Phases 1 to 3 are done: the pure engine, the local adapters, and the browser
+interface — including deferred evaluation in a background worker with a 채점 중
+progress screen, folded into Phase 3 rather than staying a phase of its own.
 
-- **Phase 2 — Adapters.** Install Ollama; wrap Qwen3, faster-whisper and Piper
-  behind narrow interfaces. Verify two things empirically before building on
-  them: that Qwen3 writes acceptable Korean, and that Whisper does not silently
-  repair the speaker's grammar.
-- **Phase 3 — Web.** FastAPI serving the five steps, microphone capture, TTS
-  playback.
-- **Phase 4 — Deferred evaluation.** Background pipeline with the 채점 중 progress
-  screen over a WebSocket.
-- **Phase 5 — Report.** The Korean-language score report with evidence.
+- **Phase 4 — Report.** A readable, Korean-language score report: the
+  per-dimension breakdown, quoted evidence for each score, and the
+  pronunciation proxy the pipeline already computes but does not yet show.

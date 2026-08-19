@@ -201,3 +201,34 @@ def test_the_shipped_example_survey_is_valid():
     from opic.core.survey import validate_survey
 
     assert validate_survey(load_survey(Path("examples/survey.json"))) == ()
+
+
+def test_a_scoring_failure_prints_one_line_instead_of_a_traceback(
+    tmp_path, monkeypatch, capsys
+):
+    """A dead Ollama mid-exam must not surface a raw traceback to the candidate.
+
+    `run_exam` raises a bare `RuntimeError` when nothing could be scored (see
+    its docstring); `main()` must catch that and print the same friendly,
+    one-line `error: ...` form it already uses for the other failure modes,
+    not let the exception escape.
+    """
+    import opic.cli as cli
+
+    def failing_run_exam(**kwargs):
+        raise RuntimeError("no answer could be scored; is Ollama running?")
+
+    monkeypatch.setattr(cli, "run_exam", failing_run_exam)
+
+    exit_code = cli.main(
+        [
+            "--survey", str(survey_json(tmp_path)),
+            "--level", "4",
+            "--session", str(tmp_path / "session"),
+        ]
+    )
+
+    assert exit_code == 1
+    out = capsys.readouterr().out
+    assert "Traceback" not in out
+    assert "error: no answer could be scored" in out

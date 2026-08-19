@@ -213,6 +213,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: cannot reach Ollama at {config.OLLAMA_URL} ({exc.reason}).")
         print(f"       start it with `ollama serve` and pull {config.OLLAMA_MODEL}.")
         return 1
+    except RuntimeError as exc:
+        print(f"error: {exc}")
+        print(f"       this usually means Ollama stopped answering partway through;")
+        print(f"       per-answer results, if any, are under {args.session}")
+        return 1
     except (OSError, ValueError) as exc:
         print(f"error: {exc}")
         print(f"       per-answer results, if any, are under {args.session}")
