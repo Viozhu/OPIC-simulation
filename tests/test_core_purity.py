@@ -47,4 +47,14 @@ def test_the_purity_guard_actually_reads_the_core_modules():
         "metrics.py",
         "scoring.py",
         "transcript.py",
+        "ports.py",
     } <= modules
+
+
+def test_core_never_imports_the_adapters():
+    offenders = [
+        path.name
+        for path in sorted(CORE.rglob("*.py"))
+        if "opic.adapters" in path.read_text(encoding="utf-8")
+    ]
+    assert offenders == []

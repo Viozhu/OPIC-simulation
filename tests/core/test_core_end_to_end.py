@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from opic.core.metrics import compute_metrics
-from opic.core.questions import EXAM_LENGTH, QuestionType, build_blueprint
+from opic.core.questions import EXAM_LENGTH, Question, QuestionType, build_blueprint
 from opic.core.transcript import Span, Transcript, Word
 from opic.core.rubric import ActflLevel, Dimension
 from opic.core.scoring import (
@@ -59,7 +59,13 @@ def test_a_full_run_goes_from_survey_to_a_final_level():
 
     assessments = [
         AnswerAssessment(
-            question_index=slot.index,
+            question=Question(slot=slot, text_en="Tell me about that."),
+            transcript=Transcript(
+                text=" ".join(spoken),
+                words=words,
+                speech_spans=(Span(0.0, 3.1), Span(5.0, 8.0)),
+                duration_s=30.0,
+            ),
             dimension_scores=tuple(
                 DimensionScore(
                     dimension=dimension,

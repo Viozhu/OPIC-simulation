@@ -5,10 +5,30 @@ no audio or transcript ever leaves the computer.
 
 ## Status
 
-Phase 1 complete: the pure scoring and exam-planning engine under
-`src/opic/core/`. Phase 2 Plan A complete: transcript types, speech-span
-metrics, and blueprint-aware aggregation. Adapters, web interface and report
-come next.
+Phase 1 and Phase 2 complete: the pure engine, the local adapters, and a full
+exam runnable from the command line.
+
+```bash
+uv run python -m opic.cli --survey my-survey.json --level 4
+```
+
+Requires macOS (for `say`), `ffmpeg`, and Ollama running with the rating model
+pulled:
+
+```bash
+ollama serve
+ollama pull qwen3:14b
+```
+
+The first run also downloads the Whisper `medium` model.
+
+**Budget about 100 minutes for a full exam:** roughly 25 minutes answering, then
+about 12 minutes of transcription and an hour of rating. The rating model runs at
+under 3 tokens per second on an M2, which is what dominates. Per-answer results
+are written to the session directory as they complete, so a failure late in the
+run does not discard the earlier ones.
+
+Start from `examples/survey.json`.
 
 ## Development
 

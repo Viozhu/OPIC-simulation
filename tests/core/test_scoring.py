@@ -3,7 +3,8 @@ from __future__ import annotations
 import pytest
 
 from opic.core.metrics import AnswerMetrics
-from opic.core.questions import QuestionSlot, QuestionType
+from opic.core.questions import Question, QuestionSlot, QuestionType
+from opic.core.transcript import Span, Transcript, Word
 from opic.core.rubric import ActflLevel, Dimension
 from opic.core.scoring import (
     AnswerAssessment,
@@ -34,12 +35,22 @@ def metrics(mean_confidence: float = 0.9, low_rate: float = 0.1) -> AnswerMetric
         word_count=120,
         words_per_minute=120.0,
         pause_ratio=0.1,
-        filler_count=3,
-        filler_rate=0.025,
         type_token_ratio=0.6,
         mean_utterance_length=8.0,
         mean_confidence=mean_confidence,
         low_confidence_rate=low_rate,
+    )
+
+
+def transcript_for(text: str = "I usually go to the beach on weekends") -> Transcript:
+    spoken = text.split()
+    return Transcript(
+        text=text,
+        words=tuple(
+            Word(w, i * 0.4, i * 0.4 + 0.3, 0.9) for i, w in enumerate(spoken)
+        ),
+        speech_spans=(Span(0.0, len(spoken) * 0.4),),
+        duration_s=60.0,
     )
 
 
@@ -50,7 +61,11 @@ def assessment(
     low_rate: float = 0.1,
 ) -> AnswerAssessment:
     return AnswerAssessment(
-        question_index=index,
+        question=Question(
+            slot=slot(index, QuestionType.DESCRIPTION, "movies"),
+            text_en="Tell me about the last movie you saw.",
+        ),
+        transcript=transcript_for(),
         dimension_scores=tuple(
             DimensionScore(
                 dimension=dimension,
@@ -124,7 +139,11 @@ def test_no_assessments_is_refused():
 
 def test_an_assessment_missing_a_dimension_is_refused():
     broken = AnswerAssessment(
-        question_index=0,
+        question=Question(
+            slot=slot(0, QuestionType.DESCRIPTION, "movies"),
+            text_en="Tell me about that.",
+        ),
+        transcript=transcript_for(),
         dimension_scores=(
             DimensionScore(Dimension.FLUENCY, ActflLevel.IM2, "설명", ()),
         ),
@@ -268,3 +287,17 @@ def test_by_topic_follows_blueprint_order_not_assessment_order():
     ]
     topics = [topic for topic, _ in aggregate(bp, assessments).by_topic]
     assert topics == ["movies", "yoga", "camping"]
+
+
+def test_an_assessment_knows_its_question_and_what_was_said():
+    a = assessment(3, flat(ActflLevel.IM2))
+    assert a.question_index == 3
+    assert a.question.text_en.endswith("?") or a.question.text_en.endswith(".")
+    assert "beach" in a.transcript.text
+
+
+def test_question_index_follows_the_question_and_cannot_drift():
+    a = assessment(3, flat(ActflLevel.IM2))
+    assert a.question_index == a.question.slot.index
+    with pytest.raises(Exception):
+        a.question_index = 9

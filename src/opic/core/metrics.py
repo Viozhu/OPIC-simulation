@@ -8,13 +8,6 @@ from opic.core.transcript import Span, Transcript, Word
 PAUSE_THRESHOLD_S = 0.5
 LOW_CONFIDENCE_THRESHOLD = 0.6
 
-# Only true hesitation markers. Words like "like", "so" and "well" carry
-# meaning far more often than they stall, and counting them would punish
-# ordinary English.
-FILLERS: frozenset[str] = frozenset(
-    {"uh", "um", "umm", "erm", "er", "ah", "eh", "mm", "hmm", "mhm"}
-)
-
 _STRIP = ".,!?;:\"'()[]…-"
 
 
@@ -24,8 +17,6 @@ class AnswerMetrics:
     word_count: int
     words_per_minute: float
     pause_ratio: float
-    filler_count: int
-    filler_rate: float
     type_token_ratio: float
     mean_utterance_length: float
     mean_confidence: float
@@ -86,8 +77,6 @@ def compute_metrics(transcript: Transcript) -> AnswerMetrics:
             word_count=0,
             words_per_minute=0.0,
             pause_ratio=0.0,
-            filler_count=0,
-            filler_rate=0.0,
             type_token_ratio=0.0,
             mean_utterance_length=0.0,
             mean_confidence=0.0,
@@ -111,7 +100,6 @@ def compute_metrics(transcript: Transcript) -> AnswerMetrics:
 
     tokens = [_normalise(word.text) for word in words]
     spoken = [token for token in tokens if token]
-    fillers = sum(1 for token in spoken if token in FILLERS)
     confidences = [word.probability for word in words]
     doubtful = sum(1 for value in confidences if value < LOW_CONFIDENCE_THRESHOLD)
 
@@ -120,8 +108,6 @@ def compute_metrics(transcript: Transcript) -> AnswerMetrics:
         word_count=count,
         words_per_minute=count / duration_s * 60.0,
         pause_ratio=pause_ratio,
-        filler_count=fillers,
-        filler_rate=fillers / count,
         type_token_ratio=len(set(spoken)) / len(spoken) if spoken else 0.0,
         mean_utterance_length=mean_utterance_length,
         mean_confidence=sum(confidences) / count,

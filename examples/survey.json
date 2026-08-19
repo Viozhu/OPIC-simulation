@@ -1,0 +1,20 @@
+{
+  "occupation": "business",
+  "is_student": false,
+  "housing": "alone",
+  "selected_item_ids": [
+    "movies",
+    "beach",
+    "parks",
+    "camping",
+    "listening_music",
+    "cooking",
+    "pets",
+    "jogging",
+    "swimming",
+    "yoga",
+    "domestic_travel",
+    "overseas_travel"
+  ],
+  "recent_course": "language"
+}
