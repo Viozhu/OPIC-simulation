@@ -7,7 +7,7 @@ import pytest
 
 from opic.core.metrics import AnswerMetrics
 from opic.core.questions import Question, QuestionSlot, QuestionType
-from opic.core.rubric import ActflLevel, Dimension
+from opic.core.rubric import DIMENSION_LABELS_KO, ActflLevel, Dimension
 from opic.core.scoring import AnswerAssessment, DimensionScore, Evidence
 from opic.core.transcript import Span, Transcript, Word
 from opic.session import assessments as sut
@@ -118,3 +118,14 @@ def test_the_result_declares_how_many_answers_it_used():
     assert payload["expected_answers"] == 3
     assert payload["final_level"] == "IM1"
     assert payload["answers"][0]["question_en"] == "Question 0."
+
+
+def test_every_dimension_in_the_result_carries_a_korean_label():
+    questions = (a_record(0),)
+    result = sut.aggregate_available(questions, [an_assessment(0)])
+    payload = sut.result_json(result, expected=len(questions))
+    assert set(payload["dimensions"]) == {d.value for d in Dimension}
+    for dimension in Dimension:
+        entry = payload["dimensions"][dimension.value]
+        assert entry["label_ko"] == DIMENSION_LABELS_KO[dimension]
+        assert entry["label_ko"]

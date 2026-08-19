@@ -14,7 +14,7 @@ from pathlib import Path
 
 from opic.core.metrics import AnswerMetrics
 from opic.core.questions import Question, QuestionSlot, QuestionType
-from opic.core.rubric import ActflLevel, Dimension
+from opic.core.rubric import DIMENSION_LABELS_KO, ActflLevel, Dimension
 from opic.core.scoring import AnswerAssessment, DimensionScore, Evidence, ExamResult, aggregate
 from opic.core.transcript import Span, Transcript, Word
 from opic.session.state import QuestionRecord
@@ -88,7 +88,10 @@ def result_json(result: ExamResult, expected: int) -> dict:
         "final_level": result.final_level.name,
         "scored_answers": len(result.assessments),
         "expected_answers": expected,
-        "dimensions": {d.value: level.name for d, level in result.dimension_levels},
+        "dimensions": {
+            d.value: {"label_ko": DIMENSION_LABELS_KO[d], "level": level.name}
+            for d, level in result.dimension_levels
+        },
         "by_type": {t.value: level.name for t, level in result.by_type},
         "by_topic": {topic: level.name for topic, level in result.by_topic},
         "pronunciation": {

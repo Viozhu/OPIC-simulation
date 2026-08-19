@@ -16,33 +16,52 @@ export async function render(state, {api, show}) {
   const eta = document.createElement("p");
   const failures = document.createElement("p");
   failures.className = "issues";
+  const connection = document.createElement("p");
+  connection.className = "issues";
 
-  app.append(heading, note, bar, eta, failures);
+  app.append(heading, note, bar, eta, failures, connection);
 
   while (true) {
-    const progress = await api.get(`/api/sessions/${state.id}/progress`);
-    const settled = progress.scored + progress.failed;
-    bar.textContent = `채점 완료: ${settled} / ${progress.expected}`;
-    const left = Math.max(0, progress.expected - settled) * SECONDS_PER_ANSWER;
-    eta.textContent = `남은 예상 시간: 약 ${Math.ceil(left / 60)}분`;
-    failures.textContent =
-      progress.failed > 0 ? `채점하지 못한 답변: ${progress.failed}개` : "";
+    try {
+      const progress = await api.get(`/api/sessions/${state.id}/progress`);
+      // A previous iteration may have left the connection warning up; a
+      // successful fetch means the server is reachable again.
+      connection.textContent = "";
 
-    if (progress.done) {
-      await show(await api.get(`/api/sessions/${state.id}`));
-      return;
-    }
-    if (settled === progress.expected) {
-      if (progress.scored === 0) {
-        // Nothing was scored, so no result will ever be written. Saying so
-        // beats a spinner that never stops.
-        heading.textContent = "채점하지 못했습니다";
-        eta.textContent = "";
-        failures.textContent =
-          "모든 답변의 채점에 실패했습니다. Ollama가 실행 중인지 확인한 뒤 서버를 다시 시작하면 남은 답변부터 이어서 채점합니다.";
+      const settled = progress.scored + progress.failed;
+      bar.textContent = `채점 완료: ${settled} / ${progress.expected}`;
+      const left = Math.max(0, progress.expected - settled) * SECONDS_PER_ANSWER;
+      eta.textContent = `남은 예상 시간: 약 ${Math.ceil(left / 60)}분`;
+      failures.textContent =
+        progress.failed > 0 ? `채점하지 못한 답변: ${progress.failed}개` : "";
+
+      if (progress.done) {
+        await show(await api.get(`/api/sessions/${state.id}`));
         return;
       }
-      eta.textContent = "결과를 정리하는 중…";
+      if (settled === progress.expected) {
+        if (progress.scored === 0) {
+          // Nothing was scored, so no result will ever be written, and
+          // nothing on the server will retry a FAILED answer on its own —
+          // only a RECORDED one gets requeued on restart. Saying a restart
+          // will finish the job would be a promise the server cannot keep,
+          // so this says only what is true: nothing more will happen here,
+          // the recordings are not lost, and Ollama not running is the
+          // usual reason.
+          heading.textContent = "채점하지 못했습니다";
+          note.textContent = "";
+          eta.textContent = "";
+          failures.textContent =
+            "채점 가능한 답변이 없어 결과를 계산할 수 없습니다. 녹음한 답변은 이 컴퓨터의 세션 폴더에 그대로 남아 있으니 사라지지 않았습니다. 대부분 Ollama가 실행되고 있지 않을 때 일어나며, 지금은 자동으로 다시 시도되지 않습니다.";
+          return;
+        }
+        eta.textContent = "결과를 정리하는 중…";
+      }
+    } catch (error) {
+      // A dropped connection here looks identical to a screen that is
+      // legitimately slow for up to 35 minutes, so say so explicitly rather
+      // than freezing on stale numbers or letting the loop die silently.
+      connection.textContent = "서버와 연결할 수 없습니다. 계속 다시 시도합니다…";
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
   }

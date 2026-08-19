@@ -3,7 +3,28 @@
 // underneath so nothing is hidden.
 export async function render(state, {api}) {
   const app = document.getElementById("app");
-  const result = await api.get(`/api/sessions/${state.id}/result`);
+  await load(app, state, api);
+}
+
+// A failed fetch here would otherwise leave a blank page — `show()` already
+// cleared `#app` before calling this — which is the worst possible ending to
+// a 40-minute exam. Retrying re-runs this same function instead of leaving
+// the candidate stuck.
+async function load(app, state, api) {
+  let result;
+  try {
+    result = await api.get(`/api/sessions/${state.id}/result`);
+  } catch (error) {
+    const message = document.createElement("p");
+    message.className = "issues";
+    message.textContent =
+      "결과를 불러오지 못했습니다. 서버 연결을 확인한 뒤 다시 시도해 주세요.";
+    const retry = document.createElement("button");
+    retry.textContent = "다시 시도";
+    retry.addEventListener("click", () => load(app, state, api), {once: true});
+    app.replaceChildren(message, retry);
+    return;
+  }
 
   const level = document.createElement("h2");
   level.textContent = `최종 등급: ${result.final_level}`;
@@ -20,9 +41,9 @@ export async function render(state, {api}) {
     "이 등급은 공식 점수가 아니며 실제 시험 결과를 예측하지 않습니다. 발음 지표는 참고용입니다.";
 
   const dimensions = document.createElement("ul");
-  for (const [dimension, value] of Object.entries(result.dimensions)) {
+  for (const info of Object.values(result.dimensions)) {
     const line = document.createElement("li");
-    line.textContent = `${dimension}: ${value}`;
+    line.textContent = `${info.label_ko}: ${info.level}`;
     dimensions.append(line);
   }
 
@@ -40,5 +61,5 @@ export async function render(state, {api}) {
     location.reload();
   });
 
-  app.append(level, based, caveat, dimensions, details, again);
+  app.replaceChildren(level, based, caveat, dimensions, details, again);
 }
