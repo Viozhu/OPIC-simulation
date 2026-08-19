@@ -33,6 +33,12 @@ export async function render(state, {api, show}) {
       next.disabled = false;
       return;
     }
+    // getUserMedia() neither resolves nor rejects while the browser's own
+    // permission prompt is on screen — without this line the page looks
+    // frozen for however long the candidate takes to answer it.
+    record.disabled = true;
+    status.textContent = "브라우저의 마이크 권한 요청을 확인하고 허용해 주세요.";
+    status.className = "";
     try {
       const stream = await askForMicrophone();
       session = startRecording(stream);
@@ -42,6 +48,8 @@ export async function render(state, {api, show}) {
     } catch (error) {
       status.textContent = error.message;
       status.className = "issues";
+    } finally {
+      record.disabled = false;
     }
   });
 
