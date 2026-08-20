@@ -169,24 +169,21 @@ def test_the_text_report_explains_the_cap_when_it_fired():
     assert "문법" in render_text(report_of(3, level))
 
 
-def _assessment_with_two_fluency_quotes(index: int) -> AnswerAssessment:
-    """An assessment whose FLUENCY score carries two real Evidence items.
+def _assessment_with_fluency_evidence(index: int, quote_count: int) -> AnswerAssessment:
+    """An assessment whose FLUENCY score carries `quote_count` real Evidence items.
 
     Every other dimension gets no evidence, so the cap behaviour under test
     is isolated to FLUENCY.
     """
     level = {d: ActflLevel.IM2 for d in Dimension}
-    fluency_evidence = (
+    letters = "abcdefgh"
+    fluency_evidence = tuple(
         Evidence(
-            quote=f"quote {index}a",
+            quote=f"quote {index}{letters[n]}",
             issue_ko="설명",
-            correction_en="correction a",
-        ),
-        Evidence(
-            quote=f"quote {index}b",
-            issue_ko="설명",
-            correction_en="correction b",
-        ),
+            correction_en=f"correction {letters[n]}",
+        )
+        for n in range(quote_count)
     )
     return AnswerAssessment(
         question=Question(
@@ -210,7 +207,7 @@ def _assessment_with_two_fluency_quotes(index: int) -> AnswerAssessment:
 def test_exam_level_evidence_is_capped_and_spread_across_answers():
     from opic.core.report import EXAM_EVIDENCE_PER_DIMENSION
 
-    assessments = [_assessment_with_two_fluency_quotes(i) for i in range(6)]
+    assessments = [_assessment_with_fluency_evidence(i, 2) for i in range(6)]
     result = aggregate(blueprint_of(6), assessments)
 
     report = build_report(result, questions_of(6))
@@ -220,9 +217,44 @@ def test_exam_level_evidence_is_capped_and_spread_across_answers():
     assert len({e.answer_index for e in fluency.evidence}) == EXAM_EVIDENCE_PER_DIMENSION
 
 
+def test_the_fallback_pass_draws_a_second_quote_from_an_earlier_answer():
+    """When the first pass (one quote per answer) can't fill the cap, a
+    second quote is drawn from an already-used answer — the earliest one
+    that still has quotes left, in ascending order.
+    """
+    from opic.core.report import EXAM_EVIDENCE_PER_DIMENSION
+
+    assert EXAM_EVIDENCE_PER_DIMENSION == 3
+    assessments = [
+        _assessment_with_fluency_evidence(0, 3),
+        _assessment_with_fluency_evidence(1, 1),
+    ]
+    result = aggregate(blueprint_of(2), assessments)
+
+    report = build_report(result, questions_of(2))
+    fluency = next(d for d in report.dimensions if d.dimension is Dimension.FLUENCY)
+
+    assert len(fluency.evidence) == EXAM_EVIDENCE_PER_DIMENSION
+    first, second, third = fluency.evidence
+    assert {first.answer_index, second.answer_index} == {0, 1}
+    assert first.answer_index != second.answer_index
+    assert third.answer_index == 0
+    assert third.quote == "quote 0b"
+
+
 def test_fewer_quotes_than_the_cap_are_all_kept():
     from opic.core.report import EXAM_EVIDENCE_PER_DIMENSION
 
-    report = report_of(1)
-    for dimension in report.dimensions:
-        assert len(dimension.evidence) <= EXAM_EVIDENCE_PER_DIMENSION
+    assessments = [
+        _assessment_with_fluency_evidence(0, 2),
+        _assessment_with_fluency_evidence(1, 0),
+    ]
+    result = aggregate(blueprint_of(2), assessments)
+
+    report = build_report(result, questions_of(2))
+    fluency = next(d for d in report.dimensions if d.dimension is Dimension.FLUENCY)
+
+    assert len(fluency.evidence) == 2
+    assert len(fluency.evidence) < EXAM_EVIDENCE_PER_DIMENSION
+    assert {e.quote for e in fluency.evidence} == {"quote 0a", "quote 0b"}
+    assert all(e.answer_index == 0 for e in fluency.evidence)
