@@ -102,3 +102,49 @@ def test_unclear_words_are_listed_with_their_context_and_answer():
 
 def test_no_unclear_words_gives_an_empty_tuple_not_a_placeholder():
     assert report_of(3).unclear == ()
+
+
+def test_breakdowns_carry_korean_labels():
+    report = report_of(3)
+    assert report.by_type[0][1] == "묘사"
+    assert report.by_topic[0][0] == "movies"
+    assert report.by_topic[0][1] == "영화보기"
+
+
+def test_averages_are_the_mean_of_the_shown_metrics():
+    report = report_of(3)
+    assert report.averages is not None
+    assert report.averages.words_per_minute == 120.0
+    assert not hasattr(report.averages, "type_token_ratio")
+
+
+def test_every_question_appears_even_when_it_was_not_scored():
+    level = {d: ActflLevel.IM2 for d in Dimension}
+    assessments = [assessment(i, level) for i in range(2)]
+    result = aggregate(blueprint_of(2), assessments)
+
+    report = build_report(result, questions_of(3))
+
+    assert [a.index for a in report.answers] == [0, 1, 2]
+    assert report.answers[2].state == "not_scored"
+    assert report.answers[2].metrics is None
+    assert report.answers[2].scores == ()
+
+
+def test_an_unreadable_answer_is_marked_apart_from_a_missing_one():
+    level = {d: ActflLevel.IM2 for d in Dimension}
+    assessments = [assessment(i, level) for i in range(2)]
+    result = aggregate(blueprint_of(2), assessments)
+
+    report = build_report(result, questions_of(3), unreadable=[2])
+
+    assert report.answers[2].state == "unreadable"
+
+
+def test_a_scored_answer_carries_its_comment_and_its_question():
+    report = report_of(1)
+    detail = report.answers[0]
+    assert detail.state == "scored"
+    assert detail.question_en == "Question 0"
+    assert detail.qtype_label_ko == "묘사"
+    assert detail.scores[0].comment_ko

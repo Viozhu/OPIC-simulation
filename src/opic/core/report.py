@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from opic.core.metrics import LOW_CONFIDENCE_THRESHOLD
-from opic.core.questions import Question, QuestionType
+from opic.core.questions import QUESTION_TYPE_LABELS_KO, Question, QuestionType
 from opic.core.rubric import (
     DIMENSION_LABELS_KO,
     DIMENSION_WEIGHTS,
@@ -19,6 +19,7 @@ from opic.core.rubric import (
     Dimension,
 )
 from opic.core.scoring import Evidence, ExamResult, limiting_dimension
+from opic.core.survey import ITEMS_BY_ID
 
 CONTEXT_WORDS = 5
 
@@ -137,10 +138,16 @@ def build_report(
             )
         ),
         unclear=_unclear_words(result),
-        by_type=(),
-        by_topic=(),
-        averages=None,
-        answers=(),
+        by_type=tuple(
+            (qtype, QUESTION_TYPE_LABELS_KO[qtype], level)
+            for qtype, level in result.by_type
+        ),
+        by_topic=tuple(
+            (topic_id, _topic_label(topic_id) or topic_id, level)
+            for topic_id, level in result.by_topic
+        ),
+        averages=_averages(result),
+        answers=_answers(result, questions, unreadable),
     )
 
 
@@ -168,6 +175,85 @@ def _unclear_words(result: ExamResult) -> tuple[UnclearWord, ...]:
                 )
             )
     return tuple(found)
+
+
+def _topic_label(topic_id: str | None) -> str | None:
+    if topic_id is None:
+        return None
+    item = ITEMS_BY_ID.get(topic_id)
+    return item.label_ko if item is not None else topic_id
+
+
+def _averages(result: ExamResult) -> MetricSummary | None:
+    if not result.assessments:
+        return None
+    count = len(result.assessments)
+    take = lambda field: sum(  # noqa: E731
+        getattr(a.metrics, field) for a in result.assessments
+    ) / count
+    return MetricSummary(
+        duration_s=take("duration_s"),
+        word_count=take("word_count"),
+        words_per_minute=take("words_per_minute"),
+        pause_ratio=take("pause_ratio"),
+        mean_utterance_length=take("mean_utterance_length"),
+    )
+
+
+def _answers(
+    result: ExamResult,
+    questions: Sequence[Question],
+    unreadable: Sequence[int],
+) -> tuple[AnswerReport, ...]:
+    judged = {a.question_index: a for a in result.assessments}
+    broken = set(unreadable)
+    reports = []
+    for question in questions:
+        index = question.slot.index
+        assessment = judged.get(index)
+        if assessment is None:
+            reports.append(
+                AnswerReport(
+                    index=index,
+                    question_en=question.text_en,
+                    qtype_label_ko=QUESTION_TYPE_LABELS_KO[question.slot.qtype],
+                    topic_label_ko=_topic_label(question.slot.topic_id),
+                    state="unreadable" if index in broken else "not_scored",
+                    transcript_text="",
+                    metrics=None,
+                    scores=(),
+                )
+            )
+            continue
+        m = assessment.metrics
+        reports.append(
+            AnswerReport(
+                index=index,
+                question_en=question.text_en,
+                qtype_label_ko=QUESTION_TYPE_LABELS_KO[question.slot.qtype],
+                topic_label_ko=_topic_label(question.slot.topic_id),
+                state="scored",
+                transcript_text=assessment.transcript.text,
+                metrics=MetricSummary(
+                    duration_s=m.duration_s,
+                    word_count=m.word_count,
+                    words_per_minute=m.words_per_minute,
+                    pause_ratio=m.pause_ratio,
+                    mean_utterance_length=m.mean_utterance_length,
+                ),
+                scores=tuple(
+                    DimensionDetail(
+                        dimension=score.dimension,
+                        label_ko=DIMENSION_LABELS_KO[score.dimension],
+                        level=score.level,
+                        comment_ko=score.comment_ko,
+                        evidence=score.evidence,
+                    )
+                    for score in assessment.dimension_scores
+                ),
+            )
+        )
+    return tuple(reports)
 
 
 def _evidence_for(result: ExamResult, dimension: Dimension) -> tuple[EvidenceRef, ...]:
