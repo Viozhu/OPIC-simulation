@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from opic.core.questions import QuestionType
+from opic.core.questions import Question, QuestionType
 from opic.core.rubric import ActflLevel, Dimension
 from opic.core.report import build_report, render_text
-from opic.core.scoring import AnswerAssessment, DimensionScore, aggregate
+from opic.core.scoring import AnswerAssessment, DimensionScore, Evidence, aggregate
 from opic.core.transcript import Span, Transcript, Word
 
-from core.helpers import assessment, blueprint_of, metrics, slot
+from core.helpers import assessment, blueprint_of, metrics, slot, transcript_for
 
 
 def questions_of(n: int):
@@ -167,3 +167,62 @@ def test_the_text_report_explains_the_cap_when_it_fired():
     level = {d: ActflLevel.IH for d in Dimension}
     level[Dimension.GRAMMAR] = ActflLevel.NH
     assert "문법" in render_text(report_of(3, level))
+
+
+def _assessment_with_two_fluency_quotes(index: int) -> AnswerAssessment:
+    """An assessment whose FLUENCY score carries two real Evidence items.
+
+    Every other dimension gets no evidence, so the cap behaviour under test
+    is isolated to FLUENCY.
+    """
+    level = {d: ActflLevel.IM2 for d in Dimension}
+    fluency_evidence = (
+        Evidence(
+            quote=f"quote {index}a",
+            issue_ko="설명",
+            correction_en="correction a",
+        ),
+        Evidence(
+            quote=f"quote {index}b",
+            issue_ko="설명",
+            correction_en="correction b",
+        ),
+    )
+    return AnswerAssessment(
+        question=Question(
+            slot=slot(index, QuestionType.DESCRIPTION, "movies"),
+            text_en="Tell me about the last movie you saw.",
+        ),
+        transcript=transcript_for(),
+        dimension_scores=tuple(
+            DimensionScore(
+                dimension=dimension,
+                level=level[dimension],
+                comment_ko="설명",
+                evidence=fluency_evidence if dimension is Dimension.FLUENCY else (),
+            )
+            for dimension in Dimension
+        ),
+        metrics=metrics(),
+    )
+
+
+def test_exam_level_evidence_is_capped_and_spread_across_answers():
+    from opic.core.report import EXAM_EVIDENCE_PER_DIMENSION
+
+    assessments = [_assessment_with_two_fluency_quotes(i) for i in range(6)]
+    result = aggregate(blueprint_of(6), assessments)
+
+    report = build_report(result, questions_of(6))
+    fluency = next(d for d in report.dimensions if d.dimension is Dimension.FLUENCY)
+
+    assert len(fluency.evidence) == EXAM_EVIDENCE_PER_DIMENSION
+    assert len({e.answer_index for e in fluency.evidence}) == EXAM_EVIDENCE_PER_DIMENSION
+
+
+def test_fewer_quotes_than_the_cap_are_all_kept():
+    from opic.core.report import EXAM_EVIDENCE_PER_DIMENSION
+
+    report = report_of(1)
+    for dimension in report.dimensions:
+        assert len(dimension.evidence) <= EXAM_EVIDENCE_PER_DIMENSION

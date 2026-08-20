@@ -22,6 +22,7 @@ from opic.core.scoring import Evidence, ExamResult, limiting_dimension
 from opic.core.survey import ITEMS_BY_ID
 
 CONTEXT_WORDS = 5
+EXAM_EVIDENCE_PER_DIMENSION = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -319,18 +320,49 @@ def render_text(report: Report) -> str:
 
 
 def _evidence_for(result: ExamResult, dimension: Dimension) -> tuple[EvidenceRef, ...]:
-    found = []
+    """The exam-level quotes for one dimension, capped and spread out.
+
+    A real 15-question exam produced ~15 quotes per dimension on this
+    screen alone; the per-answer detail (§7.5) already keeps every quote, so
+    this summary caps at EXAM_EVIDENCE_PER_DIMENSION. The cap is filled by
+    taking at most one quote per answer first, walking answers in ascending
+    index order, so the summary is spread across answers rather than
+    dominated by whichever answer happened to collect the most evidence.
+    Only if the cap is still unfilled after that pass does a second quote
+    from an already-used answer get taken.
+    """
+    by_answer: dict[int, list[Evidence]] = {}
     for assessment in result.assessments:
         for score in assessment.dimension_scores:
             if score.dimension is not dimension:
                 continue
-            for item in score.evidence:
-                found.append(
-                    EvidenceRef(
-                        quote=item.quote,
-                        issue_ko=item.issue_ko,
-                        correction_en=item.correction_en,
-                        answer_index=assessment.question_index,
-                    )
-                )
+            by_answer.setdefault(assessment.question_index, []).extend(score.evidence)
+
+    def ref(answer_index: int, item: Evidence) -> EvidenceRef:
+        return EvidenceRef(
+            quote=item.quote,
+            issue_ko=item.issue_ko,
+            correction_en=item.correction_en,
+            answer_index=answer_index,
+        )
+
+    order = sorted(by_answer)
+    found: list[EvidenceRef] = []
+
+    for answer_index in order:
+        if len(found) >= EXAM_EVIDENCE_PER_DIMENSION:
+            break
+        items = by_answer[answer_index]
+        if items:
+            found.append(ref(answer_index, items[0]))
+
+    if len(found) < EXAM_EVIDENCE_PER_DIMENSION:
+        for answer_index in order:
+            for item in by_answer[answer_index][1:]:
+                if len(found) >= EXAM_EVIDENCE_PER_DIMENSION:
+                    break
+                found.append(ref(answer_index, item))
+            if len(found) >= EXAM_EVIDENCE_PER_DIMENSION:
+                break
+
     return tuple(found)
