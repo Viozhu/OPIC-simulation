@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from opic.core.report import build_report
 from opic.core.selfassess import SELF_ASSESS_OPTIONS
 from opic.core.survey import (
     GROUP_LABELS_KO,
@@ -36,6 +37,7 @@ from opic.core.survey import (
     describe_issue_ko,
     validate_survey,
 )
+from opic.session import assessments as answers_on_disk
 from opic.session import store
 from opic.session.state import AnswerRecord, AnswerState, Step, TransitionError, advance
 from opic.session.worker import Task, Worker
@@ -347,5 +349,18 @@ def create_app(
         if not path.exists():
             raise HTTPException(status_code=404, detail="not scored yet")
         return JSONResponse(content=json.loads(path.read_text(encoding="utf-8")))
+
+    @app.get("/api/sessions/{session_id}/report")
+    def report(session_id: str):
+        state = load_or_404(session_id)
+        if not store.result_path(root, session_id).exists():
+            raise HTTPException(status_code=404, detail="not scored yet")
+        judged, broken = answers_on_disk.read_answers_tolerantly(root, session_id, state)
+        if not judged:
+            raise HTTPException(status_code=404, detail="not scored yet")
+        exam = answers_on_disk.aggregate_available(state.questions, judged)
+        questions = [answers_on_disk.question_from_record(r) for r in state.questions]
+        built = build_report(exam, questions, unreadable=broken)
+        return JSONResponse(content=answers_on_disk.report_json(built))
 
     return app

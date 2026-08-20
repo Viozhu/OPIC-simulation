@@ -14,6 +14,7 @@ from pathlib import Path
 
 from opic.core.metrics import AnswerMetrics
 from opic.core.questions import Question, QuestionSlot, QuestionType
+from opic.core.report import Report
 from opic.core.rubric import DIMENSION_LABELS_KO, ActflLevel, Dimension
 from opic.core.scoring import AnswerAssessment, DimensionScore, Evidence, ExamResult, aggregate
 from opic.core.transcript import Span, Transcript, Word
@@ -111,6 +112,122 @@ def result_json(result: ExamResult, expected: int) -> dict:
         },
         "answers": [_answer_json(a) for a in result.assessments],
     }
+
+
+def report_json(report: Report) -> dict:
+    return {
+        "final_level": report.final_level.name,
+        "scored_answers": report.scored_answers,
+        "expected_answers": report.expected_answers,
+        "limiting": (
+            {
+                "dimension": report.limiting.dimension.value,
+                "label_ko": report.limiting.label_ko,
+                "level": report.limiting.level.name,
+                "without_cap": report.limiting.without_cap.name,
+            }
+            if report.limiting is not None
+            else None
+        ),
+        "dimensions": [
+            {
+                "dimension": d.dimension.value,
+                "label_ko": d.label_ko,
+                "weight": d.weight,
+                "level": d.level.name,
+                "evidence": [
+                    {
+                        "quote": e.quote,
+                        "issue_ko": e.issue_ko,
+                        "correction_en": e.correction_en,
+                        "answer_index": e.answer_index,
+                    }
+                    for e in d.evidence
+                ],
+            }
+            for d in report.dimensions
+        ],
+        "unclear": [
+            {
+                "text": w.text,
+                "probability": w.probability,
+                "context": w.context,
+                "answer_index": w.answer_index,
+            }
+            for w in report.unclear
+        ],
+        "by_type": [
+            {"id": t.value, "label_ko": label, "level": level.name}
+            for t, label, level in report.by_type
+        ],
+        "by_topic": [
+            {"id": topic, "label_ko": label, "level": level.name}
+            for topic, label, level in report.by_topic
+        ],
+        "averages": _metrics_json(report.averages),
+        "answers": [
+            {
+                "index": a.index,
+                "question_en": a.question_en,
+                "qtype_label_ko": a.qtype_label_ko,
+                "topic_label_ko": a.topic_label_ko,
+                "state": a.state,
+                "transcript_text": a.transcript_text,
+                "metrics": _metrics_json(a.metrics),
+                "scores": [
+                    {
+                        "dimension": s.dimension.value,
+                        "label_ko": s.label_ko,
+                        "level": s.level.name,
+                        "comment_ko": s.comment_ko,
+                        "evidence": [
+                            {
+                                "quote": e.quote,
+                                "issue_ko": e.issue_ko,
+                                "correction_en": e.correction_en,
+                            }
+                            for e in s.evidence
+                        ],
+                    }
+                    for s in a.scores
+                ],
+            }
+            for a in report.answers
+        ],
+    }
+
+
+def _metrics_json(metrics) -> dict | None:
+    if metrics is None:
+        return None
+    return {
+        "duration_s": metrics.duration_s,
+        "word_count": metrics.word_count,
+        "words_per_minute": metrics.words_per_minute,
+        "pause_ratio": metrics.pause_ratio,
+        "mean_utterance_length": metrics.mean_utterance_length,
+    }
+
+
+def read_answers_tolerantly(
+    root: Path, session_id: str, state: SessionState
+) -> tuple[tuple[AnswerAssessment, ...], tuple[int, ...]]:
+    """Every answer that could be read, and the indices of the ones that could not.
+
+    A single corrupt `answer-NN.json` must not cost the candidate the other
+    fourteen, so this reports the damage instead of raising.
+    """
+    scored = set(state.scored_indices())
+    found = []
+    broken = []
+    for record in state.questions:
+        if record.index not in scored:
+            continue
+        try:
+            found.append(read_answer(root, session_id, record.index))
+        except (OSError, ValueError):
+            broken.append(record.index)
+    return tuple(found), tuple(broken)
 
 
 def _answer_json(assessment: AnswerAssessment) -> dict:
