@@ -246,6 +246,51 @@ def test_the_shipped_example_survey_is_valid():
     assert validate_survey(load_survey(Path("examples/survey.json"))) == ()
 
 
+def test_main_prints_the_full_report_not_just_the_level(tmp_path, monkeypatch, capsys):
+    """`main()` must print the whole Korean report `render_text` produces, not
+    regress to the old one-line "최종 등급: ..." summary.
+
+    `run_exam` is monkeypatched the same way the other `main()` tests do it
+    (see below), but here the fake still runs a real exam through the real
+    `run_exam` with the Fakes from `test_a_full_exam_runs_end_to_end`, so a
+    real `session.json` lands on disk for the `store.load` call in `main()`
+    to read back — no Ollama, no server, nothing under `data/`.
+    """
+    import opic.cli as cli
+
+    def fake_run_exam(**kwargs):
+        return run_exam(
+            answers=kwargs["answers"],
+            self_assess_level=kwargs["self_assess_level"],
+            seed=kwargs["seed"],
+            session_dir=kwargs["session_dir"],
+            tts=FakeTts(tmp_path),
+            stt=FakeStt(),
+            writer=FakeWriter(),
+            rater=FakeRater(),
+            recorder=lambda path, seconds, device: (path.write_bytes(b"a"), path)[1],
+            player=lambda path: None,
+        )
+
+    monkeypatch.setattr(cli, "run_exam", fake_run_exam)
+
+    session = tmp_path / "session"
+    exit_code = cli.main(
+        [
+            "--survey", str(survey_json(tmp_path)),
+            "--level", "4",
+            "--session", str(session),
+        ]
+    )
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "최종 등급: IM2" in out
+    assert "유창성" in out  # a dimension label from the breakdown
+    non_blank = [line for line in out.splitlines() if line.strip()]
+    assert non_blank[-1] == f"결과 파일: {session / 'result.json'}"
+
+
 def test_a_scoring_failure_prints_one_line_instead_of_a_traceback(
     tmp_path, monkeypatch, capsys
 ):
