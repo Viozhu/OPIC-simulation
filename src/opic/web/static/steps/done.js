@@ -197,13 +197,22 @@ function detailSection(report) {
   elements.push(heading);
 
   for (const answer of report.answers) {
-    elements.push(answerDetails(answer, report.averages));
+    elements.push(answerDetails(answer, report.averages, report.metric_labels_ko));
   }
 
   return elements;
 }
 
-function answerDetails(answer, averages) {
+// Presentation only (rounding, units) — the labels and which five fields
+// exist come from `report.metric_labels_ko`, not from anything decided here.
+function formatMetric(field, value) {
+  if (field === "pause_ratio") return `${Math.round(value * 100)}%`;
+  if (field === "mean_utterance_length") return value.toFixed(1);
+  if (field === "duration_s") return `${Math.round(value)}초`;
+  return `${Math.round(value)}`;
+}
+
+function answerDetails(answer, averages, metricLabels) {
   const details = document.createElement("details");
   const summary = document.createElement("summary");
 
@@ -214,7 +223,10 @@ function answerDetails(answer, averages) {
     return details;
   }
 
-  summary.textContent = `질문 ${answer.index + 1} (${answer.qtype_label_ko})`;
+  const typeAndTopic = answer.topic_label_ko
+    ? `${answer.qtype_label_ko} · ${answer.topic_label_ko}`
+    : answer.qtype_label_ko;
+  summary.textContent = `질문 ${answer.index + 1} (${typeAndTopic})`;
   details.append(summary);
 
   const question = document.createElement("p");
@@ -228,13 +240,15 @@ function answerDetails(answer, averages) {
   details.append(transcript);
 
   if (answer.metrics && averages) {
-    const metrics = document.createElement("p");
+    const metrics = document.createElement("ul");
     metrics.className = "metrics-line";
-    metrics.textContent =
-      `말하기 속도 ${Math.round(answer.metrics.words_per_minute)} ` +
-      `(평균 ${Math.round(averages.words_per_minute)}) · ` +
-      `침묵 비율 ${Math.round(answer.metrics.pause_ratio * 100)}% ` +
-      `(평균 ${Math.round(averages.pause_ratio * 100)}%)`;
+    for (const [field, label] of Object.entries(metricLabels)) {
+      const line = document.createElement("li");
+      line.textContent =
+        `${label}: ${formatMetric(field, answer.metrics[field])} ` +
+        `(평균 ${formatMetric(field, averages[field])})`;
+      metrics.append(line);
+    }
     details.append(metrics);
   }
 

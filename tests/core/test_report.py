@@ -322,6 +322,57 @@ def test_the_fallback_pass_draws_a_second_quote_from_an_earlier_answer():
     assert third.quote == "quote 0b"
 
 
+def test_the_text_report_shows_per_answer_evidence():
+    # done.js already prints every Evidence under a per-answer dimension
+    # (quote / issue_ko / -> correction_en); render_text must show the same
+    # thing, not stop at the level and comment.
+    assessments = [_assessment_with_fluency_evidence(0, 2)]
+    result = aggregate(blueprint_of(1), assessments)
+    report = build_report(result, questions_of(1))
+
+    text = render_text(report)
+
+    assert "quote 0a" in text
+    assert "설명" in text
+    assert "correction a" in text
+
+
+def test_the_text_report_shows_the_topic_next_to_the_type():
+    text = render_text(report_of(1))
+    assert "영화보기" in text
+
+
+def test_the_topic_label_is_omitted_cleanly_when_there_is_none():
+    level = {d: ActflLevel.IM2 for d in Dimension}
+    question = Question(
+        slot=slot(0, QuestionType.SELF_INTRO, None), text_en="Tell me about yourself."
+    )
+    an_answer = AnswerAssessment(
+        question=question,
+        transcript=transcript_for(),
+        dimension_scores=tuple(
+            DimensionScore(dimension=d, level=level[d], comment_ko="설명", evidence=())
+            for d in Dimension
+        ),
+        metrics=metrics(),
+    )
+    result = aggregate((question.slot,), [an_answer])
+    report = build_report(result, [question])
+
+    assert report.answers[0].topic_label_ko is None
+    assert "None" not in render_text(report)
+
+
+def test_the_text_report_shows_all_five_metrics_against_the_average():
+    from opic.core.report import METRIC_LABELS_KO
+
+    text = render_text(report_of(2))
+
+    for label in METRIC_LABELS_KO.values():
+        assert label in text
+    assert "평균" in text
+
+
 def test_fewer_quotes_than_the_cap_are_all_kept():
     from opic.core.report import EXAM_EVIDENCE_PER_DIMENSION
 

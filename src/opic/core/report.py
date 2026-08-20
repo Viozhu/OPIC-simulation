@@ -7,7 +7,7 @@ decided exactly once.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from opic.core.metrics import LOW_CONFIDENCE_THRESHOLD, _normalise
@@ -24,6 +24,25 @@ from opic.core.survey import ITEMS_BY_ID
 CONTEXT_WORDS = 5
 EXAM_EVIDENCE_PER_DIMENSION = 3
 UNCLEAR_WORDS_SHOWN = 10
+
+# §7.7 — the five `MetricSummary` fields shown, each against the exam
+# average. One table, so the label and its formatting live in exactly one
+# place instead of being retyped inline by every renderer that needs them.
+METRIC_LABELS_KO: dict[str, str] = {
+    "duration_s": "답변 길이",
+    "word_count": "단어 수",
+    "words_per_minute": "말하기 속도",
+    "pause_ratio": "침묵 비율",
+    "mean_utterance_length": "평균 발화 길이",
+}
+
+METRIC_FORMATTERS: dict[str, Callable[[float], str]] = {
+    "duration_s": lambda v: f"{v:.0f}초",
+    "word_count": lambda v: f"{v:.0f}개",
+    "words_per_minute": lambda v: f"{v:.0f}",
+    "pause_ratio": lambda v: f"{v:.0%}",
+    "mean_utterance_length": lambda v: f"{v:.1f}단어",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,18 +336,24 @@ def render_text(report: Report) -> str:
             note = "읽을 수 없는 파일" if answer.state == "unreadable" else "채점하지 못한 답변"
             lines.append(f"  질문 {answer.index + 1} — {note}")
             continue
-        lines.append(f"  질문 {answer.index + 1} ({answer.qtype_label_ko})")
+        heading = answer.qtype_label_ko
+        if answer.topic_label_ko:
+            heading += f" · {answer.topic_label_ko}"
+        lines.append(f"  질문 {answer.index + 1} ({heading})")
         lines.append(f"    {answer.question_en}")
         lines.append(f"    {answer.transcript_text}")
         if answer.metrics is not None and report.averages is not None:
-            lines.append(
-                f"    말하기 속도 {answer.metrics.words_per_minute:.0f}"
-                f" (평균 {report.averages.words_per_minute:.0f}) · "
-                f"침묵 비율 {answer.metrics.pause_ratio:.0%}"
-                f" (평균 {report.averages.pause_ratio:.0%})"
-            )
+            for field, label in METRIC_LABELS_KO.items():
+                fmt = METRIC_FORMATTERS[field]
+                value = getattr(answer.metrics, field)
+                average = getattr(report.averages, field)
+                lines.append(f"    {label}: {fmt(value)} (평균 {fmt(average)})")
         for score in answer.scores:
             lines.append(f"    {score.label_ko}: {score.level.name} — {score.comment_ko}")
+            for item in score.evidence:
+                lines.append(f"      \"{item.quote}\"")
+                lines.append(f"        {item.issue_ko}")
+                lines.append(f"        → {item.correction_en}")
 
     return "\n".join(lines)
 

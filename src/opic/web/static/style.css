@@ -69,7 +69,13 @@ h2:first-child { margin-top: 0; }
 
 .question-en { font-style: italic; color: #55555f; }
 .transcript { white-space: pre-wrap; }
-.metrics-line { font-variant-numeric: tabular-nums; color: #55555f; }
+.metrics-line {
+  font-variant-numeric: tabular-nums;
+  color: #55555f;
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
 
 details {
   margin: 0 0 0.75rem;

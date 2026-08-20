@@ -14,7 +14,7 @@ from pathlib import Path
 
 from opic.core.metrics import AnswerMetrics
 from opic.core.questions import Question, QuestionSlot, QuestionType
-from opic.core.report import Report
+from opic.core.report import METRIC_LABELS_KO, Report
 from opic.core.rubric import DIMENSION_LABELS_KO, ActflLevel, Dimension
 from opic.core.scoring import AnswerAssessment, DimensionScore, Evidence, ExamResult, aggregate
 from opic.core.transcript import Span, Transcript, Word
@@ -164,6 +164,7 @@ def report_json(report: Report) -> dict:
             {"id": topic, "label_ko": label, "level": level.name}
             for topic, label, level in report.by_topic
         ],
+        "metric_labels_ko": dict(METRIC_LABELS_KO),
         "averages": _metrics_json(report.averages),
         "answers": [
             {
