@@ -373,6 +373,26 @@ def test_the_text_report_shows_all_five_metrics_against_the_average():
     assert "평균" in text
 
 
+def test_state_label_ko_is_set_for_unscored_answers_and_empty_for_scored_ones():
+    assessments = [assessment(0, {d: ActflLevel.IM2 for d in Dimension})]
+    result = aggregate(blueprint_of(1), assessments)
+
+    report = build_report(result, questions_of(3), unreadable=[2])
+
+    assert report.answers[0].state_label_ko == ""
+    assert report.answers[1].state_label_ko == "채점하지 못한 답변"
+    assert report.answers[2].state_label_ko == "읽을 수 없는 파일"
+
+
+def test_the_text_report_uses_the_state_label_for_an_unscored_answer():
+    assessments = [assessment(0, {d: ActflLevel.IM2 for d in Dimension})]
+    result = aggregate(blueprint_of(1), assessments)
+
+    report = build_report(result, questions_of(2))
+
+    assert "채점하지 못한 답변" in render_text(report)
+
+
 def test_fewer_quotes_than_the_cap_are_all_kept():
     from opic.core.report import EXAM_EVIDENCE_PER_DIMENSION
 

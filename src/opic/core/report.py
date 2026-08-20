@@ -25,6 +25,11 @@ CONTEXT_WORDS = 5
 EXAM_EVIDENCE_PER_DIMENSION = 3
 UNCLEAR_WORDS_SHOWN = 10
 
+STATE_LABELS_KO: dict[str, str] = {
+    "unreadable": "읽을 수 없는 파일",
+    "not_scored": "채점하지 못한 답변",
+}
+
 # §7.7 — the five `MetricSummary` fields shown, each against the exam
 # average. One table, so the label and its formatting live in exactly one
 # place instead of being retyped inline by every renderer that needs them.
@@ -95,6 +100,7 @@ class AnswerReport:
     qtype_label_ko: str
     topic_label_ko: str | None
     state: str
+    state_label_ko: str
     transcript_text: str
     metrics: MetricSummary | None
     scores: tuple[DimensionDetail, ...]
@@ -246,13 +252,15 @@ def _answers(
         index = question.slot.index
         assessment = judged.get(index)
         if assessment is None:
+            state = "unreadable" if index in broken else "not_scored"
             reports.append(
                 AnswerReport(
                     index=index,
                     question_en=question.text_en,
                     qtype_label_ko=QUESTION_TYPE_LABELS_KO[question.slot.qtype],
                     topic_label_ko=_topic_label(question.slot.topic_id),
-                    state="unreadable" if index in broken else "not_scored",
+                    state=state,
+                    state_label_ko=STATE_LABELS_KO[state],
                     transcript_text="",
                     metrics=None,
                     scores=(),
@@ -267,6 +275,7 @@ def _answers(
                 qtype_label_ko=QUESTION_TYPE_LABELS_KO[question.slot.qtype],
                 topic_label_ko=_topic_label(question.slot.topic_id),
                 state="scored",
+                state_label_ko="",
                 transcript_text=assessment.transcript.text,
                 metrics=MetricSummary(
                     duration_s=m.duration_s,
@@ -333,8 +342,7 @@ def render_text(report: Report) -> str:
     lines.append("답변별 상세")
     for answer in report.answers:
         if answer.state != "scored":
-            note = "읽을 수 없는 파일" if answer.state == "unreadable" else "채점하지 못한 답변"
-            lines.append(f"  질문 {answer.index + 1} — {note}")
+            lines.append(f"  질문 {answer.index + 1} — {answer.state_label_ko}")
             continue
         heading = answer.qtype_label_ko
         if answer.topic_label_ko:

@@ -292,8 +292,7 @@ function answerDetails(answer, averages, metricLabels) {
   const summary = document.createElement("summary");
 
   if (answer.state !== "scored") {
-    const note = answer.state === "unreadable" ? "읽을 수 없는 파일" : "채점하지 못한 답변";
-    summary.textContent = `질문 ${answer.index + 1} — ${note}`;
+    summary.textContent = `질문 ${answer.index + 1} — ${answer.state_label_ko}`;
     details.append(summary);
     return details;
   }

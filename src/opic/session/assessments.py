@@ -174,6 +174,7 @@ def report_json(report: Report) -> dict:
                 "qtype_label_ko": a.qtype_label_ko,
                 "topic_label_ko": a.topic_label_ko,
                 "state": a.state,
+                "state_label_ko": a.state_label_ko,
                 "transcript_text": a.transcript_text,
                 "metrics": _metrics_json(a.metrics),
                 "scores": [
