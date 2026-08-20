@@ -277,3 +277,29 @@ def test_report_json_carries_every_key_done_js_reads():
         for score in answer["scores"]:
             assert {"dimension", "label_ko", "level", "comment_ko",
                     "evidence"} <= score.keys()
+
+
+def test_a_schema_mismatched_answer_is_reported_unreadable_not_raised(
+    tmp_path: Path, capsys
+):
+    """An `answer-NN.json` from an older schema is syntactically valid JSON
+    but carries an enum value `QuestionType` no longer recognises.
+    `_answer_from_json` raises `ValueError` on that — a plain
+    `(OSError, json.JSONDecodeError)` catch would let it escape and 500 the
+    whole `/report` route. It must be skipped and marked unreadable like any
+    other broken file, and the failure must not be swallowed silently: the
+    traceback goes to the server console.
+    """
+    questions = (a_record(0),)
+    sut.write_answer(tmp_path, "s", an_assessment(0))
+    path = tmp_path / "s" / "answer-00.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["slot"]["qtype"] = "no-longer-a-real-question-type"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    state = a_state(questions, scored={0})
+    found, broken = sut.read_answers_tolerantly(tmp_path, "s", state)
+
+    assert found == ()
+    assert broken == (0,)
+    assert "ValueError" in capsys.readouterr().err
