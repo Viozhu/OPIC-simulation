@@ -49,8 +49,14 @@ uv run --extra dev pytest
 
 ## Documents
 
-- Design: `docs/superpowers/specs/2026-08-19-opic-simulator-design.md`
-- Plan: `docs/superpowers/plans/2026-08-19-core-engine.md`
+- Master design: `docs/superpowers/specs/2026-08-19-opic-simulator-design.md`
+- Phase 1 plan: `docs/superpowers/plans/2026-08-19-core-engine.md`
+- Phase 2 design: `docs/superpowers/specs/2026-08-19-phase-2-adapters-design.md`
+- Phase 2 plans: `docs/superpowers/plans/2026-08-19-phase-2a-core-repairs.md`, `docs/superpowers/plans/2026-08-19-phase-2b-adapters.md`
+- Phase 3 design: `docs/superpowers/specs/2026-08-19-phase-3-web-design.md`
+- Phase 3 plan: `docs/superpowers/plans/2026-08-19-phase-3-web.md`
+- Phase 4 design: `docs/superpowers/specs/2026-08-20-phase-4-report-design.md`
+- Phase 4 plan: `docs/superpowers/plans/2026-08-20-phase-4-report.md`
 
 ---
 
