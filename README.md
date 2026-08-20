@@ -26,12 +26,17 @@ uvicorn workers would be two queues competing for one model. Do not pass
 `--workers`.
 
 Grading an exam takes about 75 minutes of machine time on an M2. Answers are
-queued as you record them, so the wait after the last question is roughly half
-of that. Closing the tab does not stop it, and restarting the server resumes
-where it left off. An acceptance run on 2026-08-20 took a full fifteen-question
-exam end to end — first question to graded report — in 71 minutes wall clock
-on an M2, all 15 answers scored, which lines up with the 75-minute figure:
-most of the grading happens in the background while you are still talking.
+queued as you record them, so grading overlaps with the exam and the wait after
+the last question is shorter than the total. Closing the tab does not stop it,
+and restarting the server resumes where it left off.
+
+An acceptance run on 2026-08-20 took a full fifteen-question exam end to end —
+first question to graded report — in 71 minutes wall clock on an M2, all 15
+answers scored. Of that, 14 minutes were the exam and 57 were spent waiting
+after the last answer: grading runs at roughly five minutes per answer and the
+queue cannot keep up with a candidate who is still talking. That run answered
+each question in 45 seconds; the longer you speak, the more of the grading is
+already done when you finish.
 
 The command-line exam still works, and prints the same report at the end:
 
