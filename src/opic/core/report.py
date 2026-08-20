@@ -256,6 +256,68 @@ def _answers(
     return tuple(reports)
 
 
+def render_text(report: Report) -> str:
+    """The same report the browser shows, for a terminal."""
+    lines: list[str] = []
+    lines.append(f"최종 등급: {report.final_level.name}")
+    lines.append(
+        f"{report.expected_answers}개 중 {report.scored_answers}개의 답변으로 산출되었습니다."
+    )
+    lines.append("이 등급은 공식 점수가 아니며 실제 시험 결과를 예측하지 않습니다.")
+
+    lines.append("")
+    lines.append("왜 이 등급인가")
+    if report.limiting is not None:
+        lines.append(
+            f"  최종 등급은 {report.limiting.label_ko}에 의해 한 단계 낮아졌습니다. "
+            f"그 제한이 없었다면 {report.limiting.without_cap.name}입니다."
+        )
+    for dimension in report.dimensions:
+        lines.append(
+            f"  {dimension.label_ko} ({dimension.weight:.0%}): {dimension.level.name}"
+        )
+        for item in dimension.evidence:
+            lines.append(f"    \"{item.quote}\" (질문 {item.answer_index + 1})")
+            lines.append(f"      {item.issue_ko}")
+            lines.append(f"      → {item.correction_en}")
+
+    lines.append("")
+    lines.append("또렷하게 인식되지 않은 단어")
+    if not report.unclear:
+        lines.append("  또렷하게 인식되지 않은 단어는 없습니다.")
+    for word in report.unclear:
+        lines.append(f"  {word.text} (질문 {word.answer_index + 1}): …{word.context}…")
+
+    lines.append("")
+    lines.append("유형별 · 주제별")
+    for _, label_ko, level in report.by_type:
+        lines.append(f"  {label_ko}: {level.name}")
+    for _, label_ko, level in report.by_topic:
+        lines.append(f"  {label_ko}: {level.name}")
+
+    lines.append("")
+    lines.append("답변별 상세")
+    for answer in report.answers:
+        if answer.state != "scored":
+            note = "읽을 수 없는 파일" if answer.state == "unreadable" else "채점하지 못한 답변"
+            lines.append(f"  질문 {answer.index + 1} — {note}")
+            continue
+        lines.append(f"  질문 {answer.index + 1} ({answer.qtype_label_ko})")
+        lines.append(f"    {answer.question_en}")
+        lines.append(f"    {answer.transcript_text}")
+        if answer.metrics is not None and report.averages is not None:
+            lines.append(
+                f"    말하기 속도 {answer.metrics.words_per_minute:.0f}"
+                f" (평균 {report.averages.words_per_minute:.0f}) · "
+                f"침묵 비율 {answer.metrics.pause_ratio:.0%}"
+                f" (평균 {report.averages.pause_ratio:.0%})"
+            )
+        for score in answer.scores:
+            lines.append(f"    {score.label_ko}: {score.level.name} — {score.comment_ko}")
+
+    return "\n".join(lines)
+
+
 def _evidence_for(result: ExamResult, dimension: Dimension) -> tuple[EvidenceRef, ...]:
     found = []
     for assessment in result.assessments:

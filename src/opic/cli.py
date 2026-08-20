@@ -246,8 +246,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}")
         print(f"       per-answer results, if any, are under {args.session}")
         return 1
-    print(f"\n최종 등급: {result.final_level.name}")
-    print(f"결과 파일: {args.session / 'result.json'}")
+    from opic.core.report import build_report, render_text
+
+    state = store.load(args.session.parent, args.session.name)
+    questions = [assessments.question_from_record(r) for r in state.questions]
+    print()
+    print(render_text(build_report(result, questions)))
+    print(f"\n결과 파일: {args.session / 'result.json'}")
     return 0
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from opic.core.questions import QuestionType
 from opic.core.rubric import ActflLevel, Dimension
-from opic.core.report import build_report
+from opic.core.report import build_report, render_text
 from opic.core.scoring import AnswerAssessment, DimensionScore, aggregate
 from opic.core.transcript import Span, Transcript, Word
 
@@ -148,3 +148,22 @@ def test_a_scored_answer_carries_its_comment_and_its_question():
     assert detail.question_en == "Question 0"
     assert detail.qtype_label_ko == "묘사"
     assert detail.scores[0].comment_ko
+
+
+def test_the_text_report_names_every_section_and_the_level():
+    text = render_text(report_of(3))
+    assert "최종 등급: IM2" in text
+    assert "왜 이 등급인가" in text
+    assert "유창성" in text
+    assert "유형별" in text
+    assert "답변별 상세" in text
+
+
+def test_the_text_report_says_when_everything_was_understood():
+    assert "또렷하게 인식되지 않은 단어는 없습니다" in render_text(report_of(3))
+
+
+def test_the_text_report_explains_the_cap_when_it_fired():
+    level = {d: ActflLevel.IH for d in Dimension}
+    level[Dimension.GRAMMAR] = ActflLevel.NH
+    assert "문법" in render_text(report_of(3, level))
