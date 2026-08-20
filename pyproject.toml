@@ -12,6 +12,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "anthropic>=0.40",
     "httpx>=0.28.1",
     "pytest>=8.0",
 ]
@@ -25,7 +26,7 @@ packages = ["src/opic"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "tests"]
+pythonpath = ["src", "tests", "tools"]
 markers = [
     "models: needs a real local model (Ollama, Whisper) or macOS `say`; excluded by default",
 ]
