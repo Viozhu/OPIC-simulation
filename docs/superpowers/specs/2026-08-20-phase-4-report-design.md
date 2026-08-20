@@ -98,26 +98,41 @@ infraestructura; formatear texto es legal en `core`.
 Dataclasses congeladas:
 
 - `Report` — `final_level`, `scored_answers`, `expected_answers`,
-  `limiting: LimitingDimension | None`, `dimensions: tuple[DimensionReport, ...]`,
+  `limiting: LimitingDimension | None`, `dimensions: tuple[DimensionSummary, ...]`,
   `unclear: tuple[UnclearWord, ...]`, `by_type`, `by_topic`,
-  `averages: MetricSummary`, `answers: tuple[AnswerReport, ...]`.
-- `DimensionReport` — `dimension`, `label_ko`, `weight`, `level`, `comment_ko`,
-  `evidence: tuple[Evidence, ...]`.
+  `averages: MetricSummary | None`, `answers: tuple[AnswerReport, ...]`.
+- `DimensionSummary` (nivel examen) — `dimension`, `label_ko`, `weight`,
+  `level`, `evidence: tuple[EvidenceRef, ...]`.
+- `DimensionDetail` (nivel respuesta) — `dimension`, `label_ko`, `level`,
+  `comment_ko`, `evidence: tuple[Evidence, ...]`.
+- `EvidenceRef` — `quote`, `issue_ko`, `correction_en`, `answer_index`.
 - `AnswerReport` — `index`, `question_en`, `qtype_label_ko`, `topic_label_ko`,
   `state` (`scored` | `not_scored` | `unreadable`), `transcript_text`,
-  `metrics: MetricSummary | None`, `scores: tuple[DimensionReport, ...]`.
-- `UnclearWord` — `text`, `probability`, `sentence`, `answer_index`.
+  `metrics: MetricSummary | None`, `scores: tuple[DimensionDetail, ...]`.
+- `UnclearWord` — `text`, `probability`, `context`, `answer_index`.
 - `MetricSummary` — `duration_s`, `word_count`, `words_per_minute`,
   `pause_ratio`, `mean_utterance_length`.
 - `LimitingDimension` — `dimension`, `label_ko`, `level`, `without_cap: ActflLevel`.
 
+**Por qué dos tipos de dimensión.** `ExamResult.dimension_levels` es solo
+`(Dimension, ActflLevel)`: los comentarios y las citas viven por respuesta, no
+por examen. Un `comment_ko` a nivel de examen no existe — habría que elegir uno
+de quince o inventar un resumen, y ninguna de las dos cosas es un dato. Así que
+la sección de examen muestra nivel y las citas recogidas de todas las
+respuestas, cada una etiquetada con la pregunta de la que salió
+(`EvidenceRef.answer_index`); los comentarios se leen en el detalle por
+respuesta.
+
 Funciones:
 
-- `build_report(result: ExamResult, expected: int, unreadable: Sequence[int] = ()) -> Report`
+- `build_report(result: ExamResult, questions: Sequence[Question], unreadable: Sequence[int] = ()) -> Report`
 - `render_text(report: Report) -> str`
 
-`expected` viene de `len(state.questions)`, igual que en `result_json`.
-`unreadable` son los índices cuyo `answer-NN.json` no se pudo leer (§9).
+`questions` es la lista completa del examen, no solo las puntuadas: es lo que
+permite nombrar en §7.5 las respuestas que faltan. `expected_answers` sale de
+su longitud. `unreadable` son los índices cuyo `answer-NN.json` no se pudo leer
+(§9). La ruta convierte `QuestionRecord` en `Question` con el
+`question_from_record` que ya existe, así que `core` no ve la capa de sesión.
 
 ### 5.2 Serialización
 
@@ -179,7 +194,9 @@ marcado si `N < expected`. Y el aviso de que no es una puntuación oficial.
 
 **7.2 왜 이 등급인가.** Las cinco dimensiones en orden de peso descendente
 (유창성 25%, 문법 20%, 어휘 20%, 구성력 20%, 질문 적합성 15%), cada una con su
-nivel, su `comment_ko`, y **todas** sus citas.
+nivel y **todas** las citas que esa dimensión acumuló a lo largo del examen,
+cada cita diciendo de qué pregunta salió. Los `comment_ko` no se agregan aquí
+(§5.1): se leen en §7.5, junto a la respuesta que los provocó.
 
 El prompt pide como mucho una evidencia por dimensión (`llm.py:244`) pero
 `RATING_SCHEMA` no lo obliga, y en el examen real del 2026-08-20 la primera
@@ -194,7 +211,13 @@ esa dimensión, y cuál habría sido sin el tope.
 
 **7.3 또렷하게 인식되지 않은 단어.** Las palabras con
 `probability < LOW_CONFIDENCE_THRESHOLD` (0.6, `core/metrics.py`), cada una con
-la frase donde cae y de qué respuesta viene.
+su contexto y de qué respuesta viene.
+
+El contexto son las cinco palabras anteriores y las cinco siguientes del propio
+flujo de palabras, no «la frase»: `Transcript` guarda palabras con tiempos, no
+oraciones, y partir `transcript.text` por puntuación para volver a casarlo con
+`Word` es frágil y falla justo donde el reconocedor dudó. Una ventana fija es
+determinista y testeable.
 
 El encabezado dice lo que el dato es: el reconocedor no las captó con claridad.
 Es una afirmación sobre el reconocedor, no sobre la boca del candidato — y es
