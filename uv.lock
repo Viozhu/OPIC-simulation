@@ -453,6 +453,7 @@ name = "opic"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "anthropic" },
     { name = "fastapi" },
     { name = "faster-whisper" },
     { name = "python-multipart" },
@@ -461,14 +462,13 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
-    { name = "anthropic" },
     { name = "httpx" },
     { name = "pytest" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.40" },
+    { name = "anthropic", specifier = ">=0.40" },
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "faster-whisper", specifier = ">=1.2" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28.1" },

@@ -1,8 +1,9 @@
 """The real server: real adapters, one worker, one uvicorn process.
 
 `uv run uvicorn --factory opic.web.serve:app` is the supported way to start it.
-Two uvicorn workers would be two queues fighting over one model and one set of
-files, so the process count is not a tuning knob here.
+Two uvicorn workers would be two queues over one sessions folder — and, on the
+local backend, over one model as well — so the process count is not a tuning
+knob here.
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from opic.adapters.llm import OllamaClient
+from opic.adapters import make_llm_client
 from opic.adapters.stt import WhisperSpeechToText
 from opic.adapters.tts import SayTextToSpeech
 from opic.session.worker import Worker
@@ -56,7 +57,7 @@ def claim_the_lock(root: Path, pid: int | None = None, is_running=_is_running) -
 
 def app():
     claim_the_lock(SESSIONS)
-    client = OllamaClient()
+    client = make_llm_client()
     worker = Worker(
         root=SESSIONS,
         tts=SayTextToSpeech(cache_dir=TTS_CACHE),

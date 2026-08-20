@@ -12,24 +12,25 @@ The local side is free: every `answer-NN.json` already holds the verdict the
 exam produced, so only the Claude side is paid for and re-running the local
 model is never necessary.
 
-    uv run --extra dev python tools/rater_bench.py --session data/sessions/<id>
+    uv run python tools/rater_bench.py --session data/sessions/<id>
 
-Needs credentials: `ANTHROPIC_API_KEY`, or a profile from `ant auth login`.
+Needs credentials: `API_KEY_ANTHROPIC` or `ANTHROPIC_API_KEY` (a `.env` in the
+repo root is read), or a profile from `ant auth login`.
 """
 
 from __future__ import annotations
 
 import argparse
-import copy
 import html
 import json
 import os
 import pathlib
 import re
-import sys
 import time
 from dataclasses import dataclass
 
+from opic.adapters import config
+from opic.adapters.anthropic_llm import strict
 from opic.adapters.llm import RATING_SCHEMA, rating_prompt, parse_rating
 from opic.core.rubric import DIMENSION_LABELS_KO, Dimension
 from opic.core.scoring import DimensionScore
@@ -92,28 +93,6 @@ def rewrite_overlap(quote: str, correction_en: str) -> float:
 
 
 # ---------------------------------------------------------------- the client
-
-
-def strict(schema: dict) -> dict:
-    """The rating schema with `additionalProperties: false` everywhere.
-
-    Structured outputs require it; the product's schema does not carry it, and
-    this must not reach into `src/opic` to add it.
-    """
-    out = copy.deepcopy(schema)
-
-    def walk(node):
-        if isinstance(node, dict):
-            if node.get("type") == "object":
-                node["additionalProperties"] = False
-            for value in node.values():
-                walk(value)
-        elif isinstance(node, list):
-            for item in node:
-                walk(item)
-
-    walk(out)
-    return out
 
 
 def rate_with_claude(client, model: str, effort: str, assessment):
@@ -221,15 +200,14 @@ def main() -> int:
     try:
         import anthropic
     except ImportError:
-        print("error: the `anthropic` package is missing.")
-        print("       run with `uv run --extra dev python tools/rater_bench.py ...`")
+        print("error: the `anthropic` package is missing — run `uv sync`.")
         return 1
 
-    if not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get(
-        "ANTHROPIC_AUTH_TOKEN"
-    ):
-        print("error: no credentials found in the environment.")
-        print("       export ANTHROPIC_API_KEY=..., or run `ant auth login`.")
+    config.load_env_file()
+    if not config.anthropic_api_key() and not os.environ.get("ANTHROPIC_AUTH_TOKEN"):
+        print("error: no credentials found in the environment or in .env.")
+        print("       put API_KEY_ANTHROPIC=... in .env, export ANTHROPIC_API_KEY=...,")
+        print("       or run `ant auth login`.")
         print("       note: a key exported in another shell does not reach this one.")
         return 1
 
@@ -240,7 +218,8 @@ def main() -> int:
     if args.limit:
         files = files[: args.limit]
 
-    client = anthropic.Anthropic()
+    key = config.anthropic_api_key()
+    client = anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
     rows: list[dict] = []
     tokens_in = tokens_out = 0
     total_seconds = 0.0
