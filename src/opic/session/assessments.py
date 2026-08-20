@@ -225,7 +225,7 @@ def read_answers_tolerantly(
             continue
         try:
             found.append(read_answer(root, session_id, record.index))
-        except (OSError, ValueError):
+        except (OSError, json.JSONDecodeError):
             broken.append(record.index)
     return tuple(found), tuple(broken)
 

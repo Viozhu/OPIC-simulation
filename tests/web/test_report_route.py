@@ -30,6 +30,23 @@ def test_a_corrupt_answer_file_does_not_cost_the_whole_report(
     assert payload["scored_answers"] >= 1
 
 
+def test_every_answer_unreadable_is_still_a_404_not_a_500(
+    client, scored_session, sessions_root
+):
+    """`result.json` exists, but not a single `answer-NN.json` can be read.
+
+    Distinct from the single-broken-file case above: there `judged` still has
+    entries, so a report can be built. Here `judged` is empty, and the route
+    must 404 rather than crash or return an empty report."""
+    session_dir = sessions_root / scored_session
+    for answer_file in session_dir.glob("answer-*.json"):
+        answer_file.write_text("{ not json", encoding="utf-8")
+
+    response = client.get(f"/api/sessions/{scored_session}/report")
+
+    assert response.status_code == 404
+
+
 def test_the_raw_result_route_is_unchanged(client, scored_session):
     payload = client.get(f"/api/sessions/{scored_session}/result").json()
     assert set(payload) >= {
