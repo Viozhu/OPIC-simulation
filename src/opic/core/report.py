@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from opic.core.metrics import LOW_CONFIDENCE_THRESHOLD
 from opic.core.questions import Question, QuestionType
 from opic.core.rubric import (
     DIMENSION_LABELS_KO,
@@ -18,6 +19,8 @@ from opic.core.rubric import (
     Dimension,
 )
 from opic.core.scoring import Evidence, ExamResult, limiting_dimension
+
+CONTEXT_WORDS = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,12 +136,38 @@ def build_report(
                 DIMENSION_WEIGHTS.items(), key=lambda pair: -pair[1]
             )
         ),
-        unclear=(),
+        unclear=_unclear_words(result),
         by_type=(),
         by_topic=(),
         averages=None,
         answers=(),
     )
+
+
+def _unclear_words(result: ExamResult) -> tuple[UnclearWord, ...]:
+    """Words the recogniser gave low confidence to, with surrounding context.
+
+    Context is the five words before and five after in the raw word stream —
+    not a sentence: word timings do not mark sentence boundaries, and a mumble
+    at the edge of an utterance still needs neighbours to be legible.
+    """
+    found = []
+    for assessment in result.assessments:
+        words = assessment.transcript.words
+        for position, word in enumerate(words):
+            if word.probability >= LOW_CONFIDENCE_THRESHOLD:
+                continue
+            start = max(0, position - CONTEXT_WORDS)
+            end = min(len(words), position + CONTEXT_WORDS + 1)
+            found.append(
+                UnclearWord(
+                    text=word.text,
+                    probability=word.probability,
+                    context=" ".join(w.text for w in words[start:end]),
+                    answer_index=assessment.question_index,
+                )
+            )
+    return tuple(found)
 
 
 def _evidence_for(result: ExamResult, dimension: Dimension) -> tuple[EvidenceRef, ...]:
