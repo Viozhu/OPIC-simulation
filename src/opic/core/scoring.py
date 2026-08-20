@@ -125,6 +125,39 @@ def _level_for_answers(assessments: Sequence[AnswerAssessment]) -> ActflLevel:
     return ActflLevel.from_rank(_capped(_weighted_rank(assessments), assessments))
 
 
+def pre_cap_rank(
+    blueprint: Sequence[QuestionSlot],
+    assessments: Sequence[AnswerAssessment],
+) -> int:
+    """The rank before the weak-dimension cap: weighted mean, then any raise."""
+    slots = {slot.index: slot for slot in blueprint}
+    rank = _weighted_rank(assessments)
+    advanced = [a for a in assessments if slots[a.question_index].advanced]
+    if advanced:
+        stretch = _level_for_answers(advanced)
+        if stretch.rank > rank:
+            rank = min(rank + 1, stretch.rank)
+    return rank
+
+
+def limiting_dimension(
+    blueprint: Sequence[QuestionSlot],
+    assessments: Sequence[AnswerAssessment],
+) -> tuple[Dimension, ActflLevel] | None:
+    """The dimension that cost a band, and the level without that cap.
+
+    `None` when the cap did not fire. Read-only: it changes no score, it only
+    explains one. Ties for weakest resolve in `Dimension` declaration order.
+    """
+    if not assessments:
+        return None
+    rank = pre_cap_rank(blueprint, assessments)
+    if _capped(rank, assessments) == rank:
+        return None
+    weakest = min(Dimension, key=lambda d: dimension_level(assessments, d).rank)
+    return weakest, ActflLevel.from_rank(rank)
+
+
 def aggregate(
     blueprint: Sequence[QuestionSlot],
     assessments: Sequence[AnswerAssessment],
@@ -153,14 +186,7 @@ def aggregate(
         (dimension, dimension_level(assessments, dimension)) for dimension in Dimension
     )
 
-    rank = _weighted_rank(assessments)
-
-    advanced = [a for a in assessments if slots[a.question_index].advanced]
-    if advanced:
-        stretch = _level_for_answers(advanced)
-        if stretch.rank > rank:
-            rank = min(rank + 1, stretch.rank)
-
+    rank = pre_cap_rank(blueprint, assessments)
     rank = _capped(rank, assessments)
 
     by_type: list[tuple[QuestionType, ActflLevel]] = []

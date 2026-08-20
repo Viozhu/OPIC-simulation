@@ -301,3 +301,36 @@ def test_question_index_follows_the_question_and_cannot_drift():
     assert a.question_index == a.question.slot.index
     with pytest.raises(Exception):
         a.question_index = 9
+
+
+from opic.core.scoring import limiting_dimension
+
+
+def test_no_limiting_dimension_when_the_cap_did_not_fire():
+    level = {d: ActflLevel.IM2 for d in Dimension}
+    assessments = [assessment(i, level) for i in range(3)]
+    assert limiting_dimension(blueprint_of(3), assessments) is None
+
+
+def test_the_limiting_dimension_is_the_weak_one_and_reports_the_uncapped_level():
+    level = {d: ActflLevel.IH for d in Dimension}
+    level[Dimension.GRAMMAR] = ActflLevel.NH
+    assessments = [assessment(i, level) for i in range(3)]
+
+    limiting = limiting_dimension(blueprint_of(3), assessments)
+
+    assert limiting is not None
+    dimension, without_cap = limiting
+    assert dimension is Dimension.GRAMMAR
+    assert without_cap.rank > aggregate(blueprint_of(3), assessments).final_level.rank
+
+
+def test_a_tie_for_weakest_resolves_in_dimension_declaration_order():
+    level = {d: ActflLevel.IH for d in Dimension}
+    level[Dimension.GRAMMAR] = ActflLevel.NH
+    level[Dimension.VOCABULARY] = ActflLevel.NH
+    assessments = [assessment(i, level) for i in range(3)]
+
+    dimension, _ = limiting_dimension(blueprint_of(3), assessments)
+
+    assert dimension is Dimension.GRAMMAR
