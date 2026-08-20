@@ -11,7 +11,7 @@ from opic.core.scoring import (
     dimension_level,
 )
 
-from core.conftest import assessment, blueprint_of, flat, metrics, slot, transcript_for
+from core.helpers import assessment, blueprint_of, flat, metrics, slot, transcript_for
 
 
 def test_dimension_level_takes_the_median_across_answers():

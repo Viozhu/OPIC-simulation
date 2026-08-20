@@ -5,7 +5,7 @@ from opic.core.rubric import ActflLevel, Dimension
 from opic.core.report import build_report
 from opic.core.scoring import aggregate
 
-from core.conftest import assessment, blueprint_of, slot
+from core.helpers import assessment, blueprint_of, slot
 
 
 def questions_of(n: int):
@@ -37,6 +37,15 @@ def test_dimensions_come_in_descending_weight_order():
     assert weights == sorted(weights, reverse=True)
     assert report.dimensions[0].dimension is Dimension.FLUENCY
     assert report.dimensions[0].label_ko == "유창성"
+    # GRAMMAR, VOCABULARY, COHERENCE are all tied at weight 0.20; the sort
+    # must be stable and keep them in Dimension declaration order.
+    assert [d.dimension for d in report.dimensions] == [
+        Dimension.FLUENCY,
+        Dimension.GRAMMAR,
+        Dimension.VOCABULARY,
+        Dimension.COHERENCE,
+        Dimension.RELEVANCE,
+    ]
 
 
 def test_no_limiting_dimension_when_the_cap_did_not_fire():
