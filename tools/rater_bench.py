@@ -44,6 +44,8 @@ PRICES = {
     "claude-haiku-4-5": (1.0, 5.0),
 }
 
+NO_EFFORT = frozenset({"claude-haiku-4-5", "claude-sonnet-4-5"})
+
 _WORD = re.compile(r"[a-z0-9']+")
 
 
@@ -118,13 +120,16 @@ def rate_with_claude(client, model: str, effort: str, assessment):
     """One rating, through the same prompt and the same parser as the local one."""
     prompt = rating_prompt(assessment.question, assessment.transcript, assessment.metrics)
     started = time.monotonic()
+    # `effort` is rejected outright by Haiku 4.5 and Sonnet 4.5, so it is sent
+    # only to the models that accept it rather than being hardcoded into every
+    # request — a cheap reference rater is a legitimate thing to want here.
+    output_config = {"format": {"type": "json_schema", "schema": strict(RATING_SCHEMA)}}
+    if effort and model not in NO_EFFORT:
+        output_config["effort"] = effort
     response = client.messages.create(
         model=model,
         max_tokens=16000,
-        output_config={
-            "effort": effort,
-            "format": {"type": "json_schema", "schema": strict(RATING_SCHEMA)},
-        },
+        output_config=output_config,
         messages=[{"role": "user", "content": prompt}],
     )
     elapsed = time.monotonic() - started
@@ -302,6 +307,30 @@ def main() -> int:
     (out_dir / "report.html").write_text(render(rows, summary), encoding="utf-8")
     (out_dir / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    # Machine-readable verdicts, so two runs can be compared to each other and
+    # not only each to the local rater. Without this the levels exist solely
+    # inside the HTML, which makes a model sweep a scraping exercise.
+    (out_dir / "verdicts.json").write_text(
+        json.dumps(
+            {
+                "model": args.model,
+                "effort": args.effort,
+                "session": str(args.session),
+                "answers": [
+                    {
+                        "index": r["index"],
+                        "local": {s.dimension.value: s.level.name for s in r["local"]},
+                        "claude": {s.dimension.value: s.level.name for s in r["claude"]},
+                        "seconds": round(r["elapsed"], 1),
+                    }
+                    for r in rows
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
     )
 
     print()
