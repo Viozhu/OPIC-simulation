@@ -373,6 +373,24 @@ def test_the_text_report_shows_all_five_metrics_against_the_average():
     assert "평균" in text
 
 
+def test_format_metrics_gives_every_field_a_unit_python_and_js_both_use():
+    """The one place formatting is decided (residual finding: done.js used to
+    keep its own copy of these units, which is how word_count and
+    mean_utterance_length drifted between the CLI and the browser).
+    `report_json` serialises this same dict, so a unit added here reaches
+    both renderers without done.js deciding anything.
+    """
+    from opic.core.report import format_metrics
+
+    display = format_metrics(report_of(2).averages)
+
+    assert display["duration_s"].endswith("초")
+    assert display["word_count"].endswith("개")
+    assert display["words_per_minute"].endswith("단어/분")
+    assert display["pause_ratio"].endswith("%")
+    assert display["mean_utterance_length"].endswith("단어")
+
+
 def test_state_label_ko_is_set_for_unscored_answers_and_empty_for_scored_ones():
     assessments = [assessment(0, {d: ActflLevel.IM2 for d in Dimension})]
     result = aggregate(blueprint_of(1), assessments)

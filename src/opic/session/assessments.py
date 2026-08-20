@@ -15,7 +15,7 @@ from pathlib import Path
 
 from opic.core.metrics import AnswerMetrics
 from opic.core.questions import Question, QuestionSlot, QuestionType
-from opic.core.report import METRIC_LABELS_KO, Report
+from opic.core.report import METRIC_LABELS_KO, Report, format_metrics
 from opic.core.rubric import DIMENSION_LABELS_KO, ActflLevel, Dimension
 from opic.core.scoring import AnswerAssessment, DimensionScore, Evidence, ExamResult, aggregate
 from opic.core.transcript import Span, Transcript, Word
@@ -167,6 +167,7 @@ def report_json(report: Report) -> dict:
         ],
         "metric_labels_ko": dict(METRIC_LABELS_KO),
         "averages": _metrics_json(report.averages),
+        "averages_display": _metrics_display_json(report.averages),
         "answers": [
             {
                 "index": a.index,
@@ -177,6 +178,7 @@ def report_json(report: Report) -> dict:
                 "state_label_ko": a.state_label_ko,
                 "transcript_text": a.transcript_text,
                 "metrics": _metrics_json(a.metrics),
+                "metrics_display": _metrics_display_json(a.metrics),
                 "scores": [
                     {
                         "dimension": s.dimension.value,
@@ -210,6 +212,15 @@ def _metrics_json(metrics) -> dict | None:
         "pause_ratio": metrics.pause_ratio,
         "mean_utterance_length": metrics.mean_utterance_length,
     }
+
+
+def _metrics_display_json(metrics) -> dict | None:
+    """Each metric already formatted for display (§7.7), so `done.js` prints
+    a string instead of deciding units and rounding itself — the raw numbers
+    above stay too, for whatever else might want them."""
+    if metrics is None:
+        return None
+    return format_metrics(metrics)
 
 
 def read_answers_tolerantly(

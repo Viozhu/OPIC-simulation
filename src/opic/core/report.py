@@ -44,10 +44,25 @@ METRIC_LABELS_KO: dict[str, str] = {
 METRIC_FORMATTERS: dict[str, Callable[[float], str]] = {
     "duration_s": lambda v: f"{v:.0f}초",
     "word_count": lambda v: f"{v:.0f}개",
-    "words_per_minute": lambda v: f"{v:.0f}",
+    "words_per_minute": lambda v: f"{v:.0f}단어/분",
     "pause_ratio": lambda v: f"{v:.0%}",
     "mean_utterance_length": lambda v: f"{v:.1f}단어",
 }
+
+
+def format_metrics(metrics: MetricSummary) -> dict[str, str]:
+    """Every field of a `MetricSummary`, already formatted for display.
+
+    This is the one place either renderer needs for "what does this number
+    look like" — `render_text` calls it directly, and `report_json`
+    serialises its result, so `done.js` prints these strings instead of
+    deciding its own formatting. Two formatting tables (one in Python, one
+    in JS) is exactly how the CLI and the browser drifted apart before.
+    """
+    return {
+        field: METRIC_FORMATTERS[field](getattr(metrics, field))
+        for field in METRIC_LABELS_KO
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -351,11 +366,12 @@ def render_text(report: Report) -> str:
         lines.append(f"    {answer.question_en}")
         lines.append(f"    {answer.transcript_text}")
         if answer.metrics is not None and report.averages is not None:
+            answer_display = format_metrics(answer.metrics)
+            average_display = format_metrics(report.averages)
             for field, label in METRIC_LABELS_KO.items():
-                fmt = METRIC_FORMATTERS[field]
-                value = getattr(answer.metrics, field)
-                average = getattr(report.averages, field)
-                lines.append(f"    {label}: {fmt(value)} (평균 {fmt(average)})")
+                lines.append(
+                    f"    {label}: {answer_display[field]} (평균 {average_display[field]})"
+                )
         for score in answer.scores:
             lines.append(f"    {score.label_ko}: {score.level.name} — {score.comment_ko}")
             for item in score.evidence:

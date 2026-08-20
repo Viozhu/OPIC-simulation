@@ -272,22 +272,17 @@ function detailSection(report) {
   elements.push(heading);
 
   for (const answer of report.answers) {
-    elements.push(answerDetails(answer, report.averages, report.metric_labels_ko));
+    elements.push(answerDetails(answer, report.averages_display, report.metric_labels_ko));
   }
 
   return elements;
 }
 
-// Presentation only (rounding, units) — the labels and which five fields
-// exist come from `report.metric_labels_ko`, not from anything decided here.
-function formatMetric(field, value) {
-  if (field === "pause_ratio") return `${Math.round(value * 100)}%`;
-  if (field === "mean_utterance_length") return value.toFixed(1);
-  if (field === "duration_s") return `${Math.round(value)}초`;
-  return `${Math.round(value)}`;
-}
-
-function answerDetails(answer, averages, metricLabels) {
+// `answer.metrics_display` and `averagesDisplay` are already the strings to
+// print — rounding, percentages, units, all decided once in Python
+// (core/report.py:format_metrics) and serialised by report_json. This screen
+// only pairs a label with the two strings; it does not compute anything.
+function answerDetails(answer, averagesDisplay, metricLabels) {
   const details = document.createElement("details");
   const summary = document.createElement("summary");
 
@@ -313,14 +308,13 @@ function answerDetails(answer, averages, metricLabels) {
   transcript.textContent = answer.transcript_text;
   details.append(transcript);
 
-  if (answer.metrics && averages) {
+  if (answer.metrics_display && averagesDisplay) {
     const metrics = document.createElement("ul");
     metrics.className = "metrics-line";
     for (const [field, label] of Object.entries(metricLabels)) {
       const line = document.createElement("li");
       line.textContent =
-        `${label}: ${formatMetric(field, answer.metrics[field])} ` +
-        `(평균 ${formatMetric(field, averages[field])})`;
+        `${label}: ${answer.metrics_display[field]} (평균 ${averagesDisplay[field]})`;
       metrics.append(line);
     }
     details.append(metrics);

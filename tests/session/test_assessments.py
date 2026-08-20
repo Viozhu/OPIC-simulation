@@ -279,6 +279,29 @@ def test_report_json_carries_every_key_done_js_reads():
                     "evidence"} <= score.keys()
 
 
+def test_report_json_serves_metrics_already_formatted_for_display():
+    """done.js must not decide how a metric looks — that drifted before
+    (word_count and mean_utterance_length lost their units in the browser
+    while the CLI kept them). report_json now carries the formatted string
+    alongside the raw number, for both an answer's metrics and the exam
+    average, so the browser only has to print what Python already built.
+    """
+    questions = (a_record(0),)
+    result = sut.aggregate_available(questions, [an_assessment(0)])
+    report = build_report(result, [sut.question_from_record(q) for q in questions])
+
+    payload = sut.report_json(report)
+
+    assert payload["averages_display"]["word_count"].endswith("개")
+    assert payload["averages_display"]["mean_utterance_length"].endswith("단어")
+    assert payload["averages_display"]["words_per_minute"].endswith("단어/분")
+    scored = next(a for a in payload["answers"] if a["state"] == "scored")
+    assert scored["metrics_display"]["word_count"].endswith("개")
+    assert scored["metrics_display"]["mean_utterance_length"].endswith("단어")
+    # the raw numbers are still there too — nothing was removed, only added
+    assert isinstance(scored["metrics"]["word_count"], (int, float))
+
+
 def test_a_schema_mismatched_answer_is_reported_unreadable_not_raised(
     tmp_path: Path, capsys
 ):
