@@ -43,3 +43,49 @@ button.secondary { background: transparent; color: var(--accent); }
 .counter.short { color: var(--warn); }
 .issues { color: var(--warn); }
 .recording { color: var(--warn); font-weight: 600; }
+
+h2 { margin: 2rem 0 0.75rem; font-size: 1.1rem; }
+h2:first-child { margin-top: 0; }
+
+.dimension {
+  margin: 0 0 1.25rem;
+  padding: 0.25rem 0 0.25rem 0.9rem;
+  border-left: 3px solid var(--line);
+}
+.dimension h3, .dimension h4 { margin: 0 0 0.35rem; font-size: 1rem; }
+
+.evidence { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+.evidence-item {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.85rem;
+  background: #f2f2f6;
+  border-radius: 6px;
+}
+.evidence-item p { margin: 0 0 0.3rem; }
+.evidence-item p:last-child { margin-bottom: 0; }
+.evidence-item .quote { font-style: italic; }
+.evidence-item .correction { color: var(--accent); }
+.evidence-item .answer-ref, .answer-ref { font-size: 0.85rem; color: #55555f; }
+
+.question-en { font-style: italic; color: #55555f; }
+.transcript { white-space: pre-wrap; }
+.metrics-line { font-variant-numeric: tabular-nums; color: #55555f; }
+
+details {
+  margin: 0 0 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+}
+details > summary { cursor: pointer; font-weight: 600; }
+details > :not(summary) { margin-top: 0.75rem; }
+
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  background: #f2f2f6;
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
