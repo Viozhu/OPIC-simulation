@@ -1269,6 +1269,81 @@ git commit -m "test: pin the report to a real graded exam"
 
 ---
 
+### Task 10: Cap the exam-level evidence list
+
+**Files:**
+- Modify: `src/opic/core/report.py` (`_evidence_for`)
+- Test: `tests/core/test_report.py`
+
+**Interfaces:**
+- Consumes: `EvidenceRef`, `_evidence_for` (Task 3)
+- Produces: `EXAM_EVIDENCE_PER_DIMENSION: int`, and a bounded `DimensionSummary.evidence`
+
+Added after the acceptance run of 2026-08-20 measured what the real data does:
+73 evidence items across 71 dimension scores — roughly fifteen quotes per
+dimension on the exam-level screen. Spec §7.2 was amended to cap it. Nothing is
+hidden: §7.5's per-answer detail still carries every quote.
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+def test_exam_level_evidence_is_capped_and_spread_across_answers():
+    from opic.core.report import EXAM_EVIDENCE_PER_DIMENSION
+
+    level = {d: ActflLevel.IM2 for d in Dimension}
+    assessments = [assessment(i, level) for i in range(6)]
+    for a in assessments:
+        for score in a.dimension_scores:
+            if score.dimension is Dimension.FLUENCY:
+                object.__setattr__  # do NOT use; build the evidence in helpers instead
+    # Build six assessments whose FLUENCY score each carries two Evidence items,
+    # using the real constructors (see tests/core/helpers.py), then:
+    report = build_report(result, questions_of(6))
+    fluency = next(d for d in report.dimensions if d.dimension is Dimension.FLUENCY)
+
+    assert len(fluency.evidence) == EXAM_EVIDENCE_PER_DIMENSION
+    assert len({e.answer_index for e in fluency.evidence}) == EXAM_EVIDENCE_PER_DIMENSION
+
+
+def test_fewer_quotes_than_the_cap_are_all_kept():
+    report = report_of(1)
+    for dimension in report.dimensions:
+        assert len(dimension.evidence) <= EXAM_EVIDENCE_PER_DIMENSION
+```
+
+Write these properly against the real constructors — the sketch above marks
+where not to reach for `object.__setattr__`.
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `uv run --extra dev pytest tests/core/test_report.py -k evidence -v`
+Expected: FAIL with `ImportError: cannot import name 'EXAM_EVIDENCE_PER_DIMENSION'`
+
+- [ ] **Step 3: Write minimal implementation**
+
+```python
+EXAM_EVIDENCE_PER_DIMENSION = 3
+```
+
+Rewrite `_evidence_for` so it takes at most one quote per answer on a first
+pass, in answer order, and only falls back to a second quote from an
+already-used answer if the cap is still unfilled. Preserve the existing
+`EvidenceRef` construction exactly.
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `uv run --extra dev pytest tests/core/ -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/opic/core/report.py tests/core/test_report.py
+git commit -m "feat(core): cap the exam-level evidence list per dimension"
+```
+
+---
+
 ## Self-review notes
 
 Spec coverage checked section by section:

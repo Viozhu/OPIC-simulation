@@ -194,9 +194,18 @@ marcado si `N < expected`. Y el aviso de que no es una puntuación oficial.
 
 **7.2 왜 이 등급인가.** Las cinco dimensiones en orden de peso descendente
 (유창성 25%, 문법 20%, 어휘 20%, 구성력 20%, 질문 적합성 15%), cada una con su
-nivel y **todas** las citas que esa dimensión acumuló a lo largo del examen,
-cada cita diciendo de qué pregunta salió. Los `comment_ko` no se agregan aquí
-(§5.1): se leen en §7.5, junto a la respuesta que los provocó.
+nivel y las citas que esa dimensión acumuló a lo largo del examen, cada una
+diciendo de qué pregunta salió. Los `comment_ko` no se agregan aquí (§5.1): se
+leen en §7.5, junto a la respuesta que los provocó.
+
+**Cuántas citas.** No todas. Medido sobre el examen real del 2026-08-20:
+73 evidencias repartidas en 71 puntuaciones de dimensión, o sea unas quince por
+dimensión. Volcarlas en la pantalla principal no es un informe, es el JSON con
+otra tipografía. `build_report` acota a `EXAM_EVIDENCE_PER_DIMENSION = 3`,
+prefiriendo citas de preguntas distintas para no gastar las tres en la misma
+respuesta. No se esconde nada: §7.5 sigue llevando todas las citas de cada
+respuesta. El límite vive en `core` para que la terminal y el navegador hereden
+el mismo, y para que sea testeable.
 
 El prompt pide como mucho una evidencia por dimensión (`llm.py:244`) pero
 `RATING_SCHEMA` no lo obliga, y en el examen real del 2026-08-20 la primera
