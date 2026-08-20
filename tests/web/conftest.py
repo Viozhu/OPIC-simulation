@@ -18,9 +18,14 @@ TWELVE_ITEMS = [
 
 
 @pytest.fixture
-def worker(tmp_path: Path) -> Worker:
+def sessions_root(tmp_path: Path) -> Path:
+    return tmp_path / "sessions"
+
+
+@pytest.fixture
+def worker(sessions_root: Path, tmp_path: Path) -> Worker:
     return Worker(
-        root=tmp_path / "sessions",
+        root=sessions_root,
         tts=FakeTextToSpeech(tmp_path / "tts_cache"),
         stt=FakeSpeechToText(),
         writer=FakeQuestionWriter(),
@@ -30,10 +35,10 @@ def worker(tmp_path: Path) -> Worker:
 
 
 @pytest.fixture
-def client(tmp_path: Path, worker: Worker) -> TestClient:
+def client(sessions_root: Path, worker: Worker) -> TestClient:
     """A client whose clock is frozen, so session ids are predictable."""
     app = create_app(
-        root=tmp_path / "sessions",
+        root=sessions_root,
         worker=worker,
         clock=lambda: datetime(2026, 8, 19, 14, 30, 52),
     )
@@ -49,3 +54,31 @@ def a_valid_survey() -> dict:
         "selected_item_ids": TWELVE_ITEMS,
         "recent_course": "language",
     }
+
+
+@pytest.fixture
+def session_id(client: TestClient, worker: Worker, a_valid_survey: dict) -> str:
+    """A session that has reached the TEST step, ready to receive answers."""
+    session_id = client.post("/api/sessions").json()["id"]
+    client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
+    client.put(f"/api/sessions/{session_id}/level", json={"level": 4})
+    worker.drain()
+    for step in ("sample", "test"):
+        client.post(f"/api/sessions/{session_id}/step", json={"step": step})
+    return session_id
+
+
+@pytest.fixture
+def scored_session(client: TestClient, worker: Worker, session_id: str) -> str:
+    """A session driven all the way to a written `result.json`."""
+    fixture = Path(__file__).parent / "fixtures" / "answer.webm"
+    total = len(client.get(f"/api/sessions/{session_id}").json()["questions"])
+    for index in range(total):
+        with fixture.open("rb") as audio:
+            client.post(
+                f"/api/sessions/{session_id}/answers/{index}",
+                files={"audio": ("answer.webm", audio, "audio/webm")},
+            )
+    client.post(f"/api/sessions/{session_id}/step", json={"step": "grading"})
+    worker.drain()
+    return session_id

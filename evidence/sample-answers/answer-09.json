@@ -1,0 +1,589 @@
+{
+  "index": 9,
+  "question_en": "Can you tell me about a time when you went overseas and something interesting happened?",
+  "slot": {
+    "qtype": "experience",
+    "topic_id": "overseas_travel",
+    "combo_id": 2,
+    "advanced": false,
+    "target": "IM1"
+  },
+  "transcript": {
+    "text": "Hello, I will tell you about my memory trip I took. I think the most memorable trip was when I visited Jeju-do. Jeju-do is an island in South Korea. And I visited there with my girlfriend at the moment. It was honestly an amazing experience because Jeju-do is like Hawaii, but in Korea, something like that. And honestly, it was so beautiful. Everything was new for me. So it was a great experience.",
+    "duration_s": 45.36,
+    "words": [
+      {
+        "text": " Hello,",
+        "start": 4.61,
+        "end": 4.91,
+        "probability": 0.6064481139183044
+      },
+      {
+        "text": " I",
+        "start": 4.97,
+        "end": 5.17,
+        "probability": 0.9334607720375061
+      },
+      {
+        "text": " will",
+        "start": 5.17,
+        "end": 5.47,
+        "probability": 0.883206307888031
+      },
+      {
+        "text": " tell",
+        "start": 5.47,
+        "end": 5.71,
+        "probability": 0.987296462059021
+      },
+      {
+        "text": " you",
+        "start": 5.71,
+        "end": 5.93,
+        "probability": 0.9912024736404419
+      },
+      {
+        "text": " about",
+        "start": 5.93,
+        "end": 6.43,
+        "probability": 0.9829925894737244
+      },
+      {
+        "text": " my",
+        "start": 6.43,
+        "end": 7.23,
+        "probability": 0.9736886620521545
+      },
+      {
+        "text": " memory",
+        "start": 7.23,
+        "end": 7.55,
+        "probability": 0.8943356275558472
+      },
+      {
+        "text": " trip",
+        "start": 7.55,
+        "end": 7.83,
+        "probability": 0.9587461352348328
+      },
+      {
+        "text": " I",
+        "start": 8.15,
+        "end": 8.51,
+        "probability": 0.8161649107933044
+      },
+      {
+        "text": " took.",
+        "start": 8.51,
+        "end": 8.71,
+        "probability": 0.9743844270706177
+      },
+      {
+        "text": " I",
+        "start": 9.67,
+        "end": 9.73,
+        "probability": 0.9558722972869873
+      },
+      {
+        "text": " think",
+        "start": 9.73,
+        "end": 10.27,
+        "probability": 0.993230938911438
+      },
+      {
+        "text": " the",
+        "start": 10.27,
+        "end": 11.25,
+        "probability": 0.8852424621582031
+      },
+      {
+        "text": " most",
+        "start": 11.25,
+        "end": 11.61,
+        "probability": 0.987089216709137
+      },
+      {
+        "text": " memorable",
+        "start": 11.61,
+        "end": 12.23,
+        "probability": 0.9773105382919312
+      },
+      {
+        "text": " trip",
+        "start": 12.23,
+        "end": 12.65,
+        "probability": 0.8769715428352356
+      },
+      {
+        "text": " was",
+        "start": 12.65,
+        "end": 13.17,
+        "probability": 0.9811338186264038
+      },
+      {
+        "text": " when",
+        "start": 14.58,
+        "end": 15.0,
+        "probability": 0.8648123741149902
+      },
+      {
+        "text": " I",
+        "start": 15.0,
+        "end": 15.46,
+        "probability": 0.991881787776947
+      },
+      {
+        "text": " visited",
+        "start": 15.46,
+        "end": 16.4,
+        "probability": 0.9835242033004761
+      },
+      {
+        "text": " Jeju",
+        "start": 16.4,
+        "end": 16.86,
+        "probability": 0.8793538212776184
+      },
+      {
+        "text": "-do.",
+        "start": 16.86,
+        "end": 17.1,
+        "probability": 0.72502401471138
+      },
+      {
+        "text": " Jeju",
+        "start": 17.65,
+        "end": 17.89,
+        "probability": 0.92015540599823
+      },
+      {
+        "text": "-do",
+        "start": 17.89,
+        "end": 18.17,
+        "probability": 0.9785462319850922
+      },
+      {
+        "text": " is",
+        "start": 18.17,
+        "end": 18.49,
+        "probability": 0.9740808606147766
+      },
+      {
+        "text": " an",
+        "start": 18.49,
+        "end": 18.95,
+        "probability": 0.424150288105011
+      },
+      {
+        "text": " island",
+        "start": 18.95,
+        "end": 19.37,
+        "probability": 0.8187535405158997
+      },
+      {
+        "text": " in",
+        "start": 19.37,
+        "end": 19.65,
+        "probability": 0.8634315729141235
+      },
+      {
+        "text": " South",
+        "start": 19.65,
+        "end": 20.01,
+        "probability": 0.9498929381370544
+      },
+      {
+        "text": " Korea.",
+        "start": 20.01,
+        "end": 20.43,
+        "probability": 0.9899251461029053
+      },
+      {
+        "text": " And",
+        "start": 21.1,
+        "end": 21.18,
+        "probability": 0.4770844280719757
+      },
+      {
+        "text": " I",
+        "start": 21.18,
+        "end": 21.3,
+        "probability": 0.9658329486846924
+      },
+      {
+        "text": " visited",
+        "start": 21.3,
+        "end": 21.68,
+        "probability": 0.8174498081207275
+      },
+      {
+        "text": " there",
+        "start": 21.68,
+        "end": 22.0,
+        "probability": 0.9234081506729126
+      },
+      {
+        "text": " with",
+        "start": 22.0,
+        "end": 22.76,
+        "probability": 0.986634373664856
+      },
+      {
+        "text": " my",
+        "start": 22.76,
+        "end": 23.3,
+        "probability": 0.9897878170013428
+      },
+      {
+        "text": " girlfriend",
+        "start": 24.07,
+        "end": 24.47,
+        "probability": 0.9974026083946228
+      },
+      {
+        "text": " at",
+        "start": 24.47,
+        "end": 24.73,
+        "probability": 0.9124676585197449
+      },
+      {
+        "text": " the",
+        "start": 24.73,
+        "end": 24.91,
+        "probability": 0.9398918151855469
+      },
+      {
+        "text": " moment.",
+        "start": 24.91,
+        "end": 25.25,
+        "probability": 0.9925801157951355
+      },
+      {
+        "text": " It",
+        "start": 26.52,
+        "end": 27.08,
+        "probability": 0.8474209308624268
+      },
+      {
+        "text": " was",
+        "start": 27.08,
+        "end": 27.74,
+        "probability": 0.9835666418075562
+      },
+      {
+        "text": " honestly",
+        "start": 27.74,
+        "end": 28.48,
+        "probability": 0.7882350087165833
+      },
+      {
+        "text": " an",
+        "start": 28.48,
+        "end": 28.96,
+        "probability": 0.8986586928367615
+      },
+      {
+        "text": " amazing",
+        "start": 28.96,
+        "end": 29.62,
+        "probability": 0.9948529601097107
+      },
+      {
+        "text": " experience",
+        "start": 29.62,
+        "end": 30.52,
+        "probability": 0.9963686466217041
+      },
+      {
+        "text": " because",
+        "start": 31.26,
+        "end": 32.62,
+        "probability": 0.5465126037597656
+      },
+      {
+        "text": " Jeju",
+        "start": 32.62,
+        "end": 33.16,
+        "probability": 0.9548952579498291
+      },
+      {
+        "text": "-do",
+        "start": 33.16,
+        "end": 33.56,
+        "probability": 0.969208836555481
+      },
+      {
+        "text": " is",
+        "start": 33.56,
+        "end": 34.0,
+        "probability": 0.9806129932403564
+      },
+      {
+        "text": " like",
+        "start": 35.34,
+        "end": 35.72,
+        "probability": 0.9682318568229675
+      },
+      {
+        "text": " Hawaii,",
+        "start": 35.72,
+        "end": 36.34,
+        "probability": 0.9749807715415955
+      },
+      {
+        "text": " but",
+        "start": 36.54,
+        "end": 36.6,
+        "probability": 0.49127528071403503
+      },
+      {
+        "text": " in",
+        "start": 36.6,
+        "end": 36.78,
+        "probability": 0.9796910881996155
+      },
+      {
+        "text": " Korea,",
+        "start": 36.78,
+        "end": 37.18,
+        "probability": 0.982557475566864
+      },
+      {
+        "text": " something",
+        "start": 37.4,
+        "end": 37.62,
+        "probability": 0.9379622340202332
+      },
+      {
+        "text": " like",
+        "start": 37.62,
+        "end": 37.9,
+        "probability": 0.9988166093826294
+      },
+      {
+        "text": " that.",
+        "start": 37.9,
+        "end": 38.16,
+        "probability": 0.9968817234039307
+      },
+      {
+        "text": " And",
+        "start": 39.28,
+        "end": 40.16,
+        "probability": 0.2817634344100952
+      },
+      {
+        "text": " honestly,",
+        "start": 40.16,
+        "end": 40.74,
+        "probability": 0.8556971549987793
+      },
+      {
+        "text": " it",
+        "start": 40.9,
+        "end": 40.94,
+        "probability": 0.9167438745498657
+      },
+      {
+        "text": " was",
+        "start": 40.94,
+        "end": 41.06,
+        "probability": 0.9926126003265381
+      },
+      {
+        "text": " so",
+        "start": 41.06,
+        "end": 41.28,
+        "probability": 0.820908784866333
+      },
+      {
+        "text": " beautiful.",
+        "start": 41.28,
+        "end": 41.76,
+        "probability": 0.997298538684845
+      },
+      {
+        "text": " Everything",
+        "start": 42.04,
+        "end": 42.3,
+        "probability": 0.9913801550865173
+      },
+      {
+        "text": " was",
+        "start": 42.3,
+        "end": 42.66,
+        "probability": 0.998282790184021
+      },
+      {
+        "text": " new",
+        "start": 42.66,
+        "end": 42.84,
+        "probability": 0.9959064722061157
+      },
+      {
+        "text": " for",
+        "start": 42.84,
+        "end": 43.12,
+        "probability": 0.9936091899871826
+      },
+      {
+        "text": " me.",
+        "start": 43.12,
+        "end": 43.54,
+        "probability": 0.9996623992919922
+      },
+      {
+        "text": " So",
+        "start": 44.52,
+        "end": 44.98,
+        "probability": 0.9442697167396545
+      },
+      {
+        "text": " it",
+        "start": 44.98,
+        "end": 45.1,
+        "probability": 0.2958317697048187
+      },
+      {
+        "text": " was",
+        "start": 45.1,
+        "end": 45.32,
+        "probability": 0.9761381149291992
+      },
+      {
+        "text": " a",
+        "start": 45.32,
+        "end": 45.32,
+        "probability": 0.21733547747135162
+      },
+      {
+        "text": " great",
+        "start": 45.32,
+        "end": 45.32,
+        "probability": 0.13857851922512054
+      },
+      {
+        "text": " experience.",
+        "start": 45.32,
+        "end": 45.32,
+        "probability": 0.4646141231060028
+      }
+    ],
+    "speech_spans": [
+      {
+        "start": 4.608,
+        "end": 7.84
+      },
+      {
+        "start": 8.16,
+        "end": 8.736
+      },
+      {
+        "start": 9.536,
+        "end": 13.152
+      },
+      {
+        "start": 14.56,
+        "end": 17.12
+      },
+      {
+        "start": 17.632,
+        "end": 20.48
+      },
+      {
+        "start": 20.992,
+        "end": 23.232
+      },
+      {
+        "start": 24.0,
+        "end": 25.28
+      },
+      {
+        "start": 26.112,
+        "end": 30.752
+      },
+      {
+        "start": 31.488,
+        "end": 33.792
+      },
+      {
+        "start": 35.136,
+        "end": 38.112
+      },
+      {
+        "start": 39.232,
+        "end": 43.872
+      },
+      {
+        "start": 44.416,
+        "end": 45.36
+      }
+    ]
+  },
+  "metrics": {
+    "duration_s": 45.36,
+    "word_count": 76,
+    "words_per_minute": 100.52910052910053,
+    "pause_ratio": 0.21044365920690997,
+    "type_token_ratio": 0.6447368421052632,
+    "mean_utterance_length": 6.909090909090909,
+    "mean_confidence": 0.8710027886064429,
+    "low_confidence_rate": 0.11842105263157894
+  },
+  "scores": [
+    {
+      "dimension": "fluency",
+      "level": "IH",
+      "comment_ko": "말하는 속도가 느리고, 일관성이 부족하여 흐름이 자연스럽지 않다.",
+      "evidence": [
+        {
+          "quote": "Hello, I will tell you about my memory trip I took.",
+          "issue_ko": "문장 구조가 복잡하고, 말하기 속도가 느리다. (words_per_minute: 101, pause_ratio: 0.21).",
+          "correction_en": "Hello, I want to tell you about a trip I took."
+        }
+      ]
+    },
+    {
+      "dimension": "vocabulary",
+      "level": "IH",
+      "comment_ko": "단어 사용이 제한적이며, 표현의 다양성이 부족하다.",
+      "evidence": []
+    },
+    {
+      "dimension": "grammar",
+      "level": "IH",
+      "comment_ko": "문법 오류가 많아 의사소통에 지장을 줄 수 있다.",
+      "evidence": [
+        {
+          "quote": "I visited there with my girlfriend at the moment.",
+          "issue_ko": "시제 사용이 부적절하다. 'at the moment'은 현재 진행 중인 일을 나타내는 표현이다.",
+          "correction_en": "I visited there with my girlfriend last year."
+        }
+      ]
+    },
+    {
+      "dimension": "coherence",
+      "level": "IH",
+      "comment_ko": "내용 전개가 부족하고, 이야기의 흐름이 명확하지 않다.",
+      "evidence": [
+        {
+          "quote": "Everything was new for me. So it was a great experience.",
+          "issue_ko": "이야기의 전개가 갑작스럽고, 구체적인 내용이 부족하다.",
+          "correction_en": "I had never been to an island before, so everything was new to me. That's why it was such a great experience."
+        }
+      ]
+    },
+    {
+      "dimension": "relevance",
+      "level": "IH",
+      "comment_ko": "질문에 대한 답변이 충분히 관련되지 않거나, 주제에서 벗어난다.",
+      "evidence": [
+        {
+          "quote": "I think the most memorable trip was when I visited Jeju-do.",
+          "issue_ko": "질문은 해외 여행에 대한 경험을 묻고 있으나, Jeju-do는 한국의 섬이므로 해외 여행에 해당하지 않는다.",
+          "correction_en": "I think the most memorable trip was when I visited Japan."
+        }
+      ]
+    }
+  ]
+}

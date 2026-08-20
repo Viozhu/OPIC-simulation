@@ -18,6 +18,16 @@ class QuestionType(Enum):
     ROLEPLAY_FOLLOWUP = "roleplay_followup"
 
 
+QUESTION_TYPE_LABELS_KO: dict[QuestionType, str] = {
+    QuestionType.SELF_INTRO: "자기소개",
+    QuestionType.DESCRIPTION: "묘사",
+    QuestionType.HABIT: "습관·일상",
+    QuestionType.EXPERIENCE: "경험",
+    QuestionType.ROLEPLAY_SETUP: "롤플레이 (상황 설정)",
+    QuestionType.ROLEPLAY_FOLLOWUP: "롤플레이 (후속)",
+}
+
+
 @dataclass(frozen=True, slots=True)
 class QuestionSlot:
     index: int

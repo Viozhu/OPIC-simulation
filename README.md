@@ -5,8 +5,14 @@ no audio or transcript ever leaves the computer.
 
 ## Status
 
-Phases 1 to 3 complete: the pure engine, the local adapters, and a browser
-interface that runs a whole exam and grades it while you take it.
+Phases 1 to 4 complete: the pure engine, the local adapters, a browser
+interface that runs a whole exam and grades it while you take it, and a
+report that explains the grade. The report shows the level, a per-dimension
+breakdown with the candidate's own quoted mistakes and the English
+correction for each, an explanation when a weak dimension capped the grade,
+the words the recogniser could not catch clearly, breakdowns by question
+type and topic, and an answer-by-answer detail. The same report prints from
+the CLI.
 
 ```bash
 uv run python -m opic.cli --serve      # http://localhost:8000
@@ -20,11 +26,19 @@ uvicorn workers would be two queues competing for one model. Do not pass
 `--workers`.
 
 Grading an exam takes about 75 minutes of machine time on an M2. Answers are
-queued as you record them, so the wait after the last question is roughly half
-of that. Closing the tab does not stop it, and restarting the server resumes
-where it left off.
+queued as you record them, so grading overlaps with the exam and the wait after
+the last question is shorter than the total. Closing the tab does not stop it,
+and restarting the server resumes where it left off.
 
-The command-line exam still works:
+An acceptance run on 2026-08-20 took a full fifteen-question exam end to end —
+first question to graded report — in 71 minutes wall clock on an M2, all 15
+answers scored. Of that, 14 minutes were the exam and 57 were spent waiting
+after the last answer: grading runs at roughly five minutes per answer and the
+queue cannot keep up with a candidate who is still talking. That run answered
+each question in 45 seconds; the longer you speak, the more of the grading is
+already done when you finish.
+
+The command-line exam still works, and prints the same report at the end:
 
 ```bash
 uv run python -m opic.cli --survey my-survey.json --level 4
@@ -40,17 +54,42 @@ uv run --extra dev pytest
 
 ## Documents
 
-- Design: `docs/superpowers/specs/2026-08-19-opic-simulator-design.md`
-- Plan: `docs/superpowers/plans/2026-08-19-core-engine.md`
+- Master design: `docs/superpowers/specs/2026-08-19-opic-simulator-design.md`
+- Phase 1 plan: `docs/superpowers/plans/2026-08-19-core-engine.md`
+- Phase 2 design: `docs/superpowers/specs/2026-08-19-phase-2-adapters-design.md`
+- Phase 2 plans: `docs/superpowers/plans/2026-08-19-phase-2a-core-repairs.md`, `docs/superpowers/plans/2026-08-19-phase-2b-adapters.md`
+- Phase 3 design: `docs/superpowers/specs/2026-08-19-phase-3-web-design.md`
+- Phase 3 plan: `docs/superpowers/plans/2026-08-19-phase-3-web.md`
+- Phase 4 design: `docs/superpowers/specs/2026-08-20-phase-4-report-design.md`
+- Phase 4 plan: `docs/superpowers/plans/2026-08-20-phase-4-report.md`
 
 ---
 
 ## What comes next
 
-Phases 1 to 3 are done: the pure engine, the local adapters, and the browser
+Phases 1 to 4 are done: the pure engine, the local adapters, the browser
 interface — including deferred evaluation in a background worker with a 채점 중
-progress screen, folded into Phase 3 rather than staying a phase of its own.
+progress screen, folded into Phase 3 rather than staying a phase of its own —
+and the report. What's left is not a phase, it's a punch list:
 
-- **Phase 4 — Report.** A readable, Korean-language score report: the
-  per-dimension breakdown, quoted evidence for each score, and the
-  pronunciation proxy the pipeline already computes but does not yet show.
+- **The rater's `correction_en` field is unreliable.** On a real graded exam,
+  roughly a quarter of the corrections came back as an English *description*
+  of the mistake rather than the sentence the candidate should have said. A
+  fix to the rating prompt is in flight on a separate branch, not yet merged.
+- **The physical microphone is still unproven.** The acceptance run drove a
+  real browser and a real `MediaRecorder`, but the audio came from a file fed
+  through Chrome's fake audio device, so the path from an actual microphone
+  to Whisper has never been exercised end to end.
+- **Four items carried over from phase 3, still true:**
+  - `FileResponse` trusts `audio_path` straight out of `session.json`, with
+    no root containment — safe only as long as both start paths bind to
+    `127.0.0.1` and there is one user.
+  - `describe_issue_ko` parses `ValidationIssue.detail` with `str.partition`,
+    so editing a `validate_survey` format string breaks survey submission,
+    and reordering its fields yields a plausible Korean sentence with the
+    numbers swapped.
+  - A permanently failing `_generate` never marks a session failed: the
+    candidate gets a timeout screen, and the operator gets a console
+    traceback and nothing else.
+  - The retry layers multiply. `OllamaClient.rate` retries once inside
+    `Worker._attempt`'s three, so a hung Ollama costs 30 minutes per answer.
