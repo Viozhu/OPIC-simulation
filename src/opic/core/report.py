@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from opic.core.metrics import LOW_CONFIDENCE_THRESHOLD
+from opic.core.metrics import LOW_CONFIDENCE_THRESHOLD, _normalise
 from opic.core.questions import QUESTION_TYPE_LABELS_KO, Question, QuestionType
 from opic.core.rubric import (
     DIMENSION_LABELS_KO,
@@ -23,6 +23,7 @@ from opic.core.survey import ITEMS_BY_ID
 
 CONTEXT_WORDS = 5
 EXAM_EVIDENCE_PER_DIMENSION = 3
+UNCLEAR_WORDS_SHOWN = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,29 +154,42 @@ def build_report(
 
 
 def _unclear_words(result: ExamResult) -> tuple[UnclearWord, ...]:
-    """Words the recogniser gave low confidence to, with surrounding context.
+    """Words the recogniser gave low confidence to, one entry per word.
 
     Context is the five words before and five after in the raw word stream —
     not a sentence: word timings do not mark sentence boundaries, and a mumble
     at the edge of an utterance still needs neighbours to be legible.
+
+    A real 15-question exam produced 87 below-threshold appearances but only
+    12 distinct words: the same uncertain word recurs answer after answer, and
+    listing every appearance turned the section into a wall of `and`/`an`/
+    `but`/`it`. This keeps one entry per word — normalised the same way
+    `metrics.py` already does for its own matching, so there is only one
+    normalisation in the codebase — the lowest-probability appearance of it
+    (the recogniser's worst guess is the most telling one), ordered
+    worst-first, capped at UNCLEAR_WORDS_SHOWN.
     """
-    found = []
+    best: dict[str, UnclearWord] = {}
     for assessment in result.assessments:
         words = assessment.transcript.words
         for position, word in enumerate(words):
             if word.probability >= LOW_CONFIDENCE_THRESHOLD:
                 continue
+            key = _normalise(word.text)
             start = max(0, position - CONTEXT_WORDS)
             end = min(len(words), position + CONTEXT_WORDS + 1)
-            found.append(
-                UnclearWord(
-                    text=word.text,
-                    probability=word.probability,
-                    context=" ".join(w.text for w in words[start:end]),
-                    answer_index=assessment.question_index,
-                )
+            candidate = UnclearWord(
+                text=word.text,
+                probability=word.probability,
+                context=" ".join(w.text for w in words[start:end]),
+                answer_index=assessment.question_index,
             )
-    return tuple(found)
+            existing = best.get(key)
+            if existing is None or candidate.probability < existing.probability:
+                best[key] = candidate
+
+    ordered = sorted(best.values(), key=lambda w: w.probability)
+    return tuple(ordered[:UNCLEAR_WORDS_SHOWN])
 
 
 def _topic_label(topic_id: str | None) -> str | None:

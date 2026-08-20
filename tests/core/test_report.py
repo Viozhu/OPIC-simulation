@@ -104,6 +104,86 @@ def test_no_unclear_words_gives_an_empty_tuple_not_a_placeholder():
     assert report_of(3).unclear == ()
 
 
+def transcript_with_marked_word(marker: str, word: str, probability: float) -> Transcript:
+    spoken = f"{marker} one {word} {marker} two".split()
+    words = tuple(
+        Word(w, i * 0.4, i * 0.4 + 0.3, probability if w == word else 0.95)
+        for i, w in enumerate(spoken)
+    )
+    return Transcript(
+        text=" ".join(spoken),
+        words=words,
+        speech_spans=(Span(0.0, len(spoken) * 0.4),),
+        duration_s=30.0,
+    )
+
+
+def assessment_with_word(index: int, marker: str, word: str, probability: float) -> AnswerAssessment:
+    level = {d: ActflLevel.IM2 for d in Dimension}
+    return AnswerAssessment(
+        question=questions_of(index + 1)[index],
+        transcript=transcript_with_marked_word(marker, word, probability),
+        dimension_scores=tuple(
+            DimensionScore(dimension=d, level=level[d], comment_ko="괜찮습니다", evidence=())
+            for d in Dimension
+        ),
+        metrics=metrics(),
+    )
+
+
+def test_the_same_word_across_answers_collapses_to_its_worst_appearance():
+    # "and" shows up unclear in three different answers, at three different
+    # probabilities. It must appear on the report exactly once, carrying the
+    # lowest-probability appearance's own context and answer_index — not the
+    # first one seen, not an average.
+    assessments = [
+        assessment_with_word(0, "alpha", "and", 0.5),
+        assessment_with_word(1, "beta", "and", 0.2),
+        assessment_with_word(2, "gamma", "and", 0.4),
+    ]
+    result = aggregate(blueprint_of(3), assessments)
+
+    report = build_report(result, questions_of(3))
+
+    assert [w.text for w in report.unclear] == ["and"]
+    assert report.unclear[0].probability == 0.2
+    assert report.unclear[0].answer_index == 1
+    assert "beta" in report.unclear[0].context
+
+
+def transcript_with_many_unclear_words(count: int) -> Transcript:
+    words = tuple(
+        Word(f"word{i}", i * 0.4, i * 0.4 + 0.3, 0.1 + i * 0.01) for i in range(count)
+    )
+    return Transcript(
+        text=" ".join(w.text for w in words),
+        words=words,
+        speech_spans=(Span(0.0, count * 0.4),),
+        duration_s=30.0,
+    )
+
+
+def test_more_than_ten_distinct_unclear_words_is_capped_at_the_ten_lowest():
+    level = {d: ActflLevel.IM2 for d in Dimension}
+    assessment_ = AnswerAssessment(
+        question=questions_of(1)[0],
+        transcript=transcript_with_many_unclear_words(15),
+        dimension_scores=tuple(
+            DimensionScore(dimension=d, level=level[d], comment_ko="설명", evidence=())
+            for d in Dimension
+        ),
+        metrics=metrics(),
+    )
+    result = aggregate(blueprint_of(1), [assessment_])
+
+    report = build_report(result, questions_of(1))
+
+    assert len(report.unclear) == 10
+    probabilities = [w.probability for w in report.unclear]
+    assert probabilities == sorted(probabilities)
+    assert probabilities == [0.1 + i * 0.01 for i in range(10)]
+
+
 def test_breakdowns_carry_korean_labels():
     report = report_of(3)
     assert report.by_type[0][1] == "묘사"
