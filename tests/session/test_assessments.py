@@ -7,8 +7,9 @@ import pytest
 
 from opic.core.metrics import AnswerMetrics
 from opic.core.questions import Question, QuestionSlot, QuestionType
+from opic.core.report import build_report
 from opic.core.rubric import DIMENSION_LABELS_KO, ActflLevel, Dimension
-from opic.core.scoring import AnswerAssessment, DimensionScore, Evidence
+from opic.core.scoring import AnswerAssessment, DimensionScore, Evidence, aggregate
 from opic.core.transcript import Span, Transcript, Word
 from opic.session import assessments as sut
 from opic.session.state import AnswerRecord, AnswerState, QuestionRecord, SessionState, Step
@@ -185,3 +186,94 @@ def test_every_dimension_in_the_result_carries_a_korean_label():
         entry = payload["dimensions"][dimension.value]
         assert entry["label_ko"] == DIMENSION_LABELS_KO[dimension]
         assert entry["label_ko"]
+
+
+def an_assessment_with_levels(index: int, levels: dict[Dimension, ActflLevel]) -> AnswerAssessment:
+    """Like `an_assessment`, but with a controllable level per dimension so
+    the weak-dimension cap (and therefore `Report.limiting`) can be made to
+    fire on demand."""
+    transcript = Transcript(
+        text="I like films",
+        words=(
+            Word("I", 0.0, 0.2, 0.9),
+            Word("like", 0.2, 0.5, 0.8),
+            Word("films", 0.5, 0.9, 0.7),
+        ),
+        speech_spans=(Span(0.0, 0.9),),
+        duration_s=1.0,
+    )
+    return AnswerAssessment(
+        question=sut.question_from_record(a_record(index)),
+        transcript=transcript,
+        dimension_scores=tuple(
+            DimensionScore(
+                dimension=dimension,
+                level=levels[dimension],
+                comment_ko="문장이 짧습니다.",
+                evidence=(Evidence("I like films", "너무 짧다", "I really enjoy films."),),
+            )
+            for dimension in Dimension
+        ),
+        metrics=AnswerMetrics(
+            duration_s=1.0,
+            word_count=3,
+            words_per_minute=180.0,
+            pause_ratio=0.1,
+            type_token_ratio=1.0,
+            mean_utterance_length=3.0,
+            mean_confidence=0.8,
+            low_confidence_rate=0.0,
+        ),
+    )
+
+
+def test_report_json_carries_every_key_done_js_reads():
+    """`FakeRater` (used by the `/report` route's own test fixture) gives
+    every dimension the same level, so the weak-dimension cap — and
+    `report_json`'s `limiting` branch — can never fire there. Build a
+    `Report` whose cap genuinely fires here instead, so a rename of any key
+    below (in particular `limiting.without_cap`) is caught by a test rather
+    than by a candidate reading `그 제한이 없었다면 undefined입니다` in the
+    browser.
+    """
+    levels = {d: ActflLevel.IH for d in Dimension}
+    levels[Dimension.GRAMMAR] = ActflLevel.NH
+    questions = tuple(a_record(i) for i in range(3))
+    blueprint = tuple(sut.question_from_record(q).slot for q in questions)
+    assessments = [an_assessment_with_levels(i, levels) for i in range(3)]
+    result = aggregate(blueprint, assessments)
+    report_questions = [sut.question_from_record(q) for q in questions]
+    report = build_report(result, report_questions)
+    assert report.limiting is not None  # the branch this test exists to cover
+
+    payload = sut.report_json(report)
+
+    assert {"final_level", "scored_answers", "expected_answers", "limiting", "dimensions",
+            "unclear", "by_type", "by_topic", "averages", "answers"} <= payload.keys()
+
+    assert {"dimension", "label_ko", "level", "without_cap"} <= payload["limiting"].keys()
+
+    assert payload["dimensions"]
+    for dimension in payload["dimensions"]:
+        assert {"dimension", "label_ko", "weight", "level", "evidence"} <= dimension.keys()
+        for evidence in dimension["evidence"]:
+            assert {"quote", "issue_ko", "correction_en", "answer_index"} <= evidence.keys()
+
+    for word in payload["unclear"]:
+        assert {"text", "probability", "context", "answer_index"} <= word.keys()
+
+    for entry in payload["by_type"]:
+        assert {"id", "label_ko", "level"} <= entry.keys()
+    for entry in payload["by_topic"]:
+        assert {"id", "label_ko", "level"} <= entry.keys()
+
+    assert {"duration_s", "word_count", "words_per_minute", "pause_ratio",
+            "mean_utterance_length"} <= payload["averages"].keys()
+
+    assert payload["answers"]
+    for answer in payload["answers"]:
+        assert {"index", "question_en", "qtype_label_ko", "topic_label_ko", "state",
+                "transcript_text", "metrics", "scores"} <= answer.keys()
+        for score in answer["scores"]:
+            assert {"dimension", "label_ko", "level", "comment_ko",
+                    "evidence"} <= score.keys()
