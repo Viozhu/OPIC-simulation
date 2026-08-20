@@ -221,15 +221,17 @@ def read_answers_tolerantly(
     fourteen, so this reports the damage instead of raising.
 
     `_answer_from_json` also raises `KeyError` on a field an older schema
-    never wrote, and `KeyError`/`ValueError` on an enum value the current
-    code no longer recognises — a syntactically valid file that is still the
-    wrong shape. Those are caught here too, alongside the read/parse
-    failures, so a schema mismatch degrades the same way a truncated file
-    does. The failure is not swallowed silently: it is a real bug (a stale
-    or hand-edited answer file) and the operator needs to see it, so the
-    full traceback goes to stderr the same way `Worker._loop` already
-    surfaces a dead task — the candidate keeps their other answers, the
-    operator sees what broke.
+    never wrote, `KeyError`/`ValueError` on an enum value the current code no
+    longer recognises, and `TypeError` when `AnswerMetrics(**metrics)` is
+    missing one of its keyword arguments — `mean_utterance_length` postdates
+    phase 3, so that is the plausible real case. All of those are a
+    syntactically valid file that is still the wrong shape, and are caught
+    here too, alongside the read/parse failures, so a schema mismatch
+    degrades the same way a truncated file does. The failure is not
+    swallowed silently: it is a real bug (a stale or hand-edited answer
+    file) and the operator needs to see it, so the full traceback goes to
+    stderr the same way `Worker._loop` already surfaces a dead task — the
+    candidate keeps their other answers, the operator sees what broke.
     """
     scored = set(state.scored_indices())
     found = []
@@ -239,7 +241,7 @@ def read_answers_tolerantly(
             continue
         try:
             found.append(read_answer(root, session_id, record.index))
-        except (OSError, json.JSONDecodeError, KeyError, ValueError):
+        except (OSError, json.JSONDecodeError, KeyError, ValueError, TypeError):
             broken.append(record.index)
             traceback.print_exc()
     return tuple(found), tuple(broken)

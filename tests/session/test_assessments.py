@@ -303,3 +303,29 @@ def test_a_schema_mismatched_answer_is_reported_unreadable_not_raised(
     assert found == ()
     assert broken == (0,)
     assert "ValueError" in capsys.readouterr().err
+
+
+def test_an_answer_missing_a_metrics_field_is_reported_unreadable_not_raised(
+    tmp_path: Path, capsys
+):
+    """An `answer-NN.json` from before `mean_utterance_length` existed is
+    syntactically valid JSON but its `metrics` object is missing that key.
+    `_answer_from_json` does `AnswerMetrics(**metrics)`, which raises
+    `TypeError` on a missing keyword argument — a different exception than
+    the bad-enum case above, and one a plain
+    `(OSError, json.JSONDecodeError, KeyError, ValueError)` catch would still
+    let escape and 500 the whole `/report` route.
+    """
+    questions = (a_record(0),)
+    sut.write_answer(tmp_path, "s", an_assessment(0))
+    path = tmp_path / "s" / "answer-00.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    del payload["metrics"]["mean_utterance_length"]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    state = a_state(questions, scored={0})
+    found, broken = sut.read_answers_tolerantly(tmp_path, "s", state)
+
+    assert found == ()
+    assert broken == (0,)
+    assert "TypeError" in capsys.readouterr().err
