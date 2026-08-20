@@ -9,52 +9,127 @@ export async function render(state, {api}) {
   await load(app, state, api);
 }
 
-// A failed fetch here would otherwise leave a blank page — `show()` already
-// cleared `#app` before calling this — which is the worst possible ending to
-// a 40-minute exam. Retrying re-runs this same function instead of leaving
-// the candidate stuck.
+// `/report` and `/result` are fetched independently — not with `Promise.all`
+// — because a failure in one must not hide data the other still has.
+// `/report` reconstructs from every `answer-NN.json` and 404s if none of
+// them can be read; `/result` is the plain, already-written file from
+// grading time and keeps working in exactly that case. Before this screen
+// existed, a candidate whose answer files went bad still saw their level —
+// losing that here would be a regression, not just a missing feature. Only
+// when BOTH fail is there truly nothing to show, and that is the one case
+// that gets the retry screen.
 async function load(app, state, api) {
-  let report, raw;
-  try {
-    [report, raw] = await Promise.all([
-      api.get(`/api/sessions/${state.id}/report`),
-      api.get(`/api/sessions/${state.id}/result`),
-    ]);
-  } catch (error) {
-    const message = document.createElement("p");
-    message.className = "issues";
-    message.textContent =
-      "결과를 불러오지 못했습니다. 서버 연결을 확인한 뒤 다시 시도해 주세요.";
-    const retry = document.createElement("button");
-    retry.textContent = "다시 시도";
-    retry.addEventListener("click", () => load(app, state, api), {once: true});
-    app.replaceChildren(message, retry);
+  const [reportOutcome, resultOutcome] = await Promise.allSettled([
+    api.get(`/api/sessions/${state.id}/report`),
+    api.get(`/api/sessions/${state.id}/result`),
+  ]);
+  const report = reportOutcome.status === "fulfilled" ? reportOutcome.value : null;
+  const raw = resultOutcome.status === "fulfilled" ? resultOutcome.value : null;
+
+  if (report === null && raw === null) {
+    renderRetry(app, state, api);
     return;
   }
 
-  const rawDetails = document.createElement("details");
-  const rawSummary = document.createElement("summary");
-  rawSummary.textContent = "전체 결과 (JSON)";
-  const rawPre = document.createElement("pre");
-  rawPre.textContent = JSON.stringify(raw, null, 2);
-  rawDetails.append(rawSummary, rawPre);
+  if (report === null) {
+    renderMinimal(app, raw);
+    return;
+  }
 
-  const again = document.createElement("button");
-  again.textContent = "새 시험 시작";
-  again.addEventListener("click", () => {
-    localStorage.removeItem("opic.session");
-    location.reload();
-  });
+  renderFull(app, report, raw);
+}
 
+// Both fetches failed: nothing to show, so the candidate gets the retry
+// button that exists today. Retrying re-runs `load` instead of leaving the
+// candidate stuck on a blank page.
+function renderRetry(app, state, api) {
+  const message = document.createElement("p");
+  message.className = "issues";
+  message.textContent =
+    "결과를 불러오지 못했습니다. 서버 연결을 확인한 뒤 다시 시도해 주세요.";
+  const retry = document.createElement("button");
+  retry.textContent = "다시 시도";
+  retry.addEventListener("click", () => load(app, state, api), {once: true});
+  app.replaceChildren(message, retry);
+}
+
+// `/report` could not be built — every `answer-NN.json` was unreadable —
+// but `result.json` still holds the level `/result` computed at grading
+// time. This is the phase-3 view: level, how many answers it rests on, the
+// per-dimension list, the raw JSON, and a way to start over, plus one
+// honest sentence that the detailed report is the part that is missing.
+function renderMinimal(app, raw) {
+  const level = document.createElement("h2");
+  level.textContent = `최종 등급: ${raw.final_level}`;
+
+  const based = document.createElement("p");
+  based.textContent =
+    `${raw.expected_answers}개 중 ${raw.scored_answers}개의 답변으로 산출되었습니다.`;
+  if (raw.scored_answers < raw.expected_answers) {
+    based.className = "issues";
+  }
+
+  const caveat = document.createElement("p");
+  caveat.textContent =
+    "이 등급은 공식 점수가 아니며 실제 시험 결과를 예측하지 않습니다.";
+
+  const missing = document.createElement("p");
+  missing.className = "issues";
+  missing.textContent =
+    "저장된 답변에서 상세 리포트를 만들지 못했습니다. 등급과 기본 정보만 표시합니다.";
+
+  const dimensions = document.createElement("ul");
+  for (const info of Object.values(raw.dimensions)) {
+    const line = document.createElement("li");
+    line.textContent = `${info.label_ko}: ${info.level}`;
+    dimensions.append(line);
+  }
+
+  app.replaceChildren(
+    level,
+    based,
+    caveat,
+    missing,
+    dimensions,
+    rawDetailsFor(raw),
+    restartButton(),
+  );
+}
+
+// The normal path: report loaded. `raw` almost always loaded alongside it —
+// `/report` requires `result.json` to exist, so the two rarely disagree —
+// but on the rare chance `/result` alone dropped, the JSON panel falls back
+// to the report itself rather than showing nothing.
+function renderFull(app, report, raw) {
   app.replaceChildren(
     ...summarySection(report),
     ...whySection(report),
     ...unclearSection(report),
     ...breakdownSection(report),
     ...detailSection(report),
-    rawDetails,
-    again,
+    rawDetailsFor(raw ?? report),
+    restartButton(),
   );
+}
+
+function rawDetailsFor(raw) {
+  const rawDetails = document.createElement("details");
+  const rawSummary = document.createElement("summary");
+  rawSummary.textContent = "전체 결과 (JSON)";
+  const rawPre = document.createElement("pre");
+  rawPre.textContent = JSON.stringify(raw, null, 2);
+  rawDetails.append(rawSummary, rawPre);
+  return rawDetails;
+}
+
+function restartButton() {
+  const again = document.createElement("button");
+  again.textContent = "새 시험 시작";
+  again.addEventListener("click", () => {
+    localStorage.removeItem("opic.session");
+    location.reload();
+  });
+  return again;
 }
 
 // §1 — the level, how many answers it rests on, and the caveat. The
