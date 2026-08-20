@@ -39,3 +39,11 @@ def test_dimension_weights_cover_every_dimension_and_sum_to_one():
 def test_every_dimension_has_a_korean_label():
     assert set(DIMENSION_LABELS_KO) == set(Dimension)
     assert all(label.strip() for label in DIMENSION_LABELS_KO.values())
+
+
+def test_every_question_type_has_a_korean_label():
+    from opic.core.questions import QUESTION_TYPE_LABELS_KO, QuestionType
+
+    assert set(QUESTION_TYPE_LABELS_KO) == set(QuestionType)
+    assert all(label.strip() for label in QUESTION_TYPE_LABELS_KO.values())
+    assert QUESTION_TYPE_LABELS_KO[QuestionType.ROLEPLAY_FOLLOWUP] == "롤플레이 (후속)"
