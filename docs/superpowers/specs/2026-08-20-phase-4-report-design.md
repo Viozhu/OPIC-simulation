@@ -235,6 +235,16 @@ lo único accionable, porque puede ir y repetirlas. `mean_confidence` y
 
 Si no hay ninguna, la sección dice que se entendió todo. No una lista vacía.
 
+**Una por palabra, no una por aparición.** Medido sobre el examen real del
+2026-08-20: 87 apariciones bajo el umbral, pero solo **12 palabras distintas** —
+la misma palabra dudosa reaparece en respuesta tras respuesta. Listar
+apariciones daba 87 líneas de `and`, `an`, `but`, `it`. `build_report`
+deduplica por palabra normalizada, se queda con la aparición de menor
+probabilidad y su contexto, ordena de menor a mayor probabilidad y corta en
+`UNCLEAR_WORDS_SHOWN = 10`. Sin listas de palabras vacías ni filtros
+lingüísticos inventados: deduplicar bastó para convertir el muro en una sección
+legible.
+
 **7.4 유형별 · 주제별.** `by_type` con la tabla nueva de §7.6, `by_topic` con
 los `label_ko` que ya tiene `core/survey.py`. Vale por lo comparativo: 묘사 se
 te da mejor que 롤플레이. Si `by_topic` viene vacío, la sección no se dibuja.
