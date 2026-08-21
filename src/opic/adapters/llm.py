@@ -206,6 +206,27 @@ def rating_prompt(
     )
 
 
+def questions_prompt(blueprint: tuple[QuestionSlot, ...]) -> str:
+    """What the question writer is asked. Module level so both adapters share it.
+
+    The blueprint already fixes the type, topic and target level of every slot;
+    the model is only asked for the English wording.
+    """
+    lines = []
+    for slot in blueprint:
+        topic = ITEMS_BY_ID[slot.topic_id].label_en if slot.topic_id else "themselves"
+        brief = _TYPE_BRIEF[slot.qtype].format(topic=topic)
+        lines.append(f"{slot.index + 1}. {brief}, at {slot.target.name} level")
+
+    return (
+        "You are writing questions for an OPIc English speaking test.\n"
+        "Write one spoken-English question for each item below. Each must be "
+        "one or two sentences, natural, and answerable in 90 seconds.\n"
+        "Return them in order, exactly one per item.\n\n"
+        + "\n".join(lines)
+    )
+
+
 class OllamaClient:
     """Writes the exam's questions and rates its answers, over Ollama's HTTP API.
 
@@ -246,22 +267,7 @@ class OllamaClient:
     def write(
         self, answers: SurveyAnswers, blueprint: tuple[QuestionSlot, ...]
     ) -> tuple[Question, ...]:
-        lines = []
-        for slot in blueprint:
-            topic = (
-                ITEMS_BY_ID[slot.topic_id].label_en if slot.topic_id else "themselves"
-            )
-            brief = _TYPE_BRIEF[slot.qtype].format(topic=topic)
-            lines.append(f"{slot.index + 1}. {brief}, at {slot.target.name} level")
-
-        prompt = (
-            "You are writing questions for an OPIc English speaking test.\n"
-            "Write one spoken-English question for each item below. Each must be "
-            "one or two sentences, natural, and answerable in 90 seconds.\n"
-            "Return them in order, exactly one per item.\n\n"
-            + "\n".join(lines)
-        )
-        payload = self._generate(prompt, QUESTIONS_SCHEMA)
+        payload = self._generate(questions_prompt(blueprint), QUESTIONS_SCHEMA)
         texts = payload["questions"]
         if len(texts) != len(blueprint):
             raise ValueError(

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 # Text to speech. macOS `say`, because piper-tts ships an espeak-ng binary with
 # the build machine's data path compiled into it and fails at import.
 SAY_VOICE = "Samantha"
@@ -27,3 +30,74 @@ VAD_SPEECH_PAD_MS = 0
 OLLAMA_URL = "http://127.0.0.1:11434"
 OLLAMA_MODEL = "qwen3:14b"
 OLLAMA_TIMEOUT_S = 600
+
+
+# ---------------------------------------------------------------- the backend
+
+# Which language model writes the questions and rates the answers. The two
+# adapters implement the same two ports, so this is the only place that decides.
+#
+# `anthropic` is the default: the local rater returned the same level (IH) for
+# all fifteen answers of a real exam, which is not a grade but a constant, and
+# grading took about 75 minutes of machine time. `ollama` keeps the offline path
+# alive — it needs no key and no network, and it is the baseline the rater bench
+# compares against.
+LLM_BACKENDS = ("anthropic", "ollama")
+
+
+def backend() -> str:
+    chosen = os.environ.get("OPIC_LLM", "anthropic").strip().lower()
+    if chosen not in LLM_BACKENDS:
+        raise ValueError(
+            f"OPIC_LLM={chosen!r} is not one of {LLM_BACKENDS}"
+        )
+    return chosen
+
+
+# Haiku 4.5 rejects `output_config.effort` outright, so nothing here sends it.
+# It is the cheapest model the rater bench was able to run end to end against
+# the product's own schema.
+ANTHROPIC_MODEL = "claude-haiku-4-5"
+ANTHROPIC_MAX_TOKENS = 16000
+ANTHROPIC_TIMEOUT_S = 300
+
+# The key is read from the environment under either name: `API_KEY_ANTHROPIC`,
+# which is what this project's `.env` uses, or `ANTHROPIC_API_KEY`, which is
+# what the SDK and every other Anthropic tool use. Neither being set is not an
+# error — the SDK also accepts an `ant auth login` profile, so the client is
+# left to resolve credentials itself in that case.
+API_KEY_NAMES = ("API_KEY_ANTHROPIC", "ANTHROPIC_API_KEY")
+
+
+def anthropic_api_key() -> str | None:
+    for name in API_KEY_NAMES:
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+    return None
+
+
+def load_env_file(path: Path | None = None) -> None:
+    """Read `.env` into the environment, without overwriting what is already set.
+
+    Written by hand rather than pulled in as a dependency: the file holds one
+    key and the format needed is `NAME=value`. A real shell parser is not worth
+    a package here.
+
+    An exported variable always wins over the file, so a key given for one run
+    is not silently overridden by a stale `.env`.
+    """
+    target = path or Path.cwd() / ".env"
+    try:
+        text = target.read_text(encoding="utf-8")
+    except OSError:
+        return
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, _, value = line.partition("=")
+        name = name.strip()
+        value = value.strip().strip("'\"")
+        if name and name not in os.environ:
+            os.environ[name] = value

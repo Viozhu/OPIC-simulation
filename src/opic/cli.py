@@ -7,8 +7,9 @@ import urllib.error
 from collections.abc import Callable
 from pathlib import Path
 
-from opic.adapters import config
-from opic.adapters.llm import OllamaClient
+import anthropic
+
+from opic.adapters import config, make_llm_client
 from opic.adapters.stt import WhisperSpeechToText
 from opic.adapters.tts import SayTextToSpeech
 from opic.core.scoring import ExamResult
@@ -217,7 +218,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}")
         return 1
 
-    client = OllamaClient()
+    try:
+        client = make_llm_client()
+    except (RuntimeError, ValueError) as exc:
+        print(f"error: {exc}")
+        return 1
+
     try:
         result = run_exam(
             answers=answers,
@@ -234,12 +240,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: cannot reach Ollama at {config.OLLAMA_URL} ({exc.reason}).")
         print(f"       start it with `ollama serve` and pull {config.OLLAMA_MODEL}.")
         return 1
+    except anthropic.APIError as exc:
+        # Not a RuntimeError, so without this the candidate's finished exam ends
+        # in a traceback. The two that actually happen — an exhausted credit
+        # balance and a revoked key — both arrive this way, and neither is worth
+        # retrying.
+        print(f"error: the Anthropic API refused the request: {exc}")
+        print(f"       per-answer results, if any, are under {args.session}")
+        return 1
     except LockedError as exc:
         print(f"error: {exc}")
         return 1
     except RuntimeError as exc:
         print(f"error: {exc}")
-        print(f"       this usually means Ollama stopped answering partway through;")
+        print(f"       this usually means the rater stopped answering partway through;")
         print(f"       per-answer results, if any, are under {args.session}")
         return 1
     except (OSError, ValueError) as exc:
