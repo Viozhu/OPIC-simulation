@@ -120,6 +120,17 @@ def report_json(report: Report) -> dict:
         "final_level": report.final_level.name,
         "scored_answers": report.scored_answers,
         "expected_answers": report.expected_answers,
+        # The whole ladder, highest band first, empty rungs included. done.js
+        # draws it and marks nothing itself; the flag and the order are decided
+        # here so the browser and the terminal cannot disagree about them.
+        "scale": [
+            {
+                "level": rung.level.name,
+                "is_final": rung.is_final,
+                "dimensions": list(rung.dimensions),
+            }
+            for rung in report.scale
+        ],
         "limiting": (
             {
                 "dimension": report.limiting.dimension.value,

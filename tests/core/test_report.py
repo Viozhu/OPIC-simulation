@@ -427,3 +427,70 @@ def test_fewer_quotes_than_the_cap_are_all_kept():
     assert len(fluency.evidence) < EXAM_EVIDENCE_PER_DIMENSION
     assert {e.quote for e in fluency.evidence} == {"quote 0a", "quote 0b"}
     assert all(e.answer_index == 0 for e in fluency.evidence)
+
+
+# The reference scale. A candidate reading "IM2" has no way to know whether
+# that is near the top or the bottom of nine bands, so the report carries the
+# whole ladder and marks where they landed on it.
+
+
+def test_the_scale_carries_every_band_highest_first():
+    """All nine, including the empty ones — an empty rung is the reference."""
+    scale = report_of(3).scale
+    assert [rung.level for rung in scale] == sorted(ActflLevel, key=lambda l: -l.rank)
+    assert len(scale) == len(ActflLevel)
+
+
+def test_the_final_level_is_marked_once():
+    scale = report_of(3).scale
+    marked = [rung.level for rung in scale if rung.is_final]
+    assert marked == [ActflLevel.IM2]
+
+
+def test_each_dimension_sits_on_its_own_band():
+    spread = {
+        Dimension.FLUENCY: ActflLevel.IH,
+        Dimension.GRAMMAR: ActflLevel.IL,
+        Dimension.VOCABULARY: ActflLevel.IM2,
+        Dimension.COHERENCE: ActflLevel.IM2,
+        Dimension.RELEVANCE: ActflLevel.NH,
+    }
+    by_level = {rung.level: rung.dimensions for rung in report_of(3, spread).scale}
+    assert by_level[ActflLevel.IH] == ("유창성",)
+    assert by_level[ActflLevel.IL] == ("문법",)
+    assert by_level[ActflLevel.NH] == ("질문 적합성",)
+
+
+def test_dimensions_sharing_a_band_keep_report_order():
+    """Two on one rung must not collapse into one, nor reorder."""
+    spread = {
+        Dimension.FLUENCY: ActflLevel.IM2,
+        Dimension.GRAMMAR: ActflLevel.IM2,
+        Dimension.VOCABULARY: ActflLevel.IM2,
+        Dimension.COHERENCE: ActflLevel.IM2,
+        Dimension.RELEVANCE: ActflLevel.IM2,
+    }
+    by_level = {rung.level: rung.dimensions for rung in report_of(3, spread).scale}
+    assert by_level[ActflLevel.IM2] == ("유창성", "문법", "어휘", "구성력", "질문 적합성")
+
+
+def test_a_band_nobody_reached_is_still_present_and_empty():
+    scale = report_of(3).scale
+    top = next(rung for rung in scale if rung.level is ActflLevel.AL)
+    assert top.dimensions == ()
+    assert top.is_final is False
+
+
+def test_the_scale_names_every_band_in_the_printed_report():
+    text = render_text(report_of(3))
+    for level in ActflLevel:
+        assert level.name in text
+
+
+def test_the_printed_scale_marks_the_final_band():
+    """The marker must sit on the candidate's row, not merely exist somewhere."""
+    spread = {d: ActflLevel.IL for d in Dimension}
+    text = render_text(report_of(3, spread))
+    marked = [line for line in text.splitlines() if "◀" in line]
+    assert len(marked) == 1
+    assert "IL" in marked[0]

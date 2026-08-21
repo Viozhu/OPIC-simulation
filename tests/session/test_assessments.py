@@ -249,7 +249,19 @@ def test_report_json_carries_every_key_done_js_reads():
     payload = sut.report_json(report)
 
     assert {"final_level", "scored_answers", "expected_answers", "limiting", "dimensions",
-            "unclear", "by_type", "by_topic", "averages", "answers"} <= payload.keys()
+            "unclear", "by_type", "by_topic", "averages", "answers", "scale"} <= payload.keys()
+
+    # done.js draws the ladder straight from this list and marks nothing
+    # itself, so the order and the flag have to survive serialisation.
+    assert [rung["level"] for rung in payload["scale"]] == [
+        level.name for level in sorted(ActflLevel, key=lambda band: -band.rank)
+    ]
+    assert [rung["level"] for rung in payload["scale"] if rung["is_final"]] == [
+        report.final_level.name
+    ]
+    assert any(rung["dimensions"] for rung in payload["scale"])
+    for rung in payload["scale"]:
+        assert {"level", "is_final", "dimensions"} <= rung.keys()
 
     assert {"dimension", "label_ko", "level", "without_cap"} <= payload["limiting"].keys()
 

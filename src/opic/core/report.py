@@ -130,6 +130,20 @@ class LimitingDimension:
 
 
 @dataclass(frozen=True, slots=True)
+class ScaleRung:
+    """One band of the ACTFL scale, and who landed on it.
+
+    Every band is present, including the ones nobody reached: a scale with the
+    empty rungs removed is a list of results, not a reference, and "IM2" tells
+    a candidate nothing unless they can see it sits fifth of nine.
+    """
+
+    level: ActflLevel
+    is_final: bool
+    dimensions: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class Report:
     final_level: ActflLevel
     scored_answers: int
@@ -141,6 +155,7 @@ class Report:
     by_topic: tuple[tuple[str, str, ActflLevel], ...]
     averages: MetricSummary | None
     answers: tuple[AnswerReport, ...]
+    scale: tuple[ScaleRung, ...]
 
 
 def build_report(
@@ -153,6 +168,18 @@ def build_report(
         a.question_index for a in result.assessments
     })
     limiting = limiting_dimension(blueprint, result.assessments)
+    dimensions = tuple(
+        DimensionSummary(
+            dimension=dimension,
+            label_ko=DIMENSION_LABELS_KO[dimension],
+            weight=weight,
+            level=levels[dimension],
+            evidence=_evidence_for(result, dimension),
+        )
+        for dimension, weight in sorted(
+            DIMENSION_WEIGHTS.items(), key=lambda pair: -pair[1]
+        )
+    )
     return Report(
         final_level=result.final_level,
         scored_answers=len(result.assessments),
@@ -167,18 +194,7 @@ def build_report(
             if limiting is not None
             else None
         ),
-        dimensions=tuple(
-            DimensionSummary(
-                dimension=dimension,
-                label_ko=DIMENSION_LABELS_KO[dimension],
-                weight=weight,
-                level=levels[dimension],
-                evidence=_evidence_for(result, dimension),
-            )
-            for dimension, weight in sorted(
-                DIMENSION_WEIGHTS.items(), key=lambda pair: -pair[1]
-            )
-        ),
+        dimensions=dimensions,
         unclear=_unclear_words(result),
         by_type=tuple(
             (qtype, QUESTION_TYPE_LABELS_KO[qtype], level)
@@ -190,6 +206,24 @@ def build_report(
         ),
         averages=_averages(result),
         answers=_answers(result, questions, unreadable),
+        scale=_scale(result.final_level, dimensions),
+    )
+
+
+def _scale(final: ActflLevel, dimensions: tuple[DimensionSummary, ...]) -> tuple[ScaleRung, ...]:
+    """The whole ladder, highest band first.
+
+    Highest first so both renderers iterate in reading order and neither has to
+    reverse — a scale drawn upside down in one of the two would be a bug nobody
+    notices until someone compares them.
+    """
+    return tuple(
+        ScaleRung(
+            level=level,
+            is_final=level is final,
+            dimensions=tuple(d.label_ko for d in dimensions if d.level is level),
+        )
+        for level in sorted(ActflLevel, key=lambda band: -band.rank)
     )
 
 
@@ -322,6 +356,13 @@ def render_text(report: Report) -> str:
         f"{report.expected_answers}개 중 {report.scored_answers}개의 답변으로 산출되었습니다."
     )
     lines.append("이 등급은 공식 점수가 아니며 실제 시험 결과를 예측하지 않습니다.")
+
+    lines.append("")
+    lines.append("등급 척도")
+    for rung in report.scale:
+        marker = "◀" if rung.is_final else " "
+        who = f"   {' · '.join(rung.dimensions)}" if rung.dimensions else ""
+        lines.append(f"  {marker} {rung.level.name:<4}{who}".rstrip())
 
     lines.append("")
     lines.append("왜 이 등급인가")
