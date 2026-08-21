@@ -103,6 +103,7 @@ function renderMinimal(app, raw) {
 function renderFull(app, report, raw) {
   app.replaceChildren(
     ...summarySection(report),
+    ...scaleSection(report),
     ...whySection(report),
     ...unclearSection(report),
     ...breakdownSection(report),
@@ -151,6 +152,35 @@ function summarySection(report) {
     "이 등급은 공식 점수가 아니며 실제 시험 결과를 예측하지 않습니다.";
 
   return [level, based, caveat];
+}
+
+// §1b — the whole ACTFL ladder, so the level above means something. The rungs,
+// their order, and which one is the candidate's all come from `report.scale`;
+// this function marks nothing and sorts nothing, so the browser and the
+// terminal cannot end up disagreeing about where someone landed.
+function scaleSection(report) {
+  const heading = document.createElement("h2");
+  heading.textContent = "등급 척도";
+
+  const ladder = document.createElement("ol");
+  ladder.className = "scale";
+  for (const rung of report.scale ?? []) {
+    const step = document.createElement("li");
+    if (rung.is_final) step.className = "here";
+
+    const band = document.createElement("span");
+    band.className = "band";
+    band.textContent = rung.level;
+
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = rung.dimensions.join(" · ");
+
+    step.append(band, who);
+    ladder.append(step);
+  }
+
+  return [heading, ladder];
 }
 
 // §2 — the limiting dimension (if any), then every dimension with its weight,
