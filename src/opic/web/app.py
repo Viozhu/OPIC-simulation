@@ -7,13 +7,19 @@ No exam logic lives here. Anything that decides what happens next belongs in
 from __future__ import annotations
 
 import json
+import secrets
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -72,13 +78,68 @@ def _safe_audio_suffix(filename: str | None) -> str:
     return suffix if suffix in ALLOWED_AUDIO_SUFFIXES else ".webm"
 
 
+SHARE_COOKIE = "opic_share"
+SHARE_KEY_PARAM = "k"
+SHARE_COOKIE_MAX_AGE = 12 * 60 * 60
+
+
+def _install_share_gate(app: FastAPI, token: str) -> None:
+    """Put the whole app behind one secret carried in the link.
+
+    This exists for the one case where the server runs on a laptop and a tunnel
+    makes it reachable by one other person. It is not authentication: there is
+    one secret, everybody who has the link holds it, and nothing here checks
+    who owns which session. It only ensures that a stranger who finds the
+    hostname — tunnel hostnames are not private, and they get scanned — sees a
+    404 instead of somebody's exam.
+
+    The key is accepted on a GET, which is how a browser opens a shared link.
+    Every other method needs the cookie the GET leaves behind, so a token that
+    leaked into a log cannot be replayed as a bare POST.
+    """
+
+    @app.middleware("http")
+    async def gate(request, call_next):
+        if secrets.compare_digest(request.cookies.get(SHARE_COOKIE, ""), token):
+            return await call_next(request)
+
+        offered = request.query_params.get(SHARE_KEY_PARAM, "")
+        if request.method in ("GET", "HEAD") and secrets.compare_digest(offered, token):
+            # Send the browser back to the same place without the key. It has
+            # the cookie now, and the token has no business staying in the
+            # address bar, in history, in a bookmark or in a Referer header.
+            destination = request.url.remove_query_params(SHARE_KEY_PARAM)
+            response = RedirectResponse(str(destination), status_code=303)
+            response.set_cookie(
+                SHARE_COOKIE,
+                token,
+                max_age=SHARE_COOKIE_MAX_AGE,
+                httponly=True,
+                samesite="lax",
+                # cloudflared speaks plain HTTP to this process and reports the
+                # real scheme in a header. Marking the cookie Secure on a plain
+                # HTTP run would mean the browser never sends it back.
+                secure=request.headers.get("x-forwarded-proto", request.url.scheme)
+                == "https",
+            )
+            return response
+
+        # 404 and not 401: an authentication challenge would confirm that
+        # something is here worth guessing at.
+        return JSONResponse(status_code=404, content={"detail": "not found"})
+
+
 def create_app(
     root: Path,
     worker: Worker,
     clock: Callable[[], datetime] = datetime.now,
+    share_token: str | None = None,
 ) -> FastAPI:
     app = FastAPI(title="OPIc simulator")
     app.state.root = root
+
+    if share_token:
+        _install_share_gate(app, share_token)
 
     here = Path(__file__).parent
     app.mount("/static", StaticFiles(directory=here / "static"), name="static")

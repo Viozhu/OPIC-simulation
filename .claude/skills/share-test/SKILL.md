@@ -1,107 +1,79 @@
 ---
 name: share-test
-description: Use when someone else needs to take the OPIc exam from another machine — "compartir el examen", "share-test", "que lo haga mi familiar", "URL pública", "levanta ngrok", "expose the exam". Brings up the server behind an authenticated ngrok tunnel and reports the URL, user and password.
+description: Use when someone else needs to take the OPIc exam from another machine — "compartir el examen", "share-test", "que lo haga mi familiar", "URL pública", "levanta el túnel", "expose the exam". Serves the exam behind a Cloudflare quick tunnel and reports one link that already carries its own key.
 ---
 
-# Sharing a live exam over ngrok
+# Sharing a live exam over a tunnel
 
-Same app as `init-test`, reachable from another computer. The tunnel is what
-makes it work *and* what makes it safe — read the next paragraph before running
-anything.
+Same app as `init-test`, reachable from another computer, with one link that
+works and nothing else to explain to the guest.
 
-## The tunnel carries the authentication, because the app has none
+## The link carries the authentication, because the app has none
 
 `GET /api/sessions/{id}` returns any session to anyone, with no ownership
-check, and session ids are timestamps — `20260821-090346`. Walking that id
-space takes seconds, and it yields the candidate's background survey, the
-transcripts of everything they said, and their grades. Every graded answer also
-spends the host's Anthropic credit.
+check. Every graded answer also spends the host's Anthropic credit. So the
+whole app sits behind one secret: `OPIC_SHARE_TOKEN` installs a gate
+(`web/app.py`, `_install_share_gate`) that 404s every request without it.
 
-So: **never start a tunnel without the basic-auth policy**, and never treat the
-password as a formality. Kill the tunnel when the exam ends.
+The guest's link is `https://<random>.trycloudflare.com/?k=<token>`. On the
+first visit the gate swaps the key for an `HttpOnly` cookie and redirects, so
+the token does not stay in the address bar, the history or a `Referer` header.
+
+**This is not authentication.** One secret, one guest, no notion of who owns
+which session. What makes it safe enough is that it lives for one exam:
+the hostname is fresh on every run and dies with the script.
 
 ## Bring it up
 
-Preflight first — **REQUIRED: use the `init-test` skill** for it, especially
-the cheap call that proves the rater answers. A tunnel to a server whose rater
-is unreachable just moves the failure to someone else's machine.
+Preflight first — **REQUIRED: use the `init-test` skill**, especially the cheap
+call that proves the rater answers. A tunnel to a server whose rater is
+unreachable just moves the failure to someone else's machine.
 
-Generate a fresh password every time and keep the policy file out of the repo,
-where a password would be committed:
-
-```bash
-SP=/tmp/opic-share            # or the session scratchpad
-mkdir -p "$SP"
-PASS=$(python3 -c "import secrets,string; a=string.ascii_letters+string.digits; print(''.join(secrets.choice(a) for _ in range(16)))")
-cat > "$SP/ngrok-policy.yml" <<YAML
-on_http_request:
-  - actions:
-      - type: basic-auth
-        config:
-          realm: OPIc
-          credentials:
-            - "familia:${PASS}"
-YAML
-chmod 600 "$SP/ngrok-policy.yml"
-```
-
-`--basic-auth` does not exist in ngrok v3; a traffic policy file is the only
-way. Then start both, waiting on conditions rather than sleeping:
+Then one command, which generates the token, starts the server, opens the
+tunnel, tests the gate from outside and prints the link:
 
 ```bash
-uv run python -m opic.cli --serve                       # background
-until curl -sf -o /dev/null http://127.0.0.1:8000/; do sleep 1; done
-ngrok http 8000 --traffic-policy-file "$SP/ngrok-policy.yml" \
-      --log stdout --log-format logfmt                  # background
+./tools/share.sh          # or: ./tools/share.sh 8011 for another port
 ```
 
-Read the URL from the agent's own API, not from the log:
+It refuses to print anything if the gate does not behave: it fetches the public
+URL twice, expecting `404` without the key and `200` with it. A gate that
+silently failed to install looks exactly like one that worked, and those two
+numbers are the whole difference.
 
-```bash
-curl -s http://127.0.0.1:4040/api/tunnels \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['tunnels'][0]['public_url'])"
-```
+Keep the machine awake for the duration — the command to do it is printed with
+the link.
 
-## Prove the auth bites before handing the URL to anyone
+## Why Cloudflare and not ngrok
 
-A tunnel whose policy silently failed to load looks exactly like one that
-worked. Two requests settle it — do not skip this and do not infer it from the
-policy file existing:
+ngrok's free tier puts an interstitial page in front of the app ("You are about
+to visit…"), which is the first thing the guest sees and the thing that makes
+the link look untrustworthy. A Cloudflare quick tunnel has no interstitial,
+gives real TLS and needs no account. The hostname is still somebody else's
+domain; the fix for that is a domain of your own, and it is not free.
 
-```bash
-curl -s -o /dev/null -w "sin credenciales -> %{http_code}\n" "$URL/"
-curl -s -o /dev/null -w "con credenciales  -> %{http_code}\n" -u "familia:$PASS" "$URL/"
-```
+HTTPS is not cosmetic here: `static/recorder.js` calls `getUserMedia`, which
+browsers refuse outside a secure context. No TLS, no microphone.
 
-`401` then `200`. Anything else — especially `200` on the first — means stop
-and fix the policy before sharing.
-
-Only then report **URL + usuario + password** together, and tell the guest the
-first screen is ngrok's free-tier interstitial ("You are about to visit…") with
-a button to continue, not a failure. Also tell them to check the headset's
-hardware mute before step 3; see `init-test`.
-
-## When ngrok refuses
+## When it refuses
 
 | Symptom | Cause |
 |---|---|
-| `ERR_NGROK_123` … email not verified | Verify at dashboard.ngrok.com/user/settings. The message **names the account** the stored token belongs to — if that is not the account just verified, install a fresh token with `ngrok config add-authtoken`. |
-| `ERR_NGROK_123` persists right after verifying | Propagation. Wait a minute and retry before chasing tokens. |
-| `version property is required` | Config predates v3. `ngrok config upgrade`. |
+| `falta cloudflared` | `brew install cloudflared` |
+| `no llegó a publicarse en 180s` | The hostname exists only once Cloudflare publishes it, and that lags registration by half a minute. The script waits by asking `1.1.1.1` directly, because this machine's resolver is a local proxy on `127.0.2.2` that caches an `NXDOMAIN` from a premature question and repeats it for minutes — which looks exactly like a dead tunnel. If this fires, the tunnel usually did connect: read `tunnel.log` in the kept directory before blaming the network |
+| `el túnel nunca registró` | This network drops QUIC on UDP/7844, so the script forces `--protocol http2` over TCP/443. If even that fails, the log's precheck table says which leg is down |
+| `el puerto N ya está ocupado` | Another server holds it, or a previous run did not clean up. `lsof -nP -iTCP:N -sTCP:LISTEN` |
+| `el servidor no respondió` | Read the tail it prints. Usually a missing API key, or `data/sessions/.server.lock` held by another process |
+| `la puerta no se comporta como debe` | The token did not reach the app. Do not share anything; check that `OPIC_SHARE_TOKEN` is set in the server's environment |
+| The guest sees a 404 | They dropped the `?k=…` when copying the link, or twelve hours passed and the cookie expired. Resend the full link |
 
 ## Teardown
 
-Stop ngrok and the server, delete the policy file — it holds a password — and
-confirm the port is free. The URL is random and changes on every restart, so a
-shared link dies with the tunnel; that is a feature here, not a limitation.
-
-```bash
-rm -f "$SP/ngrok-policy.yml"
-lsof -nP -iTCP:8000 -sTCP:LISTEN || echo "libre"
-```
+Ctrl-C. It kills the tunnel and the server, and the link stops existing —
+there is no stale URL left pointing at this machine.
 
 ## What the host machine carries
 
-Whisper, `say` and the paid API calls all run on the host, so the guest's exam
-spends the host's credit (~$0.09 for fifteen answers) and occupies the single
-grading queue. Keep the machine awake with `caffeinate -i` for the duration.
+Whisper, `say` and the paid API calls all run here, so the guest's exam spends
+the host's credit (~$0.09 for fifteen answers) and occupies the single grading
+queue. One guest at a time.
