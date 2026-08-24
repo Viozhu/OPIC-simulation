@@ -3,8 +3,22 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-# Text to speech. macOS `say`, because piper-tts ships an espeak-ng binary with
-# the build machine's data path compiled into it and fails at import.
+# Text to speech. macOS `say`, because it ships with the system and everything
+# else here already runs locally on this machine.
+#
+# An earlier note in this file blamed piper-tts for baking the build machine's
+# data path into its espeak-ng binary. The path is baked in, but that is not
+# why it failed. espeak-ng holds the data directory in a 160-character buffer:
+# a longer path is truncated, the compiled-in default is used instead, and the
+# process exits when `phontab` is not there. Measured with piper-tts 1.7.0 on
+# macOS arm64 — 67, 101, 131 and 151 characters synthesise; 161 and 171 die.
+# It is piper1-gpl issue #272, still open, with PR #281 unmerged.
+#
+# So Piper is viable on both Linux and macOS, and is what a container would
+# use. Whatever installs it has to keep the path to `piper/espeak-ng-data`
+# under 160 characters, and prove it with a test — moving the project to a
+# deeper directory is enough to break synthesis with an error that points
+# somewhere else entirely.
 SAY_VOICE = "Samantha"
 TTS_SAMPLE_RATE = 16000
 
