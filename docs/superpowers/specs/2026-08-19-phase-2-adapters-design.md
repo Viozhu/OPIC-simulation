@@ -258,6 +258,32 @@ que ningún código propio pueda intervenir, y no lo redirigen ni la variable
 `ESPEAK_DATA_PATH` ni la API interna del paquete. Es un defecto de empaquetado
 suyo, no algo que se rodee limpiamente.
 
+> **Corrección, 2026-08-24.** El párrafo anterior describe bien el síntoma y mal
+> la causa, y por eso llega a una conclusión equivocada. La ruta compilada está
+> ahí, pero no es lo que rompe: espeak-ng guarda el directorio de datos en un
+> buffer de **160 caracteres**, trunca lo que no cabe, cae a la ruta compilada
+> y mata el proceso al no encontrar `phontab`. Es el issue
+> [#272](https://github.com/OHF-Voice/piper1-gpl/issues/272) de piper1-gpl, con
+> el PR [#281](https://github.com/OHF-Voice/piper1-gpl/pull/281) sin fusionar.
+>
+> Medido con `piper-tts 1.7.0` sobre macOS arm64, pasando rutas de longitud
+> creciente al mismo `espeak-ng-data`:
+>
+> | Longitud | Resultado |
+> | --- | --- |
+> | 67, 101, 131, 151 | Sintetiza: `tˈɛl mˌiːʲ ɐbˌaʊt ðə lˈæst tɹˈɪp juː tˈʊk.` |
+> | 161, 171 | Trunca, no encuentra `phontab` y sale |
+>
+> La prueba original debió correr desde una ruta larga. Piper sirve, en Linux y
+> también en macOS, y es lo que usaría un contenedor: allí la ruta ronda los 60
+> caracteres. Quien lo instale tiene que mantenerse por debajo de 160 y
+> demostrarlo con un test, porque mover el proyecto a un directorio más profundo
+> basta para romper la síntesis con un error que señala a otro sitio.
+>
+> Lo que sigue siendo cierto: `say` no necesita dependencias y ata la
+> implementación a macOS, y el puerto `TextToSpeech` hace que cambiarlo sea
+> reescribir un archivo.
+
 `say` viene con macOS, sintetiza la frase de prueba en 0,9 segundos, ofrece 43
 voces inglesas y funciona sin conexión. A cambio, ata esta implementación a
 macOS. El coste es asumible porque todo lo demás también corre en local sobre

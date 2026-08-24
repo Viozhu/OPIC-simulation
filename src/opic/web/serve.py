@@ -67,4 +67,11 @@ def app():
     )
     worker.resume()
     worker.start()
-    return create_app(root=SESSIONS, worker=worker)
+    # Set when the server is about to be reachable by somebody else, which on
+    # this machine means a tunnel. Unset for a local run, and then the gate is
+    # not installed at all. See `_install_share_gate` for what it is and is not.
+    return create_app(
+        root=SESSIONS,
+        worker=worker,
+        share_token=os.environ.get("OPIC_SHARE_TOKEN", "").strip() or None,
+    )
