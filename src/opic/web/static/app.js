@@ -45,6 +45,7 @@ export const root = document.getElementById("app");
 
 export async function show(state) {
   document.getElementById("step-label").textContent = LABELS[state.step] ?? "";
+  showProgress(state);
   const step = steps[state.step];
   if (!step) {
     root.textContent = `알 수 없는 단계: ${state.step}`;
@@ -52,6 +53,22 @@ export async function show(state) {
   }
   root.replaceChildren();
   await step.render(state, {show, api});
+}
+
+// The bar is the glance; the "질문 3 / 15" heading inside the step is the
+// fact. Only the two steps with a real denominator get one — a survey has no
+// meaningful fraction, and a bar that means nothing teaches a candidate to
+// ignore the bar that does.
+function showProgress(state) {
+  const bar = document.getElementById("step-progress");
+  if (state.step !== "test") {
+    bar.hidden = true;
+    return;
+  }
+  const answered = state.answers.filter((answer) => answer.state !== "pending").length;
+  bar.max = state.questions.length;
+  bar.value = answered;
+  bar.hidden = false;
 }
 
 export async function reload(sessionId) {
