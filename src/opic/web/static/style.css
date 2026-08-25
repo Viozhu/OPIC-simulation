@@ -1,160 +1,212 @@
+/* The exam's stylesheet.
+ *
+ * The token block below is copied from `PAGE_CSS` in `src/opic/core/page.py`,
+ * values and names both, so the exam and the report it ends with read as one
+ * product. It is a copy and not an import on purpose: that page is written to
+ * a file the candidate keeps, and a report opened in six months with no server
+ * running cannot depend on a stylesheet this server would have served. Change
+ * one, change the other.
+ *
+ * What is deliberately NOT copied is the webfont link. The report is a
+ * document and can wait a beat for Noto; the exam has to start on a laptop
+ * whose only network is a tunnel, and a blocking font fetch is a way to make
+ * the first screen slow for nothing. Same stacks, minus the hosted names.
+ */
+
 :root {
-  --ink: #1b1b1f;
-  --paper: #fbfbfd;
-  --line: #d9d9e0;
-  --accent: #2f5d8a;
-  --warn: #9a3412;
-  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --ground:#F6F8F7; --surface:#FFFFFF; --sunk:#EEF2F1;
+  --ink:#10201E; --ink-2:#4A5C5A; --ink-3:#7C8C8A;
+  --rule:#DCE4E2; --rule-2:#C6D2D0;
+  --accent:#0F6E6E; --accent-soft:#DDECEB; --accent-ink:#0B5252;
+  --crit:#9B382C; --warn:#8A5806; --good:#2C6B4F;
+  --shadow:0 1px 2px rgba(16,32,30,.05), 0 8px 24px -16px rgba(16,32,30,.18);
+  --display: ui-sans-serif, system-ui, "Apple SD Gothic Neo", sans-serif;
+  --body: ui-sans-serif, system-ui, "Apple SD Gothic Neo", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light dark;
 }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:#0C1312; --surface:#131D1C; --sunk:#0F1817;
+    --ink:#E6EDEC; --ink-2:#9FB1AF; --ink-3:#6F817E;
+    --rule:#253331; --rule-2:#33443F;
+    --accent:#48B3AE; --accent-soft:#15302F; --accent-ink:#7FD0CB;
+    --crit:#D9776A; --warn:#D0973A; --good:#62B98C;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:#0C1312; --surface:#131D1C; --sunk:#0F1817;
+  --ink:#E6EDEC; --ink-2:#9FB1AF; --ink-3:#6F817E;
+  --rule:#253331; --rule-2:#33443F;
+  --accent:#48B3AE; --accent-soft:#15302F; --accent-ink:#7FD0CB;
+  --crit:#D9776A; --warn:#D0973A; --good:#62B98C;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+}
+
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
-  background: var(--paper);
+  background: var(--ground);
   color: var(--ink);
-  line-height: 1.6;
+  font-family: var(--body);
+  line-height: 1.7;
 }
 
 header {
-  padding: 1.5rem 2rem 0.5rem;
-  border-bottom: 1px solid var(--line);
+  padding: 1.25rem 2rem 0.75rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
 }
 
-h1 { font-size: 1.25rem; margin: 0; }
-#step-label { color: #55555f; margin: 0.25rem 0 0; font-size: 0.9rem; }
-main { max-width: 46rem; margin: 0 auto; padding: 2rem; }
+h1 { font-family: var(--display); font-size: 1.15rem; margin: 0; }
+#step-label { color: var(--ink-2); margin: 0.25rem 0 0; font-size: 0.9rem; }
 
-fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 1.5rem; }
-legend { font-weight: 600; padding: 0 0.5rem; }
-label { display: block; padding: 0.25rem 0; }
+main {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+h2 { font-family: var(--display); margin: 2rem 0 0.75rem; font-size: 1.1rem; }
+h2:first-child { margin-top: 0; }
+h2:focus { outline: none; }
+p { margin: 0 0 0.9rem; }
+
+/* ---------------------------------------------------------------- forms */
+
+fieldset {
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  margin: 0 0 1.5rem;
+  padding: 0.75rem 1rem 1rem;
+  background: var(--surface);
+}
+legend { font-family: var(--display); font-weight: 600; padding: 0 0.4rem; }
+label { display: block; padding: 0.3rem 0; }
+input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); margin-right: 0.4rem; }
+
+/* --------------------------------------------------------------- buttons */
 
 button {
   font: inherit;
   padding: 0.6rem 1.4rem;
   border: 1px solid var(--accent);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--accent);
-  color: white;
+  color: var(--surface);
   cursor: pointer;
 }
-button[disabled] { opacity: 0.45; cursor: not-allowed; }
+button + button, button + a, a + button { margin-left: 0.75rem; }
+button:hover:not([disabled]) { background: var(--accent-ink); border-color: var(--accent-ink); }
+button[disabled] {
+  /* Disabled has to read as disabled without leaning on opacity alone: at 45%
+     on a dark ground the label stops being legible before it stops looking
+     clickable. */
+  background: var(--sunk);
+  color: var(--ink-3);
+  border-color: var(--rule);
+  cursor: not-allowed;
+}
 button.secondary { background: transparent; color: var(--accent); }
+button.secondary:hover:not([disabled]) { background: var(--accent-soft); color: var(--accent-ink); }
 
-.counter { font-variant-numeric: tabular-nums; font-weight: 600; }
-.counter.short { color: var(--warn); }
-.issues { color: var(--warn); }
-.recording { color: var(--warn); font-weight: 600; }
-
-h2 { margin: 2rem 0 0.75rem; font-size: 1.1rem; }
-h2:first-child { margin-top: 0; }
-
-.dimension {
-  margin: 0 0 1.25rem;
-  padding: 0.25rem 0 0.25rem 0.9rem;
-  border-left: 3px solid var(--line);
+:focus-visible {
+  /* The browser default is a thin ring the same colour as the button it sits
+     on. This one is visible on both. */
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
 }
-.dimension h3, .dimension h4 { margin: 0 0 0.35rem; font-size: 1rem; }
 
-.evidence { list-style: none; margin: 0.5rem 0 0; padding: 0; }
-.evidence-item {
-  margin: 0 0 0.75rem;
-  padding: 0.6rem 0.85rem;
-  background: #f2f2f6;
-  border-radius: 6px;
-}
-.evidence-item p { margin: 0 0 0.3rem; }
-.evidence-item p:last-child { margin-bottom: 0; }
-.evidence-item .quote { font-style: italic; }
-.evidence-item .correction { color: var(--accent); }
-.evidence-item .answer-ref, .answer-ref { font-size: 0.85rem; color: #55555f; }
+a { color: var(--accent); text-underline-offset: 2px; }
 
-.question-en { font-style: italic; color: #55555f; }
-.transcript { white-space: pre-wrap; }
-.metrics-line {
-  font-variant-numeric: tabular-nums;
-  color: #55555f;
-  list-style: none;
-  margin: 0.5rem 0 0;
-  padding: 0;
+.actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1rem; }
+.actions button + button, .actions button + a, .actions a + button { margin-left: 0; }
+
+/* ------------------------------------------------------------- messages */
+
+.counter { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+.counter.short { color: var(--crit); }
+.issues { color: var(--crit); }
+.recording { color: var(--crit); font-weight: 600; }
+
+/* ------------------------------------------------------- meter and clock */
+
+.panel { display: flex; align-items: center; gap: 0.9rem; margin: 0 0 1rem; }
+
+.meter {
+  flex: 1 1 12rem;
+  max-width: 22rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--sunk);
+  border: 1px solid var(--rule);
+  overflow: hidden;
 }
+.meter__fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--good);
+  /* Fast enough to feel live, slow enough not to strobe on a plosive. */
+  transition: width 60ms linear;
+}
+
+.clock { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
+/* ------------------------------------------------------------- progress */
+
+progress {
+  width: 100%;
+  height: 0.5rem;
+  margin: 0.6rem 0 0;
+  accent-color: var(--accent);
+  border: 0;
+}
+progress::-webkit-progress-bar { background: var(--sunk); border-radius: 999px; }
+progress::-webkit-progress-value { background: var(--accent); border-radius: 999px; }
+progress::-moz-progress-bar { background: var(--accent); border-radius: 999px; }
+
+/* --------------------------------------------------------------- report */
+
+.report-frame {
+  width: 100%;
+  height: calc(100vh - 12rem);
+  min-height: 30rem;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.report-open { font-size: 0.9rem; }
+
+/* The fallback report — `renderMinimal` in done.js — is a heading, a list and
+   the raw JSON. It exists for the case where the rendered page could not be
+   built, so it stays plain on purpose. */
 
 details {
   margin: 0 0 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
   padding: 0.6rem 0.9rem;
+  background: var(--surface);
 }
-details > summary { cursor: pointer; font-weight: 600; }
+details > summary { cursor: pointer; font-family: var(--display); font-weight: 600; }
 details > :not(summary) { margin-top: 0.75rem; }
 
 pre {
   white-space: pre-wrap;
   word-break: break-word;
   overflow-x: auto;
-  background: #f2f2f6;
+  background: var(--sunk);
   padding: 0.75rem;
-  border-radius: 6px;
+  border-radius: 8px;
+  font-family: var(--mono);
   font-size: 0.85rem;
 }
 
-/* The ACTFL ladder. Nine rungs always, highest first — the empty ones are
-   what make it a scale rather than a list of results, so nothing here hides
-   a rung for being unoccupied. */
-ol.scale {
-  list-style: none;
-  margin: 0 0 1.5rem;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-ol.scale li {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  padding: 0.3rem 0.9rem;
-  border-bottom: 1px solid var(--line);
-}
-
-ol.scale li:last-child { border-bottom: 0; }
-
-ol.scale .band {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  min-width: 3rem;
-  color: #55555f;
-}
-
-ol.scale .who { color: #55555f; font-size: 0.9rem; }
-
-/* The candidate's own band. The left bar carries the meaning on its own, so
-   the row still reads as marked in greyscale or to a colour-blind reader. */
-ol.scale li.here {
-  background: #eef3f9;
-  box-shadow: inset 0.25rem 0 0 var(--accent);
-}
-
-ol.scale li.here .band { color: var(--accent); font-size: 1.05rem; }
-ol.scale li.here .who { color: var(--ink); }
-
-/* The level bar. Task 8 replaces this stylesheet with one built on shared
-   tokens; these rules are written with those token names and a literal
-   fallback so the bar is visible both before that lands and after. */
-.meter {
-  width: 100%;
-  max-width: 22rem;
-  height: 0.6rem;
-  border-radius: 999px;
-  background: var(--sunk, #EEF2F1);
-  border: 1px solid var(--rule, #DCE4E2);
-  overflow: hidden;
-  margin: 0 0 0.75rem;
-}
-.meter__fill {
-  display: block;
-  height: 100%;
-  width: 0;
-  background: var(--good, #2C6B4F);
-  /* Fast enough to feel live, slow enough not to strobe on a plosive. */
-  transition: width 60ms linear;
-}
+audio { display: block; margin: 0 0 1rem; max-width: 100%; }
