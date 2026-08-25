@@ -41,8 +41,6 @@ export async function render(state, {api, show}) {
   const status = document.createElement("p");
   status.setAttribute("aria-live", "polite");
   const warning = document.createElement("p");
-  warning.textContent =
-    "답변은 다시 녹음할 수 없으며, 녹음 중 페이지를 새로 고치면 그 답변은 사라집니다.";
   warning.setAttribute("role", "status");
   const replay = document.createElement("button");
   replay.className = "secondary";
@@ -53,6 +51,17 @@ export async function render(state, {api, show}) {
   next.disabled = true;
 
   app.append(heading, status, warning, replay, next);
+  // `warning` never changes again after this — but a `role="status"` node
+  // still has to be a watched region *before* its content shows up, or a
+  // screen reader treats the text as part of the page it just landed on
+  // rather than as an announcement. Setting the text one tick after
+  // insertion, instead of inline before `append`, is what makes this an
+  // observed mutation. Do not "simplify" this back to a plain assignment
+  // above the `append` — that is the exact bug this pattern exists to avoid.
+  setTimeout(() => {
+    warning.textContent =
+      "답변은 다시 녹음할 수 없으며, 녹음 중 페이지를 새로 고치면 그 답변은 사라집니다.";
+  });
 
   let panel = null;
 
@@ -165,10 +174,17 @@ export async function render(state, {api, show}) {
 // looking at a screen that appears to have simply stopped.
 async function waitForQuestions(app, api, sessionId) {
   const waiting = document.createElement("p");
-  waiting.textContent = "문제를 준비하고 있습니다. 잠시만 기다려 주세요…";
   waiting.setAttribute("aria-live", "polite");
   app.append(waiting);
   app.setAttribute("aria-busy", "true");
+  // Setting the text before `append` fills the subtree in before it is a
+  // watched live region, so the mutation observer a screen reader relies on
+  // never fires — the paragraph simply appears already full, and most
+  // screen readers say nothing. Setting it one tick later, after insertion,
+  // is what turns this into an observed change instead of initial content.
+  setTimeout(() => {
+    waiting.textContent = "문제를 준비하고 있습니다. 잠시만 기다려 주세요…";
+  });
   try {
     const state = await waitUntilReady(api, sessionId);
     app.removeAttribute("aria-busy");

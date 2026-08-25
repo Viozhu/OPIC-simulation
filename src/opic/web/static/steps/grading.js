@@ -29,6 +29,15 @@ export async function render(state, {api, show}) {
 
   app.append(heading, note, meter, bar, eta, failures, connection);
   app.setAttribute("aria-busy", "true");
+  // Every other step gets its heading focused by `app.js`'s `show()`, once
+  // `render()` returns. This `render()` does not return until grading is
+  // fully done — it is a `while (true)` poll loop — so a candidate landing
+  // here would otherwise be left on whatever the previous screen's focus
+  // was (already gone from the DOM) for however long grading takes, up to
+  // half an hour. This screen has to do for itself, right away, what every
+  // other screen gets for free from `show()`.
+  heading.tabIndex = -1;
+  heading.focus({preventScroll: true});
 
   while (true) {
     try {
