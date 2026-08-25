@@ -1,42 +1,71 @@
-// The report: level, why, the words the recogniser struggled with, the
-// breakdowns, and the answer-by-answer detail — plus the raw JSON and a way
-// to start over. This screen decides nothing: it iterates
-// `GET /api/sessions/{id}/report` and appends what it finds. Every string it
-// prints comes from that payload, except the fixed section headings and the
-// caveat below.
+// The report: rendered by `core/page.py`, served whole by
+// `/api/sessions/{id}/page`, and shown here inside a frame. This screen used
+// to draw the report itself, worse than the page did — two renderers of one
+// model, and the browser got the poorer one.
+//
+// What survives from that version is the fallback ladder underneath, rung for
+// rung: no page but a `result.json` still shows a level (`renderMinimal`), and
+// neither shows the retry screen (`renderRetry`). The top rung is the only one
+// that changed.
 export async function render(state, {api}) {
   const app = document.getElementById("app");
   await load(app, state, api);
 }
 
-// `/report` and `/result` are fetched independently — not with `Promise.all`
-// — because a failure in one must not hide data the other still has.
-// `/report` reconstructs from every `answer-NN.json` and 404s if none of
-// them can be read; `/result` is the plain, already-written file from
-// grading time and keeps working in exactly that case. Before this screen
-// existed, a candidate whose answer files went bad still saw their level —
-// losing that here would be a regression, not just a missing feature. Only
-// when BOTH fail is there truly nothing to show, and that is the one case
-// that gets the retry screen.
 async function load(app, state, api) {
-  const [reportOutcome, resultOutcome] = await Promise.allSettled([
-    api.get(`/api/sessions/${state.id}/report`),
-    api.get(`/api/sessions/${state.id}/result`),
-  ]);
-  const report = reportOutcome.status === "fulfilled" ? reportOutcome.value : null;
-  const raw = resultOutcome.status === "fulfilled" ? resultOutcome.value : null;
-
-  if (report === null && raw === null) {
+  const url = `/api/sessions/${state.id}/page`;
+  const html = await fetchPage(url);
+  if (html !== null) {
+    renderFrame(app, url, html);
+    return;
+  }
+  // No rendered page. `result.json` may still be there — it is written before
+  // the page and by a path that cannot fail the same way.
+  let raw = null;
+  try {
+    raw = await api.get(`/api/sessions/${state.id}/result`);
+  } catch (error) {
     renderRetry(app, state, api);
     return;
   }
+  renderMinimal(app, raw);
+}
 
-  if (report === null) {
-    renderMinimal(app, raw);
-    return;
+// One GET, and the page's own text comes back with it. Pointing an iframe's
+// `src` at the URL instead would ask the server for the same page a second
+// time — and would frame whatever came back, so a session with no report
+// would put a JSON 404 body on screen where a report should be, with no
+// usable way to notice from out here.
+async function fetchPage(url) {
+  try {
+    const response = await fetch(url);
+    return response.ok ? await response.text() : null;
+  } catch (error) {
+    return null;
   }
+}
 
-  renderFull(app, report, raw);
+function renderFrame(app, url, html) {
+  const frame = document.createElement("iframe");
+  frame.className = "report-frame";
+  // `srcdoc`, not `src`: the document is already here. The page is
+  // self-contained apart from its webfonts, so nothing in it needs the origin
+  // it would have had.
+  frame.srcdoc = html;
+  frame.title = "OPIc 리포트";
+
+  const open = document.createElement("a");
+  open.href = url;
+  open.target = "_blank";
+  open.rel = "noopener";
+  open.className = "report-open";
+  open.textContent = "새 탭에서 열기 (인쇄·저장)";
+
+  const actions = document.createElement("p");
+  actions.className = "actions";
+  actions.append(open, restartButton());
+
+  app.replaceChildren(frame, actions);
 }
 
 // Both fetches failed: nothing to show, so the candidate gets the retry
@@ -96,23 +125,6 @@ function renderMinimal(app, raw) {
   );
 }
 
-// The normal path: report loaded. `raw` almost always loaded alongside it —
-// `/report` requires `result.json` to exist, so the two rarely disagree —
-// but on the rare chance `/result` alone dropped, the JSON panel falls back
-// to the report itself rather than showing nothing.
-function renderFull(app, report, raw) {
-  app.replaceChildren(
-    ...summarySection(report),
-    ...scaleSection(report),
-    ...whySection(report),
-    ...unclearSection(report),
-    ...breakdownSection(report),
-    ...detailSection(report),
-    rawDetailsFor(raw ?? report),
-    restartButton(),
-  );
-}
-
 function rawDetailsFor(raw) {
   const rawDetails = document.createElement("details");
   const rawSummary = document.createElement("summary");
@@ -131,244 +143,4 @@ function restartButton() {
     location.reload();
   });
   return again;
-}
-
-// §1 — the level, how many answers it rests on, and the caveat. The
-// pronunciation sentence that used to live here is gone: the unclear-words
-// section now carries that job.
-function summarySection(report) {
-  const level = document.createElement("h2");
-  level.textContent = `최종 등급: ${report.final_level}`;
-
-  const based = document.createElement("p");
-  based.textContent =
-    `${report.expected_answers}개 중 ${report.scored_answers}개의 답변으로 산출되었습니다.`;
-  if (report.scored_answers < report.expected_answers) {
-    based.className = "issues";
-  }
-
-  const caveat = document.createElement("p");
-  caveat.textContent =
-    "이 등급은 공식 점수가 아니며 실제 시험 결과를 예측하지 않습니다.";
-
-  return [level, based, caveat];
-}
-
-// §1b — the whole ACTFL ladder, so the level above means something. The rungs,
-// their order, and which one is the candidate's all come from `report.scale`;
-// this function marks nothing and sorts nothing, so the browser and the
-// terminal cannot end up disagreeing about where someone landed.
-function scaleSection(report) {
-  const heading = document.createElement("h2");
-  heading.textContent = "등급 척도";
-
-  const ladder = document.createElement("ol");
-  ladder.className = "scale";
-  for (const rung of report.scale ?? []) {
-    const step = document.createElement("li");
-    if (rung.is_final) step.className = "here";
-
-    const band = document.createElement("span");
-    band.className = "band";
-    band.textContent = rung.level;
-
-    const who = document.createElement("span");
-    who.className = "who";
-    who.textContent = rung.dimensions.join(" · ");
-
-    step.append(band, who);
-    ladder.append(step);
-  }
-
-  return [heading, ladder];
-}
-
-// §2 — the limiting dimension (if any), then every dimension with its weight,
-// level, and the quotes behind it.
-function whySection(report) {
-  const elements = [];
-  const heading = document.createElement("h2");
-  heading.textContent = "왜 이 등급인가";
-  elements.push(heading);
-
-  if (report.limiting) {
-    const limiting = document.createElement("p");
-    limiting.textContent =
-      `최종 등급은 ${report.limiting.label_ko}에 의해 한 단계 낮아졌습니다. ` +
-      `그 제한이 없었다면 ${report.limiting.without_cap}입니다.`;
-    elements.push(limiting);
-  }
-
-  for (const dimension of report.dimensions) {
-    const block = document.createElement("div");
-    block.className = "dimension";
-    const title = document.createElement("h3");
-    title.textContent =
-      `${dimension.label_ko} (${Math.round(dimension.weight * 100)}%): ${dimension.level}`;
-    block.append(title);
-
-    const evidence = document.createElement("ul");
-    evidence.className = "evidence";
-    for (const item of dimension.evidence) {
-      evidence.append(evidenceItem(item, true));
-    }
-    block.append(evidence);
-    elements.push(block);
-  }
-
-  return elements;
-}
-
-// One quote / issue / correction, with the question it came from when the
-// caller asks for it (the exam-level summary needs that pointer back to the
-// answer; the per-answer detail is already inside that answer, so it does not).
-function evidenceItem(item, withAnswerIndex) {
-  const li = document.createElement("li");
-  li.className = "evidence-item";
-  const quote = document.createElement("p");
-  quote.className = "quote";
-  quote.textContent = `"${item.quote}"`;
-  const issue = document.createElement("p");
-  issue.textContent = item.issue_ko;
-  const correction = document.createElement("p");
-  correction.className = "correction";
-  correction.textContent = `→ ${item.correction_en}`;
-  li.append(quote, issue, correction);
-  if (withAnswerIndex) {
-    const ref = document.createElement("p");
-    ref.className = "answer-ref";
-    ref.textContent = `질문 ${item.answer_index + 1}`;
-    li.append(ref);
-  }
-  return li;
-}
-
-// §3 — every word the recogniser gave low confidence to, with its question
-// and surrounding context, or the one line saying there were none.
-function unclearSection(report) {
-  const elements = [];
-  const heading = document.createElement("h2");
-  heading.textContent = "또렷하게 인식되지 않은 단어";
-  elements.push(heading);
-
-  if (report.unclear.length === 0) {
-    const none = document.createElement("p");
-    none.textContent = "또렷하게 인식되지 않은 단어는 없습니다.";
-    elements.push(none);
-    return elements;
-  }
-
-  const list = document.createElement("ul");
-  for (const word of report.unclear) {
-    const li = document.createElement("li");
-    li.textContent =
-      `${word.text} (질문 ${word.answer_index + 1}): …${word.context}…`;
-    list.append(li);
-  }
-  elements.push(list);
-  return elements;
-}
-
-// §4 — level by question type and by topic, each as its own list, skipped
-// entirely when the API sent nothing for it.
-function breakdownSection(report) {
-  const elements = [];
-  const heading = document.createElement("h2");
-  heading.textContent = "유형별 · 주제별";
-  elements.push(heading);
-
-  for (const group of [report.by_type, report.by_topic]) {
-    if (group.length === 0) continue;
-    const list = document.createElement("ul");
-    for (const item of group) {
-      const li = document.createElement("li");
-      li.textContent = `${item.label_ko}: ${item.level}`;
-      list.append(li);
-    }
-    elements.push(list);
-  }
-
-  return elements;
-}
-
-// §5 — one collapsible per answer. An answer that never got scored carries
-// only its summary line; a scored one opens onto the question, transcript,
-// speed/pause against the exam average, and each dimension's comment and
-// evidence.
-function detailSection(report) {
-  const elements = [];
-  const heading = document.createElement("h2");
-  heading.textContent = "답변별 상세";
-  elements.push(heading);
-
-  for (const answer of report.answers) {
-    elements.push(answerDetails(answer, report.averages_display, report.metric_labels_ko));
-  }
-
-  return elements;
-}
-
-// `answer.metrics_display` and `averagesDisplay` are already the strings to
-// print — rounding, percentages, units, all decided once in Python
-// (core/report.py:format_metrics) and serialised by report_json. This screen
-// only pairs a label with the two strings; it does not compute anything.
-function answerDetails(answer, averagesDisplay, metricLabels) {
-  const details = document.createElement("details");
-  const summary = document.createElement("summary");
-
-  if (answer.state !== "scored") {
-    summary.textContent = `질문 ${answer.index + 1} — ${answer.state_label_ko}`;
-    details.append(summary);
-    return details;
-  }
-
-  const typeAndTopic = answer.topic_label_ko
-    ? `${answer.qtype_label_ko} · ${answer.topic_label_ko}`
-    : answer.qtype_label_ko;
-  summary.textContent = `질문 ${answer.index + 1} (${typeAndTopic})`;
-  details.append(summary);
-
-  const question = document.createElement("p");
-  question.className = "question-en";
-  question.textContent = answer.question_en;
-  details.append(question);
-
-  const transcript = document.createElement("p");
-  transcript.className = "transcript";
-  transcript.textContent = answer.transcript_text;
-  details.append(transcript);
-
-  if (answer.metrics_display && averagesDisplay) {
-    const metrics = document.createElement("ul");
-    metrics.className = "metrics-line";
-    for (const [field, label] of Object.entries(metricLabels)) {
-      const line = document.createElement("li");
-      line.textContent =
-        `${label}: ${answer.metrics_display[field]} (평균 ${averagesDisplay[field]})`;
-      metrics.append(line);
-    }
-    details.append(metrics);
-  }
-
-  for (const score of answer.scores) {
-    const block = document.createElement("div");
-    block.className = "dimension";
-    const title = document.createElement("h4");
-    title.textContent = `${score.label_ko}: ${score.level}`;
-    const comment = document.createElement("p");
-    comment.textContent = score.comment_ko;
-    block.append(title, comment);
-
-    if (score.evidence.length > 0) {
-      const evidence = document.createElement("ul");
-      evidence.className = "evidence";
-      for (const item of score.evidence) {
-        evidence.append(evidenceItem(item, false));
-      }
-      block.append(evidence);
-    }
-    details.append(block);
-  }
-
-  return details;
 }
