@@ -16,15 +16,19 @@ export async function render(state, {api, show}) {
   const bar = document.createElement("p");
   bar.className = "counter";
   const meter = document.createElement("progress");
+  meter.setAttribute("aria-label", "채점 진행률");
   meter.max = 1;
   meter.value = 0;
   const eta = document.createElement("p");
   const failures = document.createElement("p");
   failures.className = "issues";
+  failures.setAttribute("role", "status");
   const connection = document.createElement("p");
   connection.className = "issues";
+  connection.setAttribute("role", "status");
 
   app.append(heading, note, meter, bar, eta, failures, connection);
+  app.setAttribute("aria-busy", "true");
 
   while (true) {
     try {
@@ -43,6 +47,7 @@ export async function render(state, {api, show}) {
         progress.failed > 0 ? `채점하지 못한 답변: ${progress.failed}개` : "";
 
       if (progress.done) {
+        app.removeAttribute("aria-busy");
         await goToResult(state, api, show);
         return;
       }
@@ -61,6 +66,7 @@ export async function render(state, {api, show}) {
           eta.textContent = "";
           failures.textContent =
             "채점 가능한 답변이 없어 결과를 계산할 수 없습니다. 녹음한 답변은 이 컴퓨터의 세션 폴더에 그대로 남아 있으니 사라지지 않았습니다. 대부분 Ollama가 실행되고 있지 않을 때 일어나며, 지금은 자동으로 다시 시도되지 않습니다.";
+          app.removeAttribute("aria-busy");
           return;
         }
         eta.textContent = "결과를 정리하는 중…";

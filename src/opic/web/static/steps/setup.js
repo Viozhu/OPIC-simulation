@@ -16,6 +16,7 @@ export async function render(state, {api, show}) {
   player.controls = true;
   player.hidden = true;
   const status = document.createElement("p");
+  status.setAttribute("aria-live", "polite");
   const next = document.createElement("button");
   next.textContent = "다음";
   next.disabled = true;

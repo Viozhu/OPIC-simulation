@@ -9,10 +9,10 @@
   <body>
     <header>
       <h1>OPIc 모의고사</h1>
-      <p id="step-label"></p>
-      <progress id="step-progress" hidden></progress>
+      <p id="step-label" aria-live="polite"></p>
+      <progress id="step-progress" aria-label="시험 진행률" hidden></progress>
     </header>
-    <main id="app">불러오는 중…</main>
+    <main id="app" tabindex="-1">불러오는 중…</main>
     <script type="module" src="/static/app.js"></script>
   </body>
 </html>

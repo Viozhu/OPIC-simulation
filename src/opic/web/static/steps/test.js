@@ -39,9 +39,11 @@ export async function render(state, {api, show}) {
   const heading = document.createElement("h2");
   heading.textContent = `질문 ${index + 1} / ${total}`;
   const status = document.createElement("p");
+  status.setAttribute("aria-live", "polite");
   const warning = document.createElement("p");
   warning.textContent =
     "답변은 다시 녹음할 수 없으며, 녹음 중 페이지를 새로 고치면 그 답변은 사라집니다.";
+  warning.setAttribute("role", "status");
   const replay = document.createElement("button");
   replay.className = "secondary";
   replay.textContent = "재생 (1회)";
@@ -164,11 +166,16 @@ export async function render(state, {api, show}) {
 async function waitForQuestions(app, api, sessionId) {
   const waiting = document.createElement("p");
   waiting.textContent = "문제를 준비하고 있습니다. 잠시만 기다려 주세요…";
+  waiting.setAttribute("aria-live", "polite");
   app.append(waiting);
+  app.setAttribute("aria-busy", "true");
   try {
-    return await waitUntilReady(api, sessionId);
+    const state = await waitUntilReady(api, sessionId);
+    app.removeAttribute("aria-busy");
+    return state;
   } catch (error) {
     if (!error.timedOut) throw error;
+    app.removeAttribute("aria-busy");
     app.replaceChildren();
     const stuck = document.createElement("p");
     stuck.textContent = "문제 준비가 예상보다 오래 걸리고 있습니다.";

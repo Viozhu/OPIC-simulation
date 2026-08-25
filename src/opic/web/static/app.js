@@ -53,6 +53,11 @@ export async function show(state) {
   }
   root.replaceChildren();
   await step.render(state, {show, api});
+  // A candidate on a keyboard was being returned to the top of the document
+  // on every step; send them to the new screen's own heading instead.
+  const heading = root.querySelector("h2") ?? root;
+  heading.tabIndex = -1;
+  heading.focus({preventScroll: true});
 }
 
 // The bar is the glance; the "질문 3 / 15" heading inside the step is the

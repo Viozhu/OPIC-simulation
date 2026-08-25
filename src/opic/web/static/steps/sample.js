@@ -44,6 +44,7 @@ export async function render(state, {api, show}) {
   questionText.textContent = `"${SAMPLE_TEXT}"`;
   questionText.hidden = true;
   const status = document.createElement("p");
+  status.setAttribute("aria-live", "polite");
   const start = document.createElement("button");
   start.textContent = "시작";
   const next = document.createElement("button");
