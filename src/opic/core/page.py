@@ -1014,4 +1014,49 @@ footer { margin-top:72px; padding-top:20px; border-top:1px solid var(--rule);
   .gauge__seg.is-hit { animation:land .5s cubic-bezier(.2,.7,.3,1) both; }
 }
 @keyframes land { from { transform:scaleY(.28); opacity:.3; } to { transform:scaleY(1); opacity:1; } }
+
+/* Printing, which on this machine is how a PDF gets made.
+ *
+ * Two things here are not cosmetic. The first is the palette: this block
+ * restates the light values and names `[data-theme="dark"]` explicitly,
+ * because that selector outranks a bare `:root` and would otherwise win
+ * whatever the order. A report printed on a dark background wastes ink on
+ * paper and reads worse either way.
+ *
+ * The second is `print-color-adjust`. The ladder marks the candidate's band
+ * with a background, the chips are backgrounds, the chart is bars. A browser
+ * that helpfully drops backgrounds turns all of that into blank boxes — a
+ * ladder with no rung lit, which is not a duller report but a wrong one.
+ */
+@media print {
+  :root,
+  :root[data-theme="dark"],
+  :root:not([data-theme="light"]) {
+    --ground:#F6F8F7; --surface:#FFFFFF; --sunk:#EEF2F1;
+    --ink:#10201E; --ink-2:#4A5C5A; --ink-3:#7C8C8A;
+    --rule:#DCE4E2; --rule-2:#C6D2D0;
+    --accent:#0F6E6E; --accent-soft:#DDECEB; --accent-ink:#0B5252;
+    --crit:#9B382C; --warn:#8A5806; --good:#2C6B4F;
+    --shadow:none;
+  }
+
+  html {
+    /* Inherited, so one declaration covers the ladder, the chips and the
+       chart at once. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @page { margin: 14mm; }
+
+  body { font-size: 11pt; }
+  .wrap { max-width: none; padding: 0; }
+  section { margin-top: 28px; }
+
+  /* A finding split across a page break is a finding somebody misses. */
+  .qa, .pat, .verdict, .chart, .dim, .split, .cav {
+    break-inside: avoid;
+  }
+  h1, h2, h3, .sec-head { break-after: avoid; }
+}
 """

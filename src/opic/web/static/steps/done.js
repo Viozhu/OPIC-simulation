@@ -54,6 +54,27 @@ function renderFrame(app, url, html) {
   frame.srcdoc = html;
   frame.title = "OPIc 리포트";
 
+  const save = document.createElement("button");
+  save.className = "secondary";
+  save.textContent = "PDF로 저장";
+  save.addEventListener("click", () => {
+    // Printing the frame prints the report by itself: the app's header and
+    // these buttons live in a different document and never reach the page.
+    // The browser's print dialog is where a PDF actually gets written — this
+    // only opens it, and the page's own @media print rules are what make the
+    // result worth keeping.
+    try {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    } catch (error) {
+      // A frame whose document is not reachable is not a reason to lose the
+      // feature: the same page is one navigation away, and the candidate can
+      // print it from there.
+      console.error(error);
+      window.open(url, "_blank", "noopener");
+    }
+  });
+
   const open = document.createElement("a");
   open.href = url;
   open.target = "_blank";
@@ -63,7 +84,7 @@ function renderFrame(app, url, html) {
 
   const actions = document.createElement("p");
   actions.className = "actions";
-  actions.append(open, restartButton());
+  actions.append(save, open, restartButton());
 
   app.replaceChildren(frame, actions);
 }

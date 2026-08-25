@@ -287,3 +287,33 @@ def test_the_speed_chart_has_one_bar_per_scored_answer():
     assert plot
     bars = re.findall(r'class="bar(?:\s[^"]*)?"', plot.group(0))
     assert len(bars) == report.scored_answers
+
+
+def test_the_page_prints_as_a_document_that_still_says_the_level():
+    """The ladder, the chips and the chart carry their meaning in background
+    colour. A browser that drops backgrounds when printing would produce a
+    nine-rung ladder with no rung marked — a report that does not say what
+    level anyone reached. `print-color-adjust` is what forbids that."""
+    page = render_html(real_report(), META)
+
+    assert "@media print" in page
+    assert "print-color-adjust: exact" in page
+    assert "-webkit-print-color-adjust: exact" in page
+
+
+def test_the_printed_page_is_light_whatever_the_screen_was():
+    """Both dark blocks have to be overridden, and the `[data-theme]` one has
+    higher specificity than a bare `:root`, so the print block must name it."""
+    page = render_html(real_report(), META)
+    printed = page.split("@media print", 1)[1]
+
+    assert ':root[data-theme="dark"]' in printed
+    assert "#F6F8F7" in printed  # --ground, the light value
+
+
+def test_an_answer_block_is_not_split_across_pages():
+    page = render_html(real_report(), META)
+    printed = page.split("@media print", 1)[1]
+
+    assert "break-inside: avoid" in printed
+    assert ".qa" in printed
