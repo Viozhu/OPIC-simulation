@@ -303,17 +303,31 @@ def test_the_page_prints_as_a_document_that_still_says_the_level():
 
 def test_the_printed_page_is_light_whatever_the_screen_was():
     """Both dark blocks have to be overridden, and the `[data-theme]` one has
-    higher specificity than a bare `:root`, so the print block must name it."""
+    higher specificity than a bare `:root`, so the print block must name it.
+
+    The printed `--ground` is `#FFFFFF`, not the light theme's own `#F6F8F7`:
+    with `print-color-adjust: exact` forcing it onto paper, the screen's
+    off-white ground lays down as a tinted rectangle inside white page
+    margins — ink spent on nothing, and cards that should read by their
+    borders instead read as a printing fault. This is deliberate; do not
+    "correct" it back to the screen value."""
     page = render_html(real_report(), META)
     printed = page.split("@media print", 1)[1]
 
     assert ':root[data-theme="dark"]' in printed
-    assert "#F6F8F7" in printed  # --ground, the light value
+    assert "--ground:#FFFFFF" in printed
 
 
 def test_an_answer_block_is_not_split_across_pages():
+    """Chromium honours `break-inside: avoid` on block boxes and routinely
+    ignores it on flex containers — and `.tx`, the class the transcript
+    cards actually render with (`real_report()` has no narrative, so `.qa`
+    never even appears in this document), is a flex column on screen. The
+    rule only binds if these are also forced to `display: block` for
+    print."""
     page = render_html(real_report(), META)
     printed = page.split("@media print", 1)[1]
 
     assert "break-inside: avoid" in printed
-    assert ".qa" in printed
+    assert ".tx" in printed
+    assert "display: block" in printed

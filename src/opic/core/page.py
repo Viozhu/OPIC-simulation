@@ -1032,7 +1032,13 @@ footer { margin-top:72px; padding-top:20px; border-top:1px solid var(--rule);
   :root,
   :root[data-theme="dark"],
   :root:not([data-theme="light"]) {
-    --ground:#F6F8F7; --surface:#FFFFFF; --sunk:#EEF2F1;
+    /* `--ground` on paper is white, not the light theme's own off-white: on
+       screen that shade sits deliberately under white cards, but printed
+       with `print-color-adjust: exact` it lays down as a tinted rectangle
+       inside white page margins — ink spent on nothing, and a report that
+       reads like a printing fault instead of a design. Do not "correct"
+       this back to the screen value. */
+    --ground:#FFFFFF; --surface:#FFFFFF; --sunk:#EEF2F1;
     --ink:#10201E; --ink-2:#4A5C5A; --ink-3:#7C8C8A;
     --rule:#DCE4E2; --rule-2:#C6D2D0;
     --accent:#0F6E6E; --accent-soft:#DDECEB; --accent-ink:#0B5252;
@@ -1053,10 +1059,26 @@ footer { margin-top:72px; padding-top:20px; border-top:1px solid var(--rule);
   .wrap { max-width: none; padding: 0; }
   section { margin-top: 28px; }
 
-  /* A finding split across a page break is a finding somebody misses. */
-  .qa, .pat, .verdict, .chart, .dim, .split, .cav {
+  /* A finding split across a page break is a finding somebody misses. But
+   * Chromium honours `break-inside: avoid` on block boxes and routinely
+   * ignores it on flex containers — and every one of these cards is a flex
+   * column on screen. Printing them as blocks is what makes the rule bind
+   * at all. Their children already stack in source order, so `gap` is the
+   * only casualty, and it comes back as a margin between children.
+   */
+  .qa, .pat, .verdict, .chart, .dim, .split, .cav, .tx {
     break-inside: avoid;
+    display: block;
   }
+  .verdict > * + * { margin-top: 26px; }
+  .dim > * + *     { margin-top: 9px; }
+  .pat > * + *     { margin-top: 12px; }
+  .qa > * + *      { margin-top: 12px; }
+  .chart > * + *   { margin-top: 14px; }
+  .split > * + *   { margin-top: 10px; }
+  .cav > * + *     { margin-top: 6px; }
+  .tx > * + *      { margin-top: 11px; }
+
   h1, h2, h3, .sec-head { break-after: avoid; }
 }
 """
