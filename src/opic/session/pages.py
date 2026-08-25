@@ -39,6 +39,36 @@ def build(root: Path, session_id: str) -> tuple[Report, Meta] | None:
     return report, _meta(state)
 
 
+def html_for(root: Path, session_id: str) -> str | None:
+    """The report page for a session: the written file, or one rendered now.
+
+    The file on disk is the better answer whenever it is there — it is the one
+    the worker rendered with a narrative, and that narrative cost a model call
+    that a page view has no business paying again. Rendering on demand covers
+    the session graded before this file existed and the one whose narrative
+    call failed: the same page, minus the judged sections.
+
+    `None` when there is nothing to render at all — no `result.json`, or not
+    one readable answer file. The web layer turns that into a 404.
+
+    Reading never writes. A GET that leaves a file behind is a GET that can
+    fail in ways a reader cannot see.
+    """
+    written = store.page_path(root, session_id)
+    if written.exists():
+        try:
+            return written.read_text(encoding="utf-8")
+        except OSError:
+            # An unreadable page is not a reason to have no page: everything
+            # it was built from is still sitting next to it.
+            traceback.print_exc()
+    built = build(root, session_id)
+    if built is None:
+        return None
+    report, meta = built
+    return render_html(report, meta, None)
+
+
 def _meta(state: SessionState) -> Meta:
     targets = {record.target for record in state.questions}
     return Meta(
