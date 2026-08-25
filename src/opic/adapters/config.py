@@ -91,6 +91,56 @@ def anthropic_api_key() -> str | None:
     return None
 
 
+def find_env_file(start: Path | None = None) -> Path | None:
+    """The project's `.env`, looked for from `start` upward.
+
+    `.env` sits at the project root and the process does not always start
+    there: a git worktree, a `cd` into `src/`, an editor's terminal. Resolving
+    it against the working directory alone meant that in any of those the file
+    contributed nothing — silently, since a missing `.env` is not an error —
+    and credentials fell through to whatever was exported. A stale
+    `ANTHROPIC_API_KEY` then produced a 401 while the good key sat unread at
+    the root.
+
+    The walk stops at the project root rather than continuing to the
+    filesystem root, so an unrelated `.env` in a parent or home directory can
+    never hand credentials to this project. `pyproject.toml` marks the root.
+    """
+    here = (start or Path.cwd()).resolve()
+    for directory in (here, *here.parents):
+        candidate = directory / ".env"
+        if candidate.exists():
+            return candidate
+        if (directory / "pyproject.toml").exists():
+            # A linked worktree is the same project, and `.env` is git-ignored,
+            # so it is never copied into one. Stopping here would stop one
+            # directory short of the only `.env` there is.
+            main = _main_checkout_of_worktree(directory)
+            return find_env_file(main) if main is not None else None
+    return None
+
+
+def _main_checkout_of_worktree(directory: Path) -> Path | None:
+    """Where a linked worktree's main checkout lives, or `None` if this is not one.
+
+    In a linked worktree `.git` is a file holding `gitdir: <repo>/.git/worktrees/<name>`,
+    so the main checkout is that path with the last three components removed.
+    """
+    marker = directory / ".git"
+    if not marker.is_file():
+        return None
+    try:
+        line = marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not line.startswith("gitdir:"):
+        return None
+    gitdir = Path(line.partition(":")[2].strip())
+    if gitdir.parent.name != "worktrees" or gitdir.parent.parent.name != ".git":
+        return None
+    return gitdir.parent.parent.parent
+
+
 def load_env_file(path: Path | None = None) -> None:
     """Read `.env` into the environment, without overwriting what is already set.
 
@@ -101,7 +151,9 @@ def load_env_file(path: Path | None = None) -> None:
     An exported variable always wins over the file, so a key given for one run
     is not silently overridden by a stale `.env`.
     """
-    target = path or Path.cwd() / ".env"
+    target = path or find_env_file()
+    if target is None:
+        return
     try:
         text = target.read_text(encoding="utf-8")
     except OSError:

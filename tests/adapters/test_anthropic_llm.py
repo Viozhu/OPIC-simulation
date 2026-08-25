@@ -193,6 +193,68 @@ def test_a_missing_env_file_is_not_an_error(tmp_path):
     config.load_env_file(tmp_path / "nothing-here")
 
 
+def test_the_env_file_is_found_from_a_subdirectory(monkeypatch, tmp_path):
+    """`.env` sits at the project root and the process does not always start there.
+
+    A git worktree, a `cd` into `src/`, an editor's terminal — any of them means
+    `cwd/.env` does not exist. Before this, that silently fell through to
+    whatever `ANTHROPIC_API_KEY` happened to be exported, which is how a stale
+    key produced a 401 while the good one sat unread at the root.
+    """
+    for name in config.API_KEY_NAMES:
+        monkeypatch.delenv(name, raising=False)
+    (tmp_path / ".env").write_text("API_KEY_ANTHROPIC=sk-at-the-root\n")
+    deep = tmp_path / "a" / "b" / "c"
+    deep.mkdir(parents=True)
+    monkeypatch.chdir(deep)
+
+    config.load_env_file()
+
+    assert config.anthropic_api_key() == "sk-at-the-root"
+
+
+def test_a_linked_worktree_reads_the_main_checkout_s_env(monkeypatch, tmp_path):
+    """A worktree is the same project, and `.env` is git-ignored so it is never
+    copied into one. Stopping at the worktree's own `pyproject.toml` would stop
+    one directory short of the only `.env` that exists — which is exactly the
+    failure this whole function is here to prevent, just relocated."""
+    for name in config.API_KEY_NAMES:
+        monkeypatch.delenv(name, raising=False)
+    main = tmp_path / "project"
+    (main / ".git" / "worktrees" / "feature").mkdir(parents=True)
+    (main / "pyproject.toml").write_text("[project]\nname='x'\n")
+    (main / ".env").write_text("API_KEY_ANTHROPIC=sk-from-the-main-checkout\n")
+
+    tree = tmp_path / "elsewhere" / "feature"
+    tree.mkdir(parents=True)
+    (tree / "pyproject.toml").write_text("[project]\nname='x'\n")
+    (tree / ".git").write_text(f"gitdir: {main / '.git' / 'worktrees' / 'feature'}\n")
+    monkeypatch.chdir(tree)
+
+    config.load_env_file()
+
+    assert config.anthropic_api_key() == "sk-from-the-main-checkout"
+
+
+def test_the_search_upward_stops_rather_than_leaving_the_project(monkeypatch, tmp_path):
+    """No `.env` anywhere above means no key from a file — not somebody else's.
+
+    Walking to the filesystem root would let an unrelated `.env` in a parent
+    directory, or in a home directory, supply credentials to this project.
+    """
+    for name in config.API_KEY_NAMES:
+        monkeypatch.delenv(name, raising=False)
+    project = tmp_path / "project"
+    (project / "deep").mkdir(parents=True)
+    (tmp_path / ".env").write_text("API_KEY_ANTHROPIC=sk-from-a-stranger\n")
+    (project / "pyproject.toml").write_text("[project]\nname='x'\n")
+    monkeypatch.chdir(project / "deep")
+
+    config.load_env_file()
+
+    assert config.anthropic_api_key() is None
+
+
 # ---------------------------------------------------------------- the factory
 
 
