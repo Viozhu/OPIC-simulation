@@ -19,6 +19,7 @@ from opic.core.rubric import (
     Dimension,
 )
 from opic.core.scoring import Evidence, ExamResult, limiting_dimension
+from opic.core.transcript import Word
 from opic.core.survey import ITEMS_BY_ID
 
 CONTEXT_WORDS = 5
@@ -117,6 +118,12 @@ class AnswerReport:
     state: str
     state_label_ko: str
     transcript_text: str
+    # Every word with its timing and the recogniser's confidence, so a renderer
+    # can mark the doubtful ones inside the sentence they were said in.
+    # `Report.unclear` answers a different question — which words the recogniser
+    # doubts across the whole exam, deduplicated and capped — and neither
+    # replaces the other.
+    transcript_words: tuple[Word, ...]
     metrics: MetricSummary | None
     scores: tuple[DimensionDetail, ...]
 
@@ -311,6 +318,7 @@ def _answers(
                     state=state,
                     state_label_ko=STATE_LABELS_KO[state],
                     transcript_text="",
+                    transcript_words=(),
                     metrics=None,
                     scores=(),
                 )
@@ -326,6 +334,7 @@ def _answers(
                 state="scored",
                 state_label_ko="",
                 transcript_text=assessment.transcript.text,
+                transcript_words=assessment.transcript.words,
                 metrics=MetricSummary(
                     duration_s=m.duration_s,
                     word_count=m.word_count,

@@ -20,7 +20,7 @@ from opic.core.survey import (
     SurveyAnswers,
     validate_survey,
 )
-from opic.session import assessments, store
+from opic.session import assessments, pages, store
 from opic.session.state import AnswerRecord, AnswerState, SessionState
 from opic.session.worker import Task, Worker
 from opic.web.serve import LockedError, claim_the_lock
@@ -181,6 +181,50 @@ def load_survey(path: Path) -> SurveyAnswers:
     )
 
 
+def regenerate_report(session_dir: Path, use_llm: bool = True, force: bool = False) -> int:
+    """Rebuild the standalone page for a session that is already graded.
+
+    Separate from running an exam because it is useful on its own: every
+    session graded before this command existed still has its `result.json`,
+    and the page is a second reading of that file. `--no-llm` renders only the
+    derived sections, which needs no key, no network and no cost.
+    """
+    root, session_id = session_dir.parent, session_dir.name
+    target = store.page_path(root, session_id)
+    if target.exists() and not force:
+        print(f"error: {target} already exists; pass --force to overwrite")
+        return 1
+    try:
+        built = pages.build(root, session_id)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"error: {exc}")
+        return 1
+    if built is None:
+        print(f"error: {session_dir} has no result.json to report on")
+        return 1
+    report, meta = built
+
+    narrative = None
+    if use_llm:
+        try:
+            client = make_llm_client()
+        except (RuntimeError, ValueError) as exc:
+            print(f"error: {exc}")
+            return 1
+        if not hasattr(client, "write_narrative"):
+            print("note: this backend writes no prose; rendering the derived page")
+        else:
+            print("writing the report's analysis and the AL rewrites…")
+            try:
+                narrative = client.write_narrative(report)
+            except Exception as exc:  # noqa: BLE001 - a derived page still beats none
+                print(f"note: the narrative failed ({exc}); rendering without it")
+
+    written = pages.write(root, session_id, report, meta, narrative)
+    print(f"리포트: {written}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="opic", description="Run a local OPIc mock exam")
     parser.add_argument("--survey", type=Path, help="survey answers as JSON")
@@ -198,7 +242,26 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="run the web interface instead of the command-line exam",
     )
+    parser.add_argument(
+        "--report",
+        type=Path,
+        metavar="SESSION_DIR",
+        help="rebuild report-ko.html for an already-graded session and exit",
+    )
+    parser.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="with --report, render only the sections derived from result.json",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="with --report, overwrite an existing report-ko.html",
+    )
     args = parser.parse_args(argv)
+
+    if args.report is not None:
+        return regenerate_report(args.report, use_llm=not args.no_llm, force=args.force)
 
     if args.serve:
         import uvicorn
@@ -267,6 +330,13 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print(render_text(build_report(result, questions)))
     print(f"\n결과 파일: {args.session / 'result.json'}")
+    page = pages.write_with_narrator(
+        args.session.parent,
+        args.session.name,
+        client if hasattr(client, "write_narrative") else None,
+    )
+    if page is not None:
+        print(f"리포트: {page}")
     return 0
 
 

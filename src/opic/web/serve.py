@@ -64,6 +64,9 @@ def app():
         stt=WhisperSpeechToText(),
         writer=client,
         rater=client,
+        # The same client, when it can also write the report's prose. The
+        # local backend cannot, and gets the derived page.
+        narrator=client if hasattr(client, "write_narrative") else None,
     )
     worker.resume()
     worker.start()

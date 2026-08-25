@@ -288,7 +288,11 @@ def test_main_prints_the_full_report_not_just_the_level(tmp_path, monkeypatch, c
     assert "최종 등급: IM2" in out
     assert "유창성" in out  # a dimension label from the breakdown
     non_blank = [line for line in out.splitlines() if line.strip()]
-    assert non_blank[-1] == f"결과 파일: {session / 'result.json'}"
+    # The result file is named, and after it the standalone page the exam now
+    # writes for itself — derived only, since the fakes write no narrative.
+    assert f"결과 파일: {session / 'result.json'}" in non_blank
+    assert non_blank[-1] == f"리포트: {session / 'report-ko.html'}"
+    assert (session / "report-ko.html").exists()
 
 
 def test_a_scoring_failure_prints_one_line_instead_of_a_traceback(

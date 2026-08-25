@@ -15,6 +15,15 @@ from typing import Any
 import anthropic
 
 from opic.adapters import config
+from opic.adapters.narrative import (
+    ANALYSIS_SCHEMA,
+    REWRITES_SCHEMA,
+    NarrativeError,
+    analysis_prompt,
+    parse_analysis,
+    parse_rewrites,
+    rewrites_prompt,
+)
 from opic.adapters.llm import (
     QUESTIONS_SCHEMA,
     RATING_SCHEMA,
@@ -24,6 +33,8 @@ from opic.adapters.llm import (
     parse_rating,
 )
 from opic.core.metrics import AnswerMetrics
+from opic.core.narrative import Narrative
+from opic.core.report import Report
 from opic.core.questions import Question, QuestionSlot
 from opic.core.scoring import DimensionScore
 from opic.core.survey import SurveyAnswers
@@ -34,13 +45,30 @@ class MissingCredentials(RuntimeError):
     """No API key anywhere the client knows to look."""
 
 
-def strict(schema: dict[str, Any]) -> dict[str, Any]:
-    """The given schema with `additionalProperties: false` on every object.
+# Keywords the Messages API rejects inside `output_config.format.schema`. The
+# first one is measured, not guessed: sending `maxItems` on the narrative
+# schema comes back as
+#   400 output_config.format.schema: For 'array' type, property 'maxItems' is
+#   not supported
+# and the size and length bounds beside it are dropped for the same reason.
+# Nothing is lost by dropping them here — every one of these is a bound the
+# parser on the way back in enforces anyway, and it enforces them for both
+# backends rather than only for the one whose transport happens to accept the
+# keyword.
+UNSUPPORTED_KEYWORDS = frozenset(
+    {"minItems", "maxItems", "minLength", "maxLength", "minimum", "maximum"}
+)
 
-    Structured outputs require it and Ollama's `format` does not, so the shared
-    schemas in `llm.py` are written without it and this adds it on the way out.
-    Keeping it here rather than in the schema means neither adapter has to carry
-    the other's constraints.
+
+def strict(schema: dict[str, Any]) -> dict[str, Any]:
+    """The given schema as the Messages API will accept it.
+
+    Two changes. `additionalProperties: false` on every object, which
+    structured outputs require and Ollama's `format` does not. And every
+    keyword in `UNSUPPORTED_KEYWORDS` removed, which structured outputs reject
+    outright. The shared schemas in `llm.py` and `narrative.py` are written
+    without either concession, so neither adapter carries the other's
+    constraints.
     """
     out = copy.deepcopy(schema)
 
@@ -48,6 +76,8 @@ def strict(schema: dict[str, Any]) -> dict[str, Any]:
         if isinstance(node, dict):
             if node.get("type") == "object":
                 node["additionalProperties"] = False
+            for keyword in UNSUPPORTED_KEYWORDS & node.keys():
+                del node[keyword]
             for value in node.values():
                 walk(value)
         elif isinstance(node, list):
@@ -161,3 +191,42 @@ class AnthropicClient:
     ) -> tuple[DimensionScore, ...]:
         prompt = rating_prompt(question, transcript, metrics)
         return parse_rating(self._generate(prompt, RATING_SCHEMA), transcript.text)
+
+    # ------------------------------------------------------- the report's prose
+
+    def write_narrative(self, report: Report) -> Narrative:
+        """The two judged halves of the report page, in two requests.
+
+        Independent on purpose. One response carrying both the analysis and
+        fifteen rewrites is one truncation away from losing everything, and the
+        two failures are not equally likely — the rewrites are far more output.
+        A half that fails costs its own sections and nothing else.
+        """
+        analysis = self._attempt_narrative(
+            lambda: parse_analysis(
+                self._generate(analysis_prompt(report), ANALYSIS_SCHEMA), report
+            )
+        )
+        rewrites = self._attempt_narrative(
+            lambda: parse_rewrites(
+                self._generate(rewrites_prompt(report), REWRITES_SCHEMA), report
+            )
+        )
+        if analysis is None and rewrites is None:
+            raise NarrativeError(
+                f"{self._model} produced neither an analysis nor a usable rewrite"
+            )
+        return Narrative(analysis=analysis, rewrites=rewrites or ())
+
+    def _attempt_narrative(self, call):
+        """One retry, then give up on this half and keep the other.
+
+        Same bargain as `rate`: a retry costs one more request, and giving up
+        costs a section of a page that is otherwise complete.
+        """
+        for _ in range(2):
+            try:
+                return call()
+            except (NarrativeError, RaterError, ValueError, KeyError, TypeError):
+                continue
+        return None

@@ -10,7 +10,7 @@ to the Anthropic API, together with the question and the objective metrics. Set
 
 ## Status
 
-Phases 1 to 4 complete: the pure engine, the local adapters, a browser
+Phases 1 to 5 complete: the pure engine, the local adapters, a browser
 interface that runs a whole exam and grades it while you take it, and a
 report that explains the grade. The report shows the level, a per-dimension
 breakdown with the candidate's own quoted mistakes and the English
@@ -18,6 +18,28 @@ correction for each, an explanation when a weak dimension capped the grade,
 the words the recogniser could not catch clearly, breakdowns by question
 type and topic, and an answer-by-answer detail. The same report prints from
 the CLI.
+
+Every finished exam also writes `report-ko.html` into its own session folder:
+a standalone page the candidate can keep, open in any browser and hand to a
+teacher. It carries everything above plus, when the Anthropic backend is in
+use, the parts a template cannot write — the corrections grouped into named
+patterns, the weakest question type shown with the answers that made the case,
+and each answer rewritten at AL with a note on what changed. A rewrite that
+contains anything the candidate did not actually say is labelled as such on
+the page.
+
+Rebuild it for any graded session, including ones graded before this existed:
+
+```bash
+uv run python -m opic.cli --report data/sessions/20260821-140338
+uv run python -m opic.cli --report data/sessions/... --no-llm   # derived sections only
+uv run python -m opic.cli --report data/sessions/... --force    # overwrite
+```
+
+`--no-llm` needs no key, no network and no cost: it renders only what is
+derived from `result.json`. The same happens by itself on `OPIC_LLM=ollama`,
+or when the model call fails — the page is written either way, with the judged
+sections absent rather than faked.
 
 ```bash
 uv run python -m opic.cli --serve      # http://localhost:8000
@@ -112,6 +134,8 @@ uv run --extra dev pytest
 - Phase 3 plan: `docs/superpowers/plans/2026-08-19-phase-3-web.md`
 - Phase 4 design: `docs/superpowers/specs/2026-08-20-phase-4-report-design.md`
 - Phase 4 plan: `docs/superpowers/plans/2026-08-20-phase-4-report.md`
+- Phase 5 design: `docs/superpowers/specs/2026-08-24-phase-5-report-page-design.md`
+- Phase 5 plan: `docs/superpowers/plans/2026-08-24-phase-5-report-page.md`
 
 ---
 

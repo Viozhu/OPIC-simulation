@@ -323,3 +323,123 @@ def _a_blueprint() -> tuple[QuestionSlot, ...]:
             target=ActflLevel.IM2,
         ),
     )
+
+
+# ------------------------------------------------------------ the report's prose
+
+
+def _narrative_fixtures():
+    """A real report, and payloads shaped for it."""
+    from adapters.test_narrative import QUOTE, CORRECTION, REPORT, an_analysis
+
+    rewrites = {
+        "rewrites": [
+            {
+                "answer_index": answer.index,
+                "text_en": f"A longer answer for {answer.index}.",
+                "why_ko": "이유",
+                "invented": False,
+            }
+            for answer in REPORT.answers
+        ]
+    }
+    return REPORT, an_analysis(), rewrites, QUOTE, CORRECTION
+
+
+def test_write_narrative_makes_two_requests_and_returns_both_halves():
+    report, analysis, rewrites, _, _ = _narrative_fixtures()
+    client, fake = a_client(json.dumps(analysis), json.dumps(rewrites))
+
+    narrative = client.write_narrative(report)
+
+    assert len(fake.messages.calls) == 2
+    assert narrative.analysis is not None
+    assert len(narrative.rewrites) == len(report.answers)
+    # two different schemas, one per call — not the same request twice
+    schemas = [
+        call["output_config"]["format"]["schema"] for call in fake.messages.calls
+    ]
+    assert schemas[0] != schemas[1]
+    assert all(
+        node.get("additionalProperties") is False
+        for schema in schemas
+        for node in _objects(schema)
+    )
+
+
+def _objects(node):
+    if isinstance(node, dict):
+        if node.get("type") == "object":
+            yield node
+        for value in node.values():
+            yield from _objects(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _objects(item)
+
+
+def test_a_failed_analysis_still_returns_the_rewrites():
+    """The two halves are independent, and the page renders whichever survived."""
+    report, _, rewrites, _, _ = _narrative_fixtures()
+    # both analysis attempts come back unusable; both rewrite attempts are fine
+    client, _fake = a_client(
+        "{}", "{}", json.dumps(rewrites), json.dumps(rewrites)
+    )
+
+    narrative = client.write_narrative(report)
+
+    assert narrative.analysis is None
+    assert len(narrative.rewrites) == len(report.answers)
+
+
+def test_a_failed_rewrite_set_still_returns_the_analysis():
+    report, analysis, _, _, _ = _narrative_fixtures()
+    client, _fake = a_client(json.dumps(analysis), "{}", "{}")
+
+    narrative = client.write_narrative(report)
+
+    assert narrative.analysis is not None
+    assert narrative.rewrites == ()
+
+
+def test_when_both_halves_fail_the_caller_is_told():
+    from opic.adapters.narrative import NarrativeError
+
+    report, _, _, _, _ = _narrative_fixtures()
+    client, _fake = a_client("{}", "{}", "{}", "{}")
+
+    with pytest.raises(NarrativeError):
+        client.write_narrative(report)
+
+
+def test_the_adapter_satisfies_the_narrative_port():
+    from opic.core.ports import NarrativeWriter
+
+    client, _ = a_client()
+
+    assert isinstance(client, NarrativeWriter)
+
+
+def test_strict_drops_the_keywords_the_api_rejects():
+    """Measured, not guessed: `maxItems` came back as a 400 from a real request.
+
+    The bounds are not lost — `parse_analysis` and `parse_rewrites` enforce
+    them on the way back in, for both backends.
+    """
+    from opic.adapters.anthropic_llm import UNSUPPORTED_KEYWORDS
+    from opic.adapters.narrative import ANALYSIS_SCHEMA
+
+    sent = strict(ANALYSIS_SCHEMA)
+
+    def keywords(node):
+        if isinstance(node, dict):
+            yield from node.keys()
+            for value in node.values():
+                yield from keywords(value)
+        elif isinstance(node, list):
+            for item in node:
+                yield from keywords(item)
+
+    assert not (set(keywords(sent)) & UNSUPPORTED_KEYWORDS)
+    # the shared schema is untouched, so the local backend still sees its bounds
+    assert "maxItems" in str(ANALYSIS_SCHEMA)

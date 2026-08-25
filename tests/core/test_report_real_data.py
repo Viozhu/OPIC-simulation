@@ -96,3 +96,22 @@ def test_the_real_report_renders_as_text_without_raising():
     assert "또렷하게 인식되지 않은 단어" in text
     assert "유형별 · 주제별" in text
     assert "답변별 상세" in text
+
+
+def test_every_scored_answer_carries_its_words():
+    """§ Phase 5 — the page marks low-confidence words inside the sentence.
+
+    `Report.unclear` cannot serve that: it is deduplicated to one entry per
+    distinct word and capped at ten, which is the right answer to a different
+    question.
+    """
+    assessments = load_assessments()
+    questions = [a.question for a in assessments]
+    report = build_report(aggregate_available_from(questions, assessments), questions)
+    by_index = {a.question_index: a for a in assessments}
+
+    assert report.answers
+    for answer in report.answers:
+        assert answer.state == "scored"
+        assert answer.transcript_words == by_index[answer.index].transcript.words
+        assert answer.transcript_words

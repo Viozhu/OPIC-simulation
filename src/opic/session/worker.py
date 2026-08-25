@@ -21,10 +21,17 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from opic.core.metrics import compute_metrics
-from opic.core.ports import QuestionWriter, Rater, SpeechToText, TextToSpeech
+from opic.core.ports import (
+    NarrativeWriter,
+    QuestionWriter,
+    Rater,
+    SpeechToText,
+    TextToSpeech,
+)
 from opic.core.questions import build_blueprint
 from opic.core.scoring import AnswerAssessment
 from opic.session import assessments as answers_on_disk
+from opic.session import pages
 from opic.session import store
 from opic.session.state import (
     ORDER,
@@ -56,6 +63,7 @@ class Worker:
         stt: SpeechToText,
         writer: QuestionWriter,
         rater: Rater,
+        narrator: NarrativeWriter | None = None,
         retries: int = 3,
         sleeper: Callable[[float], None] = time.sleep,
         join_timeout: float = 5.0,
@@ -65,6 +73,7 @@ class Worker:
         self._stt = stt
         self._writer = writer
         self._rater = rater
+        self._narrator = narrator
         self._retries = retries
         self._sleep = sleeper
         self._join_timeout = join_timeout
@@ -308,6 +317,11 @@ class Worker:
         # already at DONE (e.g. a second AGGREGATE task racing a restart)
         # is left untouched rather than raising.
         self.update(session_id, self._advance_to_done)
+        # The exam is over and safe on disk. The report page is written after
+        # that line and never before it: it is the one step here that calls a
+        # language model for something the candidate can already live without,
+        # and `write_with_narrator` swallows every failure for that reason.
+        pages.write_with_narrator(self._root, session_id, self._narrator)
 
     def _advance_to_done(self, s: SessionState) -> SessionState:
         while s.step is not Step.DONE:

@@ -42,6 +42,16 @@ def answer_result_path(root: Path, session_id: str, index: int) -> Path:
     return session_dir(root, session_id) / f"answer-{index:02d}.json"
 
 
+def page_path(root: Path, session_id: str) -> Path:
+    """The standalone report page, next to the result it was rendered from.
+
+    Korean, like every other thing the candidate reads, so the name says so:
+    a future English or Spanish page is a different file, not a different
+    version of this one.
+    """
+    return session_dir(root, session_id) / "report-ko.html"
+
+
 def result_path(root: Path, session_id: str) -> Path:
     return session_dir(root, session_id) / RESULT_FILE
 

@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from opic.core.metrics import AnswerMetrics
+from opic.core.narrative import Narrative
 from opic.core.questions import Question, QuestionSlot
+from opic.core.report import Report
 from opic.core.scoring import DimensionScore
 from opic.core.survey import SurveyAnswers
 from opic.core.transcript import Transcript
@@ -47,3 +49,14 @@ class Rater(Protocol):
         transcript: Transcript,
         metrics: AnswerMetrics,
     ) -> tuple[DimensionScore, ...]: ...
+
+
+@runtime_checkable
+class NarrativeWriter(Protocol):
+    """Reads a finished report and writes the parts no template can.
+
+    Called once, after the exam is graded and `result.json` is on disk, so a
+    slow or failed call costs a section of a page and never an answer.
+    """
+
+    def write_narrative(self, report: Report) -> Narrative: ...
