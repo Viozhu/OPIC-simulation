@@ -2,6 +2,7 @@
 // and 재생 exactly once. The upload does not block the next question: the
 // server queues the evaluation and answers straight away.
 import {askAndRecord, uploadWithRetries, waitUntilReady} from "../question.js";
+import {recordingPanel} from "../panel.js";
 
 // `opic.web.app.post_answer` returns 409 for two different reasons: the
 // answer is already recorded, or the session has left the test step. The
@@ -51,15 +52,26 @@ export async function render(state, {api, show}) {
 
   app.append(heading, status, warning, replay, next);
 
+  let panel = null;
+
   const machine = askAndRecord({
     audioUrl: `/api/sessions/${state.id}/questions/${index}/audio`,
-    onState: (phase) => {
+    onState: (phase, info) => {
       status.textContent = {
         playing: "질문 재생 중…",
         recording: "녹음 중…",
         uploading: "전송 중…",
       }[phase] ?? "";
       status.className = phase === "recording" ? "recording" : "";
+      if (phase === "recording" && panel === null && info.stream) {
+        panel = recordingPanel(info.stream);
+        status.after(panel.element);
+      }
+      if (phase === "uploading" && panel !== null) {
+        panel.stop();
+        panel.element.remove();
+        panel = null;
+      }
       replay.disabled = phase !== "recording" || machine.replaysLeft() === 0;
       next.disabled = phase !== "recording";
     },

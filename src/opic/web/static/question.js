@@ -39,11 +39,14 @@ export function askAndRecord({audioUrl, onState}) {
   async function beginRecording() {
     stream = await askForMicrophone();
     session = startRecording(stream);
-    onState("recording");
+    // The caller owns what is on screen, so it is the caller that gets the
+    // stream — the panel it mounts must attach to this microphone and not ask
+    // for another one.
+    onState("recording", {stream});
   }
 
   async function play() {
-    onState("playing");
+    onState("playing", {});
     await audio.play();
     await new Promise((resolve) => audio.addEventListener("ended", resolve, {once: true}));
     await beginRecording();
@@ -75,7 +78,7 @@ export function askAndRecord({audioUrl, onState}) {
     // A replay left running past 다음 would otherwise keep talking over the
     // next question's screen.
     audio.pause();
-    onState("uploading");
+    onState("uploading", {});
     return recorded;
   }
 

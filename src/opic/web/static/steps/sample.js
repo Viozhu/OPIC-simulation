@@ -3,6 +3,7 @@
 // nothing. What it rehearses is the mechanic — question plays, recording starts
 // by itself, 다음 ends it.
 import {askForMicrophone, startRecording} from "../recorder.js";
+import {recordingPanel} from "../panel.js";
 
 const SAMPLE_TEXT = "Let's start the interview. Tell me a little about yourself.";
 // speak() can hang forever on a machine with speechSynthesis but zero
@@ -51,6 +52,7 @@ export async function render(state, {api, show}) {
   next.disabled = true;
 
   let session = null;
+  let panel = null;
 
   start.addEventListener("click", async () => {
     start.disabled = true;
@@ -76,6 +78,8 @@ export async function render(state, {api, show}) {
       return;
     }
     session = startRecording(stream);
+    panel = recordingPanel(session.stream);
+    status.after(panel.element);
     status.textContent = "녹음 중…";
     status.className = "recording";
     next.disabled = false;
@@ -87,6 +91,8 @@ export async function render(state, {api, show}) {
     // chunk is in — recorder.js owns that now, so there is nothing left to
     // stop here.
     await session.stop();
+    panel.stop();
+    panel.element.remove();
     try {
       await show(await api.send("POST", `/api/sessions/${state.id}/step`, {step: "test"}));
     } catch (error) {
