@@ -92,6 +92,10 @@ export async function render(state, {api, show}) {
       record.textContent = "녹음 중지";
       record.classList.add("recording");
       status.textContent = "녹음 중…";
+      // A re-recording invalidates whatever is sitting in the player from a
+      // previous take. Without this, 다음 stays enabled through the whole
+      // second recording and can advance the exam on that stale audio.
+      next.disabled = true;
     } catch (error) {
       status.textContent = error.message;
       status.className = "issues";

@@ -741,6 +741,17 @@ family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700\
 &family=Noto+Serif+KR:wght@400;600&display=swap">"""
 
 
+# The colour tokens, rules and shadows below are copied into
+# `static/style.css`'s own `:root` block, values and names both, so the exam
+# and this report read as one product even though the exam serves that file
+# standalone (no server, no import — see the comment there). Change one,
+# change the other.
+#
+# The type is where the two are allowed to diverge, deliberately, and it is
+# the only such divergence: this page is a document and reads as one, so it
+# keeps a serif body and hosted webfonts. `static/style.css` is an interface,
+# not a document, and stays sans-serif with system fonts only — a decision
+# made there, not a gap here.
 PAGE_CSS = """
 :root {
   --ground:#F6F8F7; --surface:#FFFFFF; --sunk:#EEF2F1;
@@ -752,6 +763,7 @@ PAGE_CSS = """
   --display:"Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
   --body:"Noto Serif KR", Georgia, serif;
   --mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {

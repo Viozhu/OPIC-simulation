@@ -22,6 +22,13 @@ export function levelMeter(stream) {
     const Context = window.AudioContext ?? window.webkitAudioContext;
     if (!Context) return DEAF;
     context = new Context();
+    // A fresh AudioContext can start suspended, and Safari does not
+    // reliably carry the user-gesture token across the preceding await on
+    // getUserMedia(). A suspended context hands the analyser all-128
+    // samples — RMS 0 forever, read as silence rather than "not measured".
+    // Best-effort: resume() returning a rejected promise must not stop the
+    // meter from working everywhere else.
+    context.resume().catch(() => {});
     const analyser = context.createAnalyser();
     analyser.fftSize = 1024;
     context.createMediaStreamSource(stream).connect(analyser);
@@ -41,6 +48,11 @@ export function levelMeter(stream) {
     const samples = new Uint8Array(analyser.fftSize);
     let peak = 0;
     let running = true;
+    // Stays false until tick() has actually read a sample. A meter stopped
+    // before its first animation frame — a fast stop click, or a throttled
+    // background tab — must report `null` ("not measured"), not `peak`'s
+    // starting value of 0, which setup.js reads as silence.
+    let measured = false;
 
     const tick = () => {
       if (!running) return;
@@ -52,6 +64,7 @@ export function levelMeter(stream) {
           sum += centred * centred;
         }
         const rms = Math.sqrt(sum / samples.length);
+        measured = true;
         if (rms > peak) peak = rms;
         fill.style.width = `${Math.min(100, (rms / FULL_SCALE) * 100)}%`;
         requestAnimationFrame(tick);
@@ -65,7 +78,7 @@ export function levelMeter(stream) {
 
     return {
       element,
-      peak: () => peak,
+      peak: () => (measured ? peak : null),
       stop() {
         running = false;
         try {

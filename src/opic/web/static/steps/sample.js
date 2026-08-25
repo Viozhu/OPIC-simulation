@@ -88,28 +88,38 @@ export async function render(state, {api, show}) {
 
   next.addEventListener("click", async () => {
     next.disabled = true;
-    try {
-      // `session.stop()` already releases the microphone tracks once the
-      // final chunk is in — recorder.js owns that now, so there is nothing
-      // left to stop here on success.
-      await session.stop();
-    } catch (error) {
-      // A synchronous throw out of MediaRecorder never reaches `onstop`, so
-      // the tracks are still held — release() is what frees the microphone
-      // when stop() itself failed. The sample is not scored, so the cheapest
-      // way to recover is to let the candidate start it over rather than
-      // strand them with 다음 disabled and no working session.
-      console.error(error);
-      session.release();
+    // A prior click can already have stopped the recorder successfully and
+    // then failed on the step POST below — the candidate retries by
+    // clicking 다음 again. Without nulling `session` on that first success,
+    // this branch calls stop() on an already-inactive MediaRecorder, which
+    // throws synchronously and sends a perfectly good recording back
+    // through the "start over" path instead of straight to the step POST.
+    if (session) {
+      try {
+        // `session.stop()` already releases the microphone tracks once the
+        // final chunk is in — recorder.js owns that now, so there is nothing
+        // left to stop here on success.
+        await session.stop();
+        session = null;
+      } catch (error) {
+        // A synchronous throw out of MediaRecorder never reaches `onstop`, so
+        // the tracks are still held — release() is what frees the microphone
+        // when stop() itself failed. The sample is not scored, so the cheapest
+        // way to recover is to let the candidate start it over rather than
+        // strand them with 다음 disabled and no working session.
+        console.error(error);
+        session.release();
+        session = null;
+        panel.stop();
+        panel.element.remove();
+        status.textContent = "녹음을 마치지 못했습니다. 처음부터 다시 시도해 주세요.";
+        status.className = "issues";
+        start.disabled = false;
+        return;
+      }
       panel.stop();
       panel.element.remove();
-      status.textContent = "녹음을 마치지 못했습니다. 처음부터 다시 시도해 주세요.";
-      status.className = "issues";
-      start.disabled = false;
-      return;
     }
-    panel.stop();
-    panel.element.remove();
     try {
       await show(await api.send("POST", `/api/sessions/${state.id}/step`, {step: "test"}));
     } catch (error) {

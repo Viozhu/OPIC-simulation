@@ -1,16 +1,22 @@
 /* The exam's stylesheet.
  *
- * The token block below is copied from `PAGE_CSS` in `src/opic/core/page.py`,
- * values and names both, so the exam and the report it ends with read as one
- * product. It is a copy and not an import on purpose: that page is written to
- * a file the candidate keeps, and a report opened in six months with no server
- * running cannot depend on a stylesheet this server would have served. Change
- * one, change the other.
+ * The colour tokens, rules and shadows below are copied from `PAGE_CSS` in
+ * `src/opic/core/page.py`, values and names both, so the exam and the report
+ * it ends with read as one product. It is a copy and not an import on
+ * purpose: that page is written to a file the candidate keeps, and a report
+ * opened in six months with no server running cannot depend on a stylesheet
+ * this server would have served. Change one, change the other.
  *
- * What is deliberately NOT copied is the webfont link. The report is a
- * document and can wait a beat for Noto; the exam has to start on a laptop
- * whose only network is a tunnel, and a blocking font fetch is a way to make
- * the first screen slow for nothing. Same stacks, minus the hosted names.
+ * The type is where the two are allowed to diverge, deliberately, and this is
+ * the only such divergence: the report is a document and reads as one, so it
+ * keeps `PAGE_CSS`'s serif body and hosted webfonts (Noto Serif KR, Noto Sans
+ * KR, JetBrains Mono). The exam is an interface, not a document — Korean form
+ * labels and buttons set in a serif face would read as a costume — so it
+ * stays sans-serif throughout, system fonts only. Dropping the hosted names
+ * is a second, separate reason: the report can afford to wait a beat for a
+ * webfont, but the exam has to start on a laptop whose only network is a
+ * tunnel, and a blocking font fetch is a way to make the first screen slow
+ * for nothing.
  */
 
 :root {
