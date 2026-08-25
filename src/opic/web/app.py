@@ -425,11 +425,7 @@ def create_app(
         built = build_report(exam, questions, unreadable=broken)
         return JSONResponse(content=answers_on_disk.report_json(built))
 
-    @app.api_route(
-        "/api/sessions/{session_id}/page",
-        methods=["GET", "HEAD"],
-        response_class=HTMLResponse,
-    )
+    @app.get("/api/sessions/{session_id}/page", response_class=HTMLResponse)
     def report_page(session_id: str) -> str:
         """The report as `core/page.py` renders it — the same document the
         candidate can keep, framed by the done screen.

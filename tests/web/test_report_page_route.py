@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import pytest
 from fastapi.testclient import TestClient
 
 from opic.session import store
@@ -56,13 +55,6 @@ def test_every_answer_unreadable_and_no_page_is_a_404(
         answer_file.write_text("{ not json", encoding="utf-8")
 
     assert client.get(f"/api/sessions/{scored_session}/page").status_code == 404
-
-
-def test_head_says_whether_there_is_a_page(client, scored_session):
-    """`done.js` probes with HEAD before it mounts an iframe, so that a
-    session with no page lands on the fallback screen instead of framing an
-    error document."""
-    assert client.head(f"/api/sessions/{scored_session}/page").status_code == 200
 
 
 def test_the_share_gate_covers_the_page(sessions_root, worker, scored_session):
