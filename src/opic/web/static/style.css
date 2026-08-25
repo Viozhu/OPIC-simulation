@@ -166,10 +166,31 @@ progress {
   margin: 0.6rem 0 0;
   accent-color: var(--accent);
   border: 0;
+  border-radius: 999px;
 }
-progress::-webkit-progress-bar { background: var(--sunk); border-radius: 999px; }
+/* The track needs the same border `.meter` gets, not just a background: in
+   dark mode `--sunk` sits at roughly 1:1 contrast against the surfaces it
+   can appear on, so an unbordered track at 0% is indistinguishable from no
+   bar at all. Chrome draws the track as `::-webkit-progress-bar`, so the
+   border goes there. */
+progress::-webkit-progress-bar {
+  background: var(--sunk);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+}
 progress::-webkit-progress-value { background: var(--accent); border-radius: 999px; }
 progress::-moz-progress-bar { background: var(--accent); border-radius: 999px; }
+/* Firefox has no track pseudo-element to match `::-webkit-progress-bar` —
+   `::-moz-progress-bar` is the filled portion, and the track is the
+   `progress` element's own box. Give that box the matching background and
+   border, scoped so it never touches Chrome (which already got its border
+   above, and would double up if `border: 0` here were overridden globally). */
+@supports selector(::-moz-progress-bar) {
+  progress {
+    background: var(--sunk);
+    border: 1px solid var(--rule);
+  }
+}
 
 /* --------------------------------------------------------------- report */
 
