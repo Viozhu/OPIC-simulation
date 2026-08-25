@@ -44,16 +44,22 @@ export function levelMeter(stream) {
 
     const tick = () => {
       if (!running) return;
-      analyser.getByteTimeDomainData(samples);
-      let sum = 0;
-      for (const sample of samples) {
-        const centred = (sample - 128) / 128;
-        sum += centred * centred;
+      try {
+        analyser.getByteTimeDomainData(samples);
+        let sum = 0;
+        for (const sample of samples) {
+          const centred = (sample - 128) / 128;
+          sum += centred * centred;
+        }
+        const rms = Math.sqrt(sum / samples.length);
+        if (rms > peak) peak = rms;
+        fill.style.width = `${Math.min(100, (rms / FULL_SCALE) * 100)}%`;
+        requestAnimationFrame(tick);
+      } catch (error) {
+        // A bar that freezes where it was is a smaller failure than an
+        // uncaught exception on every animation frame from here on.
+        running = false;
       }
-      const rms = Math.sqrt(sum / samples.length);
-      if (rms > peak) peak = rms;
-      fill.style.width = `${Math.min(100, (rms / FULL_SCALE) * 100)}%`;
-      requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
 

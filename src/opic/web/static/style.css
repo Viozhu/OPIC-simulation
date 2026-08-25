@@ -136,3 +136,25 @@ ol.scale li.here {
 
 ol.scale li.here .band { color: var(--accent); font-size: 1.05rem; }
 ol.scale li.here .who { color: var(--ink); }
+
+/* The level bar. Task 8 replaces this stylesheet with one built on shared
+   tokens; these rules are written with those token names and a literal
+   fallback so the bar is visible both before that lands and after. */
+.meter {
+  width: 100%;
+  max-width: 22rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--sunk, #EEF2F1);
+  border: 1px solid var(--rule, #DCE4E2);
+  overflow: hidden;
+  margin: 0 0 0.75rem;
+}
+.meter__fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--good, #2C6B4F);
+  /* Fast enough to feel live, slow enough not to strobe on a plosive. */
+  transition: width 60ms linear;
+}

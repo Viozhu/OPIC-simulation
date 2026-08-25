@@ -25,6 +25,11 @@ export async function render(state, {api, show}) {
   let meter = null;
   record.addEventListener("click", async () => {
     if (session) {
+      // Stopping is not instant — session.stop() waits on a final data chunk.
+      // Without this, a second click in that window re-enters this branch and
+      // calls meter.stop() a second time, which closes an already-closed
+      // AudioContext.
+      record.disabled = true;
       const {blob} = await session.stop();
       session = null;
       const peak = meter.peak();
@@ -47,6 +52,7 @@ export async function render(state, {api, show}) {
         status.className = "";
       }
       next.disabled = false;
+      record.disabled = false;
       return;
     }
     // getUserMedia() neither resolves nor rejects while the browser's own
