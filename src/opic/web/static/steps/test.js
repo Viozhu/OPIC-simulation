@@ -89,7 +89,27 @@ export async function render(state, {api, show}) {
   next.addEventListener("click", async () => {
     next.disabled = true;
     replay.disabled = true;
-    const {blob, filename} = await machine.stop();
+    let blob, filename;
+    try {
+      ({blob, filename} = await machine.stop());
+    } catch (error) {
+      // The recording itself never finalized, so there is nothing captured
+      // to upload and nothing here worth retrying in place. Nothing was ever
+      // sent to the server either, so this answer is still `pending` there —
+      // reloading re-renders this exact question with a fresh microphone
+      // session, instead of leaving 재생 and 다음 both dead for the rest of
+      // the exam. `machine.stop()` has already torn its own panel down by
+      // the time this runs.
+      console.error(error);
+      status.textContent =
+        "녹음을 저장하지 못했습니다. 새로고침한 뒤 이 문제를 다시 녹음해 주세요.";
+      status.className = "issues";
+      const reload = document.createElement("button");
+      reload.textContent = "새로고침";
+      reload.addEventListener("click", () => window.location.reload());
+      app.append(reload);
+      return;
+    }
 
     const send = async () => {
       retry.hidden = true;

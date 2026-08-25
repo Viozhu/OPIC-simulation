@@ -71,13 +71,26 @@ export function askAndRecord({audioUrl, onState}) {
   }
 
   async function stop() {
-    // `session.stop()` releases the microphone tracks itself once the final
-    // chunk of data is in; stopping them again here would be a double-stop
-    // racing the recorder's own cleanup.
-    const recorded = await session.stop();
     // A replay left running past 다음 would otherwise keep talking over the
-    // next question's screen.
+    // next question's screen, whether the stop below succeeds or not.
     audio.pause();
+    let recorded;
+    try {
+      // `session.stop()` releases the microphone tracks itself once the
+      // final chunk of data is in; stopping them again here would be a
+      // double-stop racing the recorder's own cleanup.
+      recorded = await session.stop();
+    } catch (error) {
+      // A synchronous throw out of MediaRecorder never reaches `onstop`, so
+      // the tracks are still held — release() is what frees the microphone
+      // when stop() itself failed. `stop()` owns no screen to report onto,
+      // so it only tears down what "recording" put up — the same
+      // "uploading" transition a successful stop fires — and rethrows so the
+      // caller can actually tell the candidate something went wrong.
+      session.release();
+      onState("uploading", {});
+      throw error;
+    }
     onState("uploading", {});
     return recorded;
   }

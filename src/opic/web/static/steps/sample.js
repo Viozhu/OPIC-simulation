@@ -87,10 +87,26 @@ export async function render(state, {api, show}) {
 
   next.addEventListener("click", async () => {
     next.disabled = true;
-    // `session.stop()` already releases the microphone tracks once the final
-    // chunk is in — recorder.js owns that now, so there is nothing left to
-    // stop here.
-    await session.stop();
+    try {
+      // `session.stop()` already releases the microphone tracks once the
+      // final chunk is in — recorder.js owns that now, so there is nothing
+      // left to stop here on success.
+      await session.stop();
+    } catch (error) {
+      // A synchronous throw out of MediaRecorder never reaches `onstop`, so
+      // the tracks are still held — release() is what frees the microphone
+      // when stop() itself failed. The sample is not scored, so the cheapest
+      // way to recover is to let the candidate start it over rather than
+      // strand them with 다음 disabled and no working session.
+      console.error(error);
+      session.release();
+      panel.stop();
+      panel.element.remove();
+      status.textContent = "녹음을 마치지 못했습니다. 처음부터 다시 시도해 주세요.";
+      status.className = "issues";
+      start.disabled = false;
+      return;
+    }
     panel.stop();
     panel.element.remove();
     try {
