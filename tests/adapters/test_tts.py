@@ -9,15 +9,17 @@ from opic.adapters import config
 from opic.adapters.tts import SayTextToSpeech, cache_path
 from opic.core.ports import TextToSpeech
 
+RATE = config.SAY_RATE
+
 
 def test_the_adapter_satisfies_the_port(tmp_path):
     assert isinstance(SayTextToSpeech(cache_dir=tmp_path), TextToSpeech)
 
 
 def test_the_cache_path_is_content_addressed(tmp_path):
-    a = cache_path("hello there", "Samantha", tmp_path)
-    b = cache_path("hello there", "Samantha", tmp_path)
-    c = cache_path("hello THERE", "Samantha", tmp_path)
+    a = cache_path("hello there", "Samantha", RATE, tmp_path)
+    b = cache_path("hello there", "Samantha", RATE, tmp_path)
+    c = cache_path("hello THERE", "Samantha", RATE, tmp_path)
     assert a == b
     assert a != c
     assert a.suffix == ".wav"
@@ -25,15 +27,42 @@ def test_the_cache_path_is_content_addressed(tmp_path):
 
 
 def test_a_different_voice_is_a_different_cache_entry(tmp_path):
-    assert cache_path("hello", "Samantha", tmp_path) != cache_path(
-        "hello", "Alex", tmp_path
+    assert cache_path("hello", "Samantha", RATE, tmp_path) != cache_path(
+        "hello", "Alex", RATE, tmp_path
     )
+
+
+def test_a_different_rate_is_a_different_cache_entry(tmp_path):
+    """Otherwise changing the speed changes nothing anybody can hear.
+
+    Every question already spoken stays cached under the old key and keeps
+    playing at the old speed, which looks exactly like a setting that does not
+    work.
+    """
+    assert cache_path("hello", "Samantha", 165, tmp_path) != cache_path(
+        "hello", "Samantha", 95, tmp_path
+    )
+
+
+def test_the_rate_reaches_the_say_command(tmp_path):
+    spoken: list[list[str]] = []
+
+    def record(command: list[str]) -> None:
+        if command[0] == "say":
+            spoken.append(command)
+            Path(command[command.index("-o") + 1]).write_bytes(b"aiff")
+        else:
+            Path(command[-1]).write_bytes(b"wav")
+
+    SayTextToSpeech(cache_dir=tmp_path, rate=95, runner=record).synthesize("hi")
+
+    assert spoken[0][spoken[0].index("-r") + 1] == "95"
 
 
 def test_a_cached_file_is_returned_without_synthesising(tmp_path):
     voice = "Samantha"
     text = "already here"
-    target = cache_path(text, voice, tmp_path)
+    target = cache_path(text, voice, RATE, tmp_path)
     target.write_bytes(b"not really a wav")
 
     calls: list[str] = []
@@ -74,7 +103,7 @@ def test_a_failed_conversion_leaves_no_cache_entry(tmp_path):
     with pytest.raises(RuntimeError):
         tts.synthesize("this will not convert")
 
-    assert not cache_path("this will not convert", "Samantha", tmp_path).exists()
+    assert not cache_path("this will not convert", "Samantha", RATE, tmp_path).exists()
     assert list(tmp_path.iterdir()) == []
 
 

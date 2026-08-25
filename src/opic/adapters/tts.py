@@ -8,13 +8,18 @@ from pathlib import Path
 from opic.adapters import config
 
 
-def cache_path(text: str, voice: str, cache_dir: Path) -> Path:
-    """Where this exact wording, in this exact voice, is cached.
+def cache_path(text: str, voice: str, rate: int, cache_dir: Path) -> Path:
+    """Where this exact wording, in this voice, at this speed, is cached.
 
     Content addressed, so a question repeated across sessions is synthesised
     once and never again.
+
+    `rate` is part of the key and is required rather than defaulted, because a
+    caller that omits it gets silence rather than an error: every question
+    already spoken stays cached under the old key and keeps playing at the old
+    speed, which is indistinguishable from a speed setting that does nothing.
     """
-    digest = hashlib.sha256(f"{voice}\n{text}".encode()).hexdigest()
+    digest = hashlib.sha256(f"{voice}\n{rate}\n{text}".encode()).hexdigest()
     return cache_dir / f"{digest}.wav"
 
 
@@ -36,17 +41,19 @@ class SayTextToSpeech:
         self,
         cache_dir: Path,
         voice: str = config.SAY_VOICE,
+        rate: int = config.SAY_RATE,
         runner: Callable[[list[str]], None] = _run,
     ) -> None:
         self._cache_dir = cache_dir
         self._voice = voice
+        self._rate = rate
         self._run = runner
 
     def synthesize(self, text: str) -> Path:
         if not text.strip():
             raise ValueError("cannot synthesise empty text")
 
-        target = cache_path(text, self._voice, self._cache_dir)
+        target = cache_path(text, self._voice, self._rate, self._cache_dir)
         if target.exists():
             return target
 
@@ -54,7 +61,9 @@ class SayTextToSpeech:
         raw = target.with_name(target.name + ".aiff")
         pending = target.with_name(target.name + ".part")
         try:
-            self._run(["say", "-v", self._voice, "-o", str(raw), text])
+            self._run(
+                ["say", "-v", self._voice, "-r", str(self._rate), "-o", str(raw), text]
+            )
             self._run(
                 [
                     "ffmpeg", "-v", "error", "-y",

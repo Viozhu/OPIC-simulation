@@ -20,6 +20,16 @@ from pathlib import Path
 # deeper directory is enough to break synthesis with an error that points
 # somewhere else entirely.
 SAY_VOICE = "Samantha"
+
+# Words per minute for `say`. The default delivery was too fast to sit an exam
+# against — a candidate hears each question once, twice at most, and has to
+# parse it before the recording starts.
+#
+# `say` quantises this: measured against a real fifteen-question exam, 115-140
+# all produce one duration, 85-105 the next, 60-75 the next. So there are three
+# steps below the default, worth +10%, +20% and +30% of speaking time. This is
+# the middle one, chosen by listening to all four.
+SAY_RATE = 95
 TTS_SAMPLE_RATE = 16000
 
 # Speech to text.
