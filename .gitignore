@@ -7,3 +7,6 @@ data/
 .ruff_cache/
 .playwright-mcp/
 .env
+.claude/worktrees/
+.superpowers/
+.omc/
