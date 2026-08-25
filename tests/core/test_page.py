@@ -250,7 +250,21 @@ def test_both_themes_are_defined_so_the_page_survives_being_reopened():
 
     assert "prefers-color-scheme: dark" in page
     assert ':root[data-theme="dark"]' in page
-    assert page.lstrip().startswith("<title>")
+
+
+def test_the_page_is_a_whole_document():
+    """Not a fragment. A fragment renders in quirks mode in an iframe, and a
+    fragment of Korean saved to disk has nothing on it that says UTF-8 — this
+    file gets opened from a desktop months later, with no server involved."""
+    page = render_html(real_report(), META)
+
+    assert page.startswith('<!doctype html>\n<html lang="ko">')
+    assert '<meta charset="utf-8">' in page
+    assert '<meta name="viewport" content="width=device-width, initial-scale=1">' in page
+    assert page.rstrip().endswith("</html>")
+    assert page.count("<html") == 1
+    assert page.count("</html>") == 1
+    assert page.count("<title>") == 1
 
 
 def test_the_scale_is_drawn_whole_with_the_final_level_marked():

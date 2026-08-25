@@ -92,8 +92,8 @@ def render_html(
 ) -> str:
     """The whole page, as one string."""
     parts: list[str] = [
-        f"<title>OPIc {report.final_level.name} 리포트</title>",
         _HEAD,
+        f"<title>OPIc {report.final_level.name} 리포트</title>",
         "<style>",
         PAGE_CSS,
         "</style>",
@@ -114,6 +114,7 @@ def render_html(
     parts.append(_caveats(report, narrative))
     parts.append(_footer(report, meta))
     parts.append("</div>")
+    parts.append("</html>")
     return "\n".join(part for part in parts if part)
 
 
@@ -725,7 +726,15 @@ def _footer(report: Report, meta: Meta) -> str:
 </footer>"""
 
 
-_HEAD = """<link rel="preconnect" href="https://fonts.googleapis.com">
+# The document opening lives here and not in a caller: this page is written to
+# a file the candidate keeps, and a file opened from a desktop over file:// has
+# nobody to declare its encoding for it. The doctype earns its keep too — an
+# iframe with no doctype renders in quirks mode.
+_HEAD = """<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?\
 family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700\

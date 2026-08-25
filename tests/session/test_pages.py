@@ -70,7 +70,7 @@ def test_a_finished_exam_writes_its_page(tmp_path, ports, survey):
     page = store.page_path(tmp_path, session_id)
     assert page.exists()
     text = page.read_text(encoding="utf-8")
-    assert text.startswith("<title>OPIc ")
+    assert text.startswith('<!doctype html>\n<html lang="ko">')
     assert "OPIc 모의고사 결과" in text
 
 
