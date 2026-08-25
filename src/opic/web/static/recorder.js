@@ -29,6 +29,10 @@ export function startRecording(stream) {
   recorder.start();
 
   return {
+    // The live stream, so a caller can attach a meter to the same microphone
+    // rather than asking for it a second time — a second getUserMedia is a
+    // second prompt on some browsers and a second thing that can fail.
+    stream,
     stop() {
       return new Promise((resolve) => {
         recorder.onstop = () => {

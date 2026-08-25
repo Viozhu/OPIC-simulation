@@ -15,13 +15,29 @@ export async function render(state, {api, show}) {
     "채점은 이 컴퓨터에서 진행됩니다. 창을 닫아도 계속되며, 나중에 다시 열면 진행 상황을 볼 수 있습니다.";
   const bar = document.createElement("p");
   bar.className = "counter";
+  const meter = document.createElement("progress");
+  meter.setAttribute("aria-label", "채점 진행률");
+  meter.max = 1;
+  meter.value = 0;
   const eta = document.createElement("p");
   const failures = document.createElement("p");
   failures.className = "issues";
+  failures.setAttribute("role", "status");
   const connection = document.createElement("p");
   connection.className = "issues";
+  connection.setAttribute("role", "status");
 
-  app.append(heading, note, bar, eta, failures, connection);
+  app.append(heading, note, meter, bar, eta, failures, connection);
+  app.setAttribute("aria-busy", "true");
+  // Every other step gets its heading focused by `app.js`'s `show()`, once
+  // `render()` returns. This `render()` does not return until grading is
+  // fully done — it is a `while (true)` poll loop — so a candidate landing
+  // here would otherwise be left on whatever the previous screen's focus
+  // was (already gone from the DOM) for however long grading takes, up to
+  // half an hour. This screen has to do for itself, right away, what every
+  // other screen gets for free from `show()`.
+  heading.tabIndex = -1;
+  heading.focus({preventScroll: true});
 
   while (true) {
     try {
@@ -32,12 +48,15 @@ export async function render(state, {api, show}) {
 
       const settled = progress.scored + progress.failed;
       bar.textContent = `채점 완료: ${settled} / ${progress.expected}`;
+      meter.max = progress.expected;
+      meter.value = settled;
       const left = Math.max(0, progress.expected - settled) * SECONDS_PER_ANSWER;
       eta.textContent = `남은 예상 시간: 약 ${Math.ceil(left / 60)}분`;
       failures.textContent =
         progress.failed > 0 ? `채점하지 못한 답변: ${progress.failed}개` : "";
 
       if (progress.done) {
+        app.removeAttribute("aria-busy");
         await goToResult(state, api, show);
         return;
       }
@@ -52,9 +71,11 @@ export async function render(state, {api, show}) {
           // usual reason.
           heading.textContent = "채점하지 못했습니다";
           note.textContent = "";
+          meter.hidden = true;
           eta.textContent = "";
           failures.textContent =
             "채점 가능한 답변이 없어 결과를 계산할 수 없습니다. 녹음한 답변은 이 컴퓨터의 세션 폴더에 그대로 남아 있으니 사라지지 않았습니다. 대부분 Ollama가 실행되고 있지 않을 때 일어나며, 지금은 자동으로 다시 시도되지 않습니다.";
+          app.removeAttribute("aria-busy");
           return;
         }
         eta.textContent = "결과를 정리하는 중…";

@@ -250,7 +250,21 @@ def test_both_themes_are_defined_so_the_page_survives_being_reopened():
 
     assert "prefers-color-scheme: dark" in page
     assert ':root[data-theme="dark"]' in page
-    assert page.lstrip().startswith("<title>")
+
+
+def test_the_page_is_a_whole_document():
+    """Not a fragment. A fragment renders in quirks mode in an iframe, and a
+    fragment of Korean saved to disk has nothing on it that says UTF-8 — this
+    file gets opened from a desktop months later, with no server involved."""
+    page = render_html(real_report(), META)
+
+    assert page.startswith('<!doctype html>\n<html lang="ko">')
+    assert '<meta charset="utf-8">' in page
+    assert '<meta name="viewport" content="width=device-width, initial-scale=1">' in page
+    assert page.rstrip().endswith("</html>")
+    assert page.count("<html") == 1
+    assert page.count("</html>") == 1
+    assert page.count("<title>") == 1
 
 
 def test_the_scale_is_drawn_whole_with_the_final_level_marked():
@@ -273,3 +287,47 @@ def test_the_speed_chart_has_one_bar_per_scored_answer():
     assert plot
     bars = re.findall(r'class="bar(?:\s[^"]*)?"', plot.group(0))
     assert len(bars) == report.scored_answers
+
+
+def test_the_page_prints_as_a_document_that_still_says_the_level():
+    """The ladder, the chips and the chart carry their meaning in background
+    colour. A browser that drops backgrounds when printing would produce a
+    nine-rung ladder with no rung marked — a report that does not say what
+    level anyone reached. `print-color-adjust` is what forbids that."""
+    page = render_html(real_report(), META)
+
+    assert "@media print" in page
+    assert "print-color-adjust: exact" in page
+    assert "-webkit-print-color-adjust: exact" in page
+
+
+def test_the_printed_page_is_light_whatever_the_screen_was():
+    """Both dark blocks have to be overridden, and the `[data-theme]` one has
+    higher specificity than a bare `:root`, so the print block must name it.
+
+    The printed `--ground` is `#FFFFFF`, not the light theme's own `#F6F8F7`:
+    with `print-color-adjust: exact` forcing it onto paper, the screen's
+    off-white ground lays down as a tinted rectangle inside white page
+    margins — ink spent on nothing, and cards that should read by their
+    borders instead read as a printing fault. This is deliberate; do not
+    "correct" it back to the screen value."""
+    page = render_html(real_report(), META)
+    printed = page.split("@media print", 1)[1]
+
+    assert ':root[data-theme="dark"]' in printed
+    assert "--ground:#FFFFFF" in printed
+
+
+def test_an_answer_block_is_not_split_across_pages():
+    """Chromium honours `break-inside: avoid` on block boxes and routinely
+    ignores it on flex containers — and `.tx`, the class the transcript
+    cards actually render with (`real_report()` has no narrative, so `.qa`
+    never even appears in this document), is a flex column on screen. The
+    rule only binds if these are also forced to `display: block` for
+    print."""
+    page = render_html(real_report(), META)
+    printed = page.split("@media print", 1)[1]
+
+    assert "break-inside: avoid" in printed
+    assert ".tx" in printed
+    assert "display: block" in printed

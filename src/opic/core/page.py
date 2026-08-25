@@ -92,8 +92,8 @@ def render_html(
 ) -> str:
     """The whole page, as one string."""
     parts: list[str] = [
-        f"<title>OPIc {report.final_level.name} 리포트</title>",
         _HEAD,
+        f"<title>OPIc {report.final_level.name} 리포트</title>",
         "<style>",
         PAGE_CSS,
         "</style>",
@@ -114,6 +114,7 @@ def render_html(
     parts.append(_caveats(report, narrative))
     parts.append(_footer(report, meta))
     parts.append("</div>")
+    parts.append("</html>")
     return "\n".join(part for part in parts if part)
 
 
@@ -725,13 +726,32 @@ def _footer(report: Report, meta: Meta) -> str:
 </footer>"""
 
 
-_HEAD = """<link rel="preconnect" href="https://fonts.googleapis.com">
+# The document opening lives here and not in a caller: this page is written to
+# a file the candidate keeps, and a file opened from a desktop over file:// has
+# nobody to declare its encoding for it. The doctype earns its keep too — an
+# iframe with no doctype renders in quirks mode.
+_HEAD = """<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?\
 family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700\
 &family=Noto+Serif+KR:wght@400;600&display=swap">"""
 
 
+# The colour tokens, rules and shadows below are copied into
+# `static/style.css`'s own `:root` block, values and names both, so the exam
+# and this report read as one product even though the exam serves that file
+# standalone (no server, no import — see the comment there). Change one,
+# change the other.
+#
+# The type is where the two are allowed to diverge, deliberately, and it is
+# the only such divergence: this page is a document and reads as one, so it
+# keeps a serif body and hosted webfonts. `static/style.css` is an interface,
+# not a document, and stays sans-serif with system fonts only — a decision
+# made there, not a gap here.
 PAGE_CSS = """
 :root {
   --ground:#F6F8F7; --surface:#FFFFFF; --sunk:#EEF2F1;
@@ -743,6 +763,7 @@ PAGE_CSS = """
   --display:"Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
   --body:"Noto Serif KR", Georgia, serif;
   --mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -1005,4 +1026,71 @@ footer { margin-top:72px; padding-top:20px; border-top:1px solid var(--rule);
   .gauge__seg.is-hit { animation:land .5s cubic-bezier(.2,.7,.3,1) both; }
 }
 @keyframes land { from { transform:scaleY(.28); opacity:.3; } to { transform:scaleY(1); opacity:1; } }
+
+/* Printing, which on this machine is how a PDF gets made.
+ *
+ * Two things here are not cosmetic. The first is the palette: this block
+ * restates the light values and names `[data-theme="dark"]` explicitly,
+ * because that selector outranks a bare `:root` and would otherwise win
+ * whatever the order. A report printed on a dark background wastes ink on
+ * paper and reads worse either way.
+ *
+ * The second is `print-color-adjust`. The ladder marks the candidate's band
+ * with a background, the chips are backgrounds, the chart is bars. A browser
+ * that helpfully drops backgrounds turns all of that into blank boxes — a
+ * ladder with no rung lit, which is not a duller report but a wrong one.
+ */
+@media print {
+  :root,
+  :root[data-theme="dark"],
+  :root:not([data-theme="light"]) {
+    /* `--ground` on paper is white, not the light theme's own off-white: on
+       screen that shade sits deliberately under white cards, but printed
+       with `print-color-adjust: exact` it lays down as a tinted rectangle
+       inside white page margins — ink spent on nothing, and a report that
+       reads like a printing fault instead of a design. Do not "correct"
+       this back to the screen value. */
+    --ground:#FFFFFF; --surface:#FFFFFF; --sunk:#EEF2F1;
+    --ink:#10201E; --ink-2:#4A5C5A; --ink-3:#7C8C8A;
+    --rule:#DCE4E2; --rule-2:#C6D2D0;
+    --accent:#0F6E6E; --accent-soft:#DDECEB; --accent-ink:#0B5252;
+    --crit:#9B382C; --warn:#8A5806; --good:#2C6B4F;
+    --shadow:none;
+  }
+
+  html {
+    /* Inherited, so one declaration covers the ladder, the chips and the
+       chart at once. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @page { margin: 14mm; }
+
+  body { font-size: 11pt; }
+  .wrap { max-width: none; padding: 0; }
+  section { margin-top: 28px; }
+
+  /* A finding split across a page break is a finding somebody misses. But
+   * Chromium honours `break-inside: avoid` on block boxes and routinely
+   * ignores it on flex containers — and every one of these cards is a flex
+   * column on screen. Printing them as blocks is what makes the rule bind
+   * at all. Their children already stack in source order, so `gap` is the
+   * only casualty, and it comes back as a margin between children.
+   */
+  .qa, .pat, .verdict, .chart, .dim, .split, .cav, .tx {
+    break-inside: avoid;
+    display: block;
+  }
+  .verdict > * + * { margin-top: 26px; }
+  .dim > * + *     { margin-top: 9px; }
+  .pat > * + *     { margin-top: 12px; }
+  .qa > * + *      { margin-top: 12px; }
+  .chart > * + *   { margin-top: 14px; }
+  .split > * + *   { margin-top: 10px; }
+  .cav > * + *     { margin-top: 6px; }
+  .tx > * + *      { margin-top: 11px; }
+
+  h1, h2, h3, .sec-head { break-after: avoid; }
+}
 """

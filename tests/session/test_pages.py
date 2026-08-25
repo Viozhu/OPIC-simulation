@@ -70,7 +70,7 @@ def test_a_finished_exam_writes_its_page(tmp_path, ports, survey):
     page = store.page_path(tmp_path, session_id)
     assert page.exists()
     text = page.read_text(encoding="utf-8")
-    assert text.startswith("<title>OPIc ")
+    assert text.startswith('<!doctype html>\n<html lang="ko">')
     assert "OPIc 모의고사 결과" in text
 
 
@@ -136,3 +136,45 @@ def test_writing_twice_replaces_the_page_and_leaves_no_temporary(
 def test_a_broken_session_does_not_raise(tmp_path, ports, survey):
     """`write_with_narrator` is called from the worker; it may never throw."""
     assert pages.write_with_narrator(tmp_path, "20990101-000000") is None
+
+
+def test_the_written_page_is_what_is_served(tmp_path, ports, survey):
+    """The file on disk is the one rendered with a narrative. Re-rendering it
+    on every view would silently drop the judged sections and cost a model
+    call nobody asked for."""
+    session_id = a_graded_session(tmp_path, ports, survey)
+    store.page_path(tmp_path, session_id).write_text("<h1>the written one</h1>", encoding="utf-8")
+
+    assert pages.html_for(tmp_path, session_id) == "<h1>the written one</h1>"
+
+
+def test_a_missing_page_is_rendered_on_demand(tmp_path, ports, survey):
+    """A session graded before this file existed, or one whose narrative call
+    failed, still has everything the page is built from."""
+    session_id = a_graded_session(tmp_path, ports, survey)
+    store.page_path(tmp_path, session_id).unlink()
+
+    html = pages.html_for(tmp_path, session_id)
+
+    assert html is not None
+    assert html.startswith("<!doctype html>")
+    assert "리포트" in html
+
+
+def test_nothing_graded_is_nothing_to_serve(tmp_path, survey):
+    state = a_session(tmp_path, survey)
+
+    assert pages.html_for(tmp_path, state.id) is None
+
+
+def test_a_tmp_file_from_an_interrupted_write_is_not_served(
+    tmp_path, ports, survey
+):
+    """`write` renders to `report-ko.html.tmp` and replaces. A crash between
+    those two leaves the tmp file behind; it is not the page."""
+    session_id = a_graded_session(tmp_path, ports, survey)
+    page = store.page_path(tmp_path, session_id)
+    page.with_suffix(".html.tmp").write_text("<h1>half a page</h1>", encoding="utf-8")
+    page.write_text("<h1>the real one</h1>", encoding="utf-8")
+
+    assert pages.html_for(tmp_path, session_id) == "<h1>the real one</h1>"

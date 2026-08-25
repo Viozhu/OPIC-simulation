@@ -44,6 +44,7 @@ from opic.core.survey import (
     validate_survey,
 )
 from opic.session import assessments as answers_on_disk
+from opic.session import pages
 from opic.session import store
 from opic.session.state import AnswerRecord, AnswerState, Step, TransitionError, advance
 from opic.session.worker import Task, Worker
@@ -423,5 +424,20 @@ def create_app(
         questions = [answers_on_disk.question_from_record(r) for r in state.questions]
         built = build_report(exam, questions, unreadable=broken)
         return JSONResponse(content=answers_on_disk.report_json(built))
+
+    @app.get("/api/sessions/{session_id}/page", response_class=HTMLResponse)
+    def report_page(session_id: str) -> str:
+        """The report as `core/page.py` renders it — the same document the
+        candidate can keep, framed by the done screen.
+
+        `/report` next to this one is the JSON the older screen was built on
+        and stays where it is: it is what the fallback path reads when this
+        route has nothing to give.
+        """
+        load_or_404(session_id)
+        html = pages.html_for(root, session_id)
+        if html is None:
+            raise HTTPException(status_code=404, detail="not scored yet")
+        return html
 
     return app

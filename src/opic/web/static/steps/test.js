@@ -2,6 +2,7 @@
 // and 재생 exactly once. The upload does not block the next question: the
 // server queues the evaluation and answers straight away.
 import {askAndRecord, uploadWithRetries, waitUntilReady} from "../question.js";
+import {recordingPanel} from "../panel.js";
 
 // `opic.web.app.post_answer` returns 409 for two different reasons: the
 // answer is already recorded, or the session has left the test step. The
@@ -38,9 +39,9 @@ export async function render(state, {api, show}) {
   const heading = document.createElement("h2");
   heading.textContent = `질문 ${index + 1} / ${total}`;
   const status = document.createElement("p");
+  status.setAttribute("aria-live", "polite");
   const warning = document.createElement("p");
-  warning.textContent =
-    "답변은 다시 녹음할 수 없으며, 녹음 중 페이지를 새로 고치면 그 답변은 사라집니다.";
+  warning.setAttribute("role", "status");
   const replay = document.createElement("button");
   replay.className = "secondary";
   replay.textContent = "재생 (1회)";
@@ -50,16 +51,38 @@ export async function render(state, {api, show}) {
   next.disabled = true;
 
   app.append(heading, status, warning, replay, next);
+  // `warning` never changes again after this — but a `role="status"` node
+  // still has to be a watched region *before* its content shows up, or a
+  // screen reader treats the text as part of the page it just landed on
+  // rather than as an announcement. Setting the text one tick after
+  // insertion, instead of inline before `append`, is what makes this an
+  // observed mutation. Do not "simplify" this back to a plain assignment
+  // above the `append` — that is the exact bug this pattern exists to avoid.
+  setTimeout(() => {
+    warning.textContent =
+      "답변은 다시 녹음할 수 없으며, 녹음 중 페이지를 새로 고치면 그 답변은 사라집니다.";
+  });
+
+  let panel = null;
 
   const machine = askAndRecord({
     audioUrl: `/api/sessions/${state.id}/questions/${index}/audio`,
-    onState: (phase) => {
+    onState: (phase, info) => {
       status.textContent = {
         playing: "질문 재생 중…",
         recording: "녹음 중…",
         uploading: "전송 중…",
       }[phase] ?? "";
       status.className = phase === "recording" ? "recording" : "";
+      if (phase === "recording" && panel === null && info.stream) {
+        panel = recordingPanel(info.stream);
+        status.after(panel.element);
+      }
+      if (phase === "uploading" && panel !== null) {
+        panel.stop();
+        panel.element.remove();
+        panel = null;
+      }
       replay.disabled = phase !== "recording" || machine.replaysLeft() === 0;
       next.disabled = phase !== "recording";
     },
@@ -77,7 +100,27 @@ export async function render(state, {api, show}) {
   next.addEventListener("click", async () => {
     next.disabled = true;
     replay.disabled = true;
-    const {blob, filename} = await machine.stop();
+    let blob, filename;
+    try {
+      ({blob, filename} = await machine.stop());
+    } catch (error) {
+      // The recording itself never finalized, so there is nothing captured
+      // to upload and nothing here worth retrying in place. Nothing was ever
+      // sent to the server either, so this answer is still `pending` there —
+      // reloading re-renders this exact question with a fresh microphone
+      // session, instead of leaving 재생 and 다음 both dead for the rest of
+      // the exam. `machine.stop()` has already torn its own panel down by
+      // the time this runs.
+      console.error(error);
+      status.textContent =
+        "녹음을 저장하지 못했습니다. 새로고침한 뒤 이 문제를 다시 녹음해 주세요.";
+      status.className = "issues";
+      const reload = document.createElement("button");
+      reload.textContent = "새로고침";
+      reload.addEventListener("click", () => window.location.reload());
+      app.append(reload);
+      return;
+    }
 
     const send = async () => {
       retry.hidden = true;
@@ -131,12 +174,24 @@ export async function render(state, {api, show}) {
 // looking at a screen that appears to have simply stopped.
 async function waitForQuestions(app, api, sessionId) {
   const waiting = document.createElement("p");
-  waiting.textContent = "문제를 준비하고 있습니다. 잠시만 기다려 주세요…";
+  waiting.setAttribute("aria-live", "polite");
   app.append(waiting);
+  app.setAttribute("aria-busy", "true");
+  // Setting the text before `append` fills the subtree in before it is a
+  // watched live region, so the mutation observer a screen reader relies on
+  // never fires — the paragraph simply appears already full, and most
+  // screen readers say nothing. Setting it one tick later, after insertion,
+  // is what turns this into an observed change instead of initial content.
+  setTimeout(() => {
+    waiting.textContent = "문제를 준비하고 있습니다. 잠시만 기다려 주세요…";
+  });
   try {
-    return await waitUntilReady(api, sessionId);
+    const state = await waitUntilReady(api, sessionId);
+    app.removeAttribute("aria-busy");
+    return state;
   } catch (error) {
     if (!error.timedOut) throw error;
+    app.removeAttribute("aria-busy");
     app.replaceChildren();
     const stuck = document.createElement("p");
     stuck.textContent = "문제 준비가 예상보다 오래 걸리고 있습니다.";
