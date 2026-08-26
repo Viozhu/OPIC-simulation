@@ -70,7 +70,8 @@ The switch exists because the local rater stopped discriminating: on a real
 fifteen-question exam `qwen3:14b` returned the same level — IH — for every
 single answer, which is a constant and not a grade. `tools/rater_bench.py` puts
 both raters side by side on the same answers, through the same prompt, the same
-schema and the same filter.
+schema and the same filter. `tools/rater_calibration.py` adds
+the column neither of them has — see **Calibration** below.
 
 Run on 2026-08-21 over the 15 stored answers of that exam
 (`data/sessions/20260820-145223`):
@@ -90,6 +91,66 @@ constant. And 63 of Haiku's 75 verdicts are IM1 or IM2, so most of its
 discrimination happens inside a two-band window; the mean gap to the local
 rater is 2.45 bands, which is Haiku grading this candidate consistently lower,
 not the two raters disagreeing about who is good at what.
+
+### How strict is it?
+
+Candidates reported the grade felt strict. It was, and the cause was in three
+places, none of them the rater's opinion of anyone's English.
+
+The prompt carried no scale. `rating_prompt` named nine levels through the
+schema's enum and defined none of them, so the rater supplied the scale from
+its own prior and settled in the middle of it: across the three real graded
+exams in `data/sessions`, 171 of 225 verdicts — 76% — were IM1 or IM2. The
+prompt now carries `LEVEL_DESCRIPTORS`, condensed from the ACTFL Proficiency
+Guidelines 2024, together with the rule ACTFL actually rates on: the band is
+the one the sample *sustains*, not the one it touches once. It also says that
+IM1/IM2/IM3 are thirds of ACTFL's single Intermediate Mid rather than three
+major bands, which is what made the middle of the scale wide enough to hide in.
+
+The aggregation rounded down, twice. `_weighted_rank` took `math.floor` of the
+weighted mean, so 4.85 — five sixths of the way from IM1 to IM2 — was reported
+as IM1; two of the three real exams lost a whole band exactly there. And an
+even count of answers took the *lower* of the two middle bands, which a
+fifteen-question exam never sees but the by-type and by-topic breakdowns hit
+constantly, so the table explaining the grade was stricter than the grade. Both
+now round to the nearest band, ties up. Re-aggregating the stored verdicts with
+no re-grading moves two of five sessions from IM1 to IM2.
+
+The weak-dimension cap in `_capped` is left alone. It has a basis the other two
+did not — ACTFL requires performance sustained across *all* the criteria of a
+level — and it should be judged against real grades rather than adjusted by
+argument.
+
+### Calibration
+
+There is still no ground truth in this repository. `rater_bench.py` shows
+whether two raters disagree; it cannot show which is right.
+`tools/rater_calibration.py` is where that column goes:
+
+```bash
+uv run python tools/rater_calibration.py --labels labels.json
+uv run python tools/rater_calibration.py --labels labels.json --regrade
+```
+
+`labels.json` maps a session id to the OPIc grade that session's candidate
+actually holds. Without `--regrade` the stored verdicts are reused and the run
+is free, which measures the aggregation; with it every answer is graded again
+through the current prompt, which is the only thing a prompt change can be
+measured by.
+
+The headline is the mean *signed* gap in bands: negative means this simulator
+grades below the real exam, and by how much. Agreement is printed twice, since
+OPIc's nine bands are not ACTFL's — collapsing IM1/IM2/IM3 back into one IM is
+what makes the figure comparable to ACTFL's own.
+
+The bar is not 100%. ACTFL double-rates every operational OPIc, and its two
+certified raters agree exactly 74% of the time on English, adjacent 25%, two or
+more bands apart 1% (N=8017, 2012-2014). A rater at 74% has matched the humans.
+
+Nothing has been calibrated yet: the labelled sessions have to exist first, and
+ten is a floor rather than a target. ACTFL's own rated sample library sits
+behind a terms-of-use gate and is marked proprietary, so the practical source
+is candidates who hold a real OPIc grade and also sit a session here.
 
 **One server process.** Evaluation runs in a worker thread inside it; two
 uvicorn workers would be two queues over one sessions folder, each grading
@@ -146,6 +207,12 @@ interface — including deferred evaluation in a background worker with a 채점
 progress screen, folded into Phase 3 rather than staying a phase of its own —
 and the report. What's left is not a phase, it's a punch list:
 
+- **Nothing is calibrated against a real OPIc grade.** The strictness in the
+  aggregation was found by reading the code and confirmed by re-aggregating
+  stored verdicts, which needs no ground truth. Whether the *rater* is strict,
+  and whether the new band table fixed it, cannot be answered that way.
+  `tools/rater_calibration.py` is ready and has never been run on real labels,
+  because none exist yet.
 - **No live exam has been taken on Haiku.** The bench has graded 15 real
   stored answers on it, so the cost and the wall clock are measured, but that
   path starts from `answer-NN.json` on disk. Nobody has yet sat down, spoken

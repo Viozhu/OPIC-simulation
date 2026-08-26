@@ -7,7 +7,7 @@ from typing import Any
 from opic.adapters import config
 from opic.core.metrics import AnswerMetrics
 from opic.core.questions import Question, QuestionSlot, QuestionType
-from opic.core.rubric import ActflLevel, Dimension
+from opic.core.rubric import LEVEL_DESCRIPTORS, ActflLevel, Dimension
 from opic.core.scoring import DimensionScore, Evidence
 from opic.core.survey import ITEMS_BY_ID, SurveyAnswers
 from opic.core.transcript import Transcript
@@ -181,7 +181,18 @@ def rating_prompt(
     The `correction_en` sentence is load-bearing: without it the model filled
     that field with an English description of the mistake instead of the fix,
     on roughly a quarter of the evidence in a real graded exam.
+
+    The band table is load-bearing for a different reason. Before it, the only
+    thing defining a level anywhere in the request was the schema's bare enum,
+    and the rater was left to supply the scale from its own prior. Across the
+    three real graded exams in `data/sessions`, 171 of 225 verdicts — 76% —
+    landed on IM1 or IM2, and on the two strongest 81% and 84% did. That is a
+    rater consistent about a narrow middle rather than one that discriminates. `LEVEL_DESCRIPTORS` and the sustained-performance rule
+    below are what ACTFL rates on, stated where the rater can see them.
     """
+    bands = "\n".join(
+        f"  {level.name} — {LEVEL_DESCRIPTORS[level]}" for level in ActflLevel
+    )
     return (
         "You are an OPIc rater. Evaluate ONE spoken answer.\n\n"
         f"QUESTION (type: {question.slot.qtype.value}): {question.text_en}\n\n"
@@ -192,6 +203,22 @@ def rating_prompt(
         f"pause_ratio: {metrics.pause_ratio:.2f}\n"
         f"mean_utterance_length: {metrics.mean_utterance_length:.1f}\n"
         f"type_token_ratio: {metrics.type_token_ratio:.2f}\n\n"
+        "BANDS, lowest to highest:\n"
+        f"{bands}\n\n"
+        "Rate the level this answer SUSTAINS — not its best moment, and not its "
+        "single worst error. A band is earned by performance held across the "
+        "whole answer: an answer that reaches higher once and cannot hold it "
+        "belongs in the lower band, and an answer that holds a band throughout "
+        "belongs in it even when one sentence slips.\n\n"
+        "IM1, IM2 and IM3 are thirds of ACTFL's single Intermediate Mid, not "
+        "three separate major bands — the distance from IM1 to IM3 is not the "
+        "distance from IL to IH. The whole scale is available; use it, and do "
+        "not settle in the middle of it by default.\n\n"
+        "Read each band through the dimension being scored: for grammar, what "
+        "it says about accuracy and time frames; for fluency, about pauses and "
+        "reformulations; for vocabulary, about breadth; for coherence, about "
+        "text type — words, sentences, strings of sentences, or paragraphs; for "
+        "relevance, whether the answer performs the task the question set.\n\n"
         "Rate every dimension. comment_ko and issue_ko MUST be natural Korean. "
         "Every quote MUST appear verbatim in the transcript. Keep each comment "
         "to one sentence and give at most one piece of evidence per dimension.\n\n"

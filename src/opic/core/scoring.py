@@ -84,12 +84,37 @@ class ExamResult:
         raise ValueError(f"no level recorded for {dimension.value}")
 
 
+def _round_half_up(value: float) -> int:
+    """The nearest band, ties going up.
+
+    `math.floor` was here, and on real exams it cost a whole band: a weighted
+    mean of 4.85 — five sixths of the way from IM1 to IM2 — was reported as
+    IM1, and two of the three real graded sessions in `data/sessions` lost a
+    band exactly that way. Python's own `round` is banker's rounding, which
+    sends 4.5 down and 5.5 up; on a nine-point scale that inconsistency is
+    harder to defend than either rule, so the rounding is spelled out instead.
+    """
+    return math.floor(value + 0.5)
+
+
 def _median_level(levels: Sequence[ActflLevel]) -> ActflLevel:
-    """The median band; even counts take the lower of the two middles."""
+    """The median band; an even count takes the midpoint of the two middles.
+
+    Taking the lower middle was a third source of downward bias, and it bit
+    hardest where it was least visible: a fifteen-answer exam has an odd count
+    and never sees it, but the by-type and by-topic breakdowns group two or
+    four answers at a time, so the table explaining the grade was stricter than
+    the grade it explained.
+    """
     ranks = sorted(level.rank for level in levels)
     if not ranks:
         raise ValueError("cannot take a median of no levels")
-    return ActflLevel.from_rank(ranks[(len(ranks) - 1) // 2])
+    middle = len(ranks) // 2
+    if len(ranks) % 2:
+        return ActflLevel.from_rank(ranks[middle])
+    return ActflLevel.from_rank(
+        _round_half_up((ranks[middle - 1] + ranks[middle]) / 2)
+    )
 
 
 def dimension_level(
@@ -101,8 +126,8 @@ def dimension_level(
 
 
 def _weighted_rank(assessments: Sequence[AnswerAssessment]) -> int:
-    """The floored weighted mean of the per-dimension medians."""
-    return math.floor(
+    """The weighted mean of the per-dimension medians, to the nearest band."""
+    return _round_half_up(
         sum(
             dimension_level(assessments, dimension).rank * weight
             for dimension, weight in DIMENSION_WEIGHTS.items()
