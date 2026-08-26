@@ -23,12 +23,52 @@ def test_dimension_level_takes_the_median_across_answers():
     assert dimension_level(assessments, Dimension.GRAMMAR) is ActflLevel.IM2
 
 
-def test_an_even_count_takes_the_lower_middle():
+def test_an_even_count_takes_the_midpoint_of_the_two_middles():
     assessments = [
         assessment(0, flat(ActflLevel.IL)),
         assessment(1, flat(ActflLevel.IM2)),
     ]
-    assert dimension_level(assessments, Dimension.GRAMMAR) is ActflLevel.IL
+    assert dimension_level(assessments, Dimension.GRAMMAR) is ActflLevel.IM1
+
+
+def test_an_even_count_with_adjacent_middles_rounds_the_tie_up():
+    assessments = [
+        assessment(0, flat(ActflLevel.IL)),
+        assessment(1, flat(ActflLevel.IM1)),
+    ]
+    assert dimension_level(assessments, Dimension.GRAMMAR) is ActflLevel.IM1
+
+
+def test_a_weighted_mean_just_below_a_band_rounds_up_to_it():
+    """The bias this exists to catch cost two real exams a whole band.
+
+    Fluency IM1, grammar IM1, vocabulary IM2, coherence IM2, relevance IH are
+    the per-dimension medians of `data/sessions/20260821-140338`. They weigh to
+    4.85 — five sixths of the way from IM1 to IM2 — which `math.floor` reported
+    as IM1.
+    """
+    levels = {
+        Dimension.FLUENCY: ActflLevel.IM1,
+        Dimension.GRAMMAR: ActflLevel.IM1,
+        Dimension.VOCABULARY: ActflLevel.IM2,
+        Dimension.COHERENCE: ActflLevel.IM2,
+        Dimension.RELEVANCE: ActflLevel.IH,
+    }
+    result = aggregate(blueprint_of(3), [assessment(i, levels) for i in range(3)])
+    assert result.final_level is ActflLevel.IM2
+
+
+def test_a_weighted_mean_just_above_a_band_stays_on_it():
+    """The counterpart: rounding up is nearest-band, not a free promotion."""
+    levels = {
+        Dimension.FLUENCY: ActflLevel.IM1,
+        Dimension.GRAMMAR: ActflLevel.IM1,
+        Dimension.VOCABULARY: ActflLevel.IM2,
+        Dimension.COHERENCE: ActflLevel.IM1,
+        Dimension.RELEVANCE: ActflLevel.IM2,
+    }
+    result = aggregate(blueprint_of(3), [assessment(i, levels) for i in range(3)])
+    assert result.final_level is ActflLevel.IM1
 
 
 def test_a_uniform_performance_lands_on_that_level():
