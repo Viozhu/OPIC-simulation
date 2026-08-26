@@ -174,6 +174,38 @@ def _a_rating_prompt() -> str:
     return rating_prompt(question, transcript, metrics)
 
 
+def test_the_rating_prompt_carries_every_band_and_its_descriptor():
+    """Without this the scale is only the schema's enum.
+
+    That was the state in which 171 of 225 verdicts across three real graded
+    exams — 76% — landed on IM1 or IM2: the rater had nine names and no
+    definitions, so it supplied the scale itself and settled in the middle.
+    """
+    from opic.core.rubric import LEVEL_DESCRIPTORS, ActflLevel
+
+    prompt = _a_rating_prompt()
+    for level in ActflLevel:
+        assert level.name in prompt
+        assert LEVEL_DESCRIPTORS[level] in prompt
+
+
+def test_the_rating_prompt_asks_for_the_sustained_level():
+    """ACTFL rates the level a sample holds, not the level it touches once."""
+    prompt = _a_rating_prompt()
+    assert "SUSTAINS" in prompt
+    assert "best moment" in prompt
+
+
+def test_the_rating_prompt_says_the_im_bands_are_thirds_of_one_band():
+    """IM1/IM2/IM3 are OPIc's split of ACTFL's single Intermediate Mid.
+
+    Read as three separate major bands they widen the middle of the scale,
+    which is exactly where the ratings were crowding.
+    """
+    prompt = _a_rating_prompt()
+    assert "thirds of ACTFL's single Intermediate Mid" in prompt
+
+
 def test_the_rating_prompt_defines_the_correction_field():
     prompt = _a_rating_prompt()
     assert "correction_en" in prompt
