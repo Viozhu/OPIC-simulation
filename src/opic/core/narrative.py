@@ -76,6 +76,13 @@ class Analysis:
     splits_close_ko: str
     sound_ko: str
     caveats: tuple[Caveat, ...]
+    # The last two things the page says. `closing_recap_ko` is the report read
+    # back in a few sentences, and `closing_why_ko` is why this band and not
+    # the one above or below it. The arithmetic beside them is derived — see
+    # `report.Closing` — so these two are the judgement the arithmetic cannot
+    # give: which of the steps actually decided the outcome.
+    closing_recap_ko: str
+    closing_why_ko: str
 
 
 @dataclass(frozen=True, slots=True)

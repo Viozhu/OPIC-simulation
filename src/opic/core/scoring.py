@@ -125,14 +125,22 @@ def dimension_level(
     return _median_level([a.level_for(dimension) for a in assessments])
 
 
+def weighted_mean(assessments: Sequence[AnswerAssessment]) -> float:
+    """The weighted mean of the per-dimension medians, before rounding.
+
+    Public because the report shows its arithmetic: "4.85 rounded to IM2" is an
+    explanation, and "IM2" on its own is an assertion. Nothing scores off this
+    that does not go through `_weighted_rank`.
+    """
+    return sum(
+        dimension_level(assessments, dimension).rank * weight
+        for dimension, weight in DIMENSION_WEIGHTS.items()
+    )
+
+
 def _weighted_rank(assessments: Sequence[AnswerAssessment]) -> int:
     """The weighted mean of the per-dimension medians, to the nearest band."""
-    return _round_half_up(
-        sum(
-            dimension_level(assessments, dimension).rank * weight
-            for dimension, weight in DIMENSION_WEIGHTS.items()
-        )
-    )
+    return _round_half_up(weighted_mean(assessments))
 
 
 def _capped(rank: int, assessments: Sequence[AnswerAssessment]) -> int:
@@ -181,6 +189,65 @@ def limiting_dimension(
         return None
     weakest = min(Dimension, key=lambda d: dimension_level(assessments, d).rank)
     return weakest, ActflLevel.from_rank(rank)
+
+
+@dataclass(frozen=True, slots=True)
+class GradeTrace:
+    """The three steps that produced the final band, in the order they apply.
+
+    `aggregate` decides the grade; this re-walks the same rules so a report can
+    show its arithmetic rather than assert a letter. It is not a second
+    opinion: every field comes from the functions above, and `final_level` is
+    the same band `aggregate` returns for the same arguments.
+    """
+
+    weighted_mean: float
+    weighted_level: ActflLevel
+    stretch_level: ActflLevel | None
+    raised: bool
+    pre_cap_level: ActflLevel
+    capped: bool
+    strongest: tuple[Dimension, ActflLevel]
+    weakest: tuple[Dimension, ActflLevel]
+    final_level: ActflLevel
+
+
+def grade_trace(
+    blueprint: Sequence[QuestionSlot],
+    assessments: Sequence[AnswerAssessment],
+) -> GradeTrace:
+    """Walk the grading rules once more, keeping what each step did.
+
+    Ties for strongest and weakest resolve in `Dimension` declaration order,
+    the same way `limiting_dimension` resolves them.
+    """
+    if not assessments:
+        raise ValueError("cannot trace a grade with no assessments")
+
+    slots = {slot.index: slot for slot in blueprint}
+    levels = {dimension: dimension_level(assessments, dimension) for dimension in Dimension}
+    mean = weighted_mean(assessments)
+    weighted = ActflLevel.from_rank(_round_half_up(mean))
+
+    advanced = [a for a in assessments if slots[a.question_index].advanced]
+    stretch = _level_for_answers(advanced) if advanced else None
+
+    pre_cap = ActflLevel.from_rank(pre_cap_rank(blueprint, assessments))
+    final_rank = _capped(pre_cap.rank, assessments)
+    strongest = max(Dimension, key=lambda d: levels[d].rank)
+    weakest = min(Dimension, key=lambda d: levels[d].rank)
+
+    return GradeTrace(
+        weighted_mean=mean,
+        weighted_level=weighted,
+        stretch_level=stretch,
+        raised=pre_cap.rank > weighted.rank,
+        pre_cap_level=pre_cap,
+        capped=final_rank != pre_cap.rank,
+        strongest=(strongest, levels[strongest]),
+        weakest=(weakest, levels[weakest]),
+        final_level=ActflLevel.from_rank(final_rank),
+    )
 
 
 def aggregate(

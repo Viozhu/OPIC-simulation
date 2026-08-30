@@ -494,3 +494,67 @@ def test_the_printed_scale_marks_the_final_band():
     marked = [line for line in text.splitlines() if "◀" in line]
     assert len(marked) == 1
     assert "IL" in marked[0]
+
+
+# ------------------------------------------------------------------ the closing
+
+
+def test_the_closing_ends_on_the_level_the_report_reports():
+    report = report_of(3)
+
+    assert report.closing.final_level is report.final_level
+    assert report.closing.steps[-1].detail_ko.endswith(report.final_level.name)
+
+
+def test_the_closing_keeps_every_step_even_when_a_rule_did_not_fire():
+    """Five steps, always. A reader who only sees the rules that changed
+    something cannot tell a rule that did not fire from one that does not
+    exist."""
+    level = {d: ActflLevel.IM2 for d in Dimension}
+    level[Dimension.GRAMMAR] = ActflLevel.IM1
+    report = report_of(3, level)
+
+    labels = [step.label_ko for step in report.closing.steps]
+    assert len(labels) == 5
+    assert "약점 상한" in labels[3]
+    assert "깎이지 않았습니다" in report.closing.steps[3].detail_ko
+    assert "상위 난이도" in labels[2]
+    assert "상위 난이도로 출제된 문항이 없었습니다" in report.closing.steps[2].detail_ko
+
+
+def test_the_closing_names_the_dimension_that_cost_a_band():
+    level = {d: ActflLevel.IH for d in Dimension}
+    level[Dimension.GRAMMAR] = ActflLevel.NH
+    report = report_of(3, level)
+
+    cap = report.closing.steps[3].detail_ko
+    assert "문법" in cap
+    assert report.limiting is not None
+    assert report.limiting.without_cap.name in cap
+
+
+def test_the_closing_recaps_what_the_report_counted():
+    level = {d: ActflLevel.IM2 for d in Dimension}
+    level[Dimension.GRAMMAR] = ActflLevel.IL
+    report = report_of(3, level)
+
+    joined = " ".join(report.closing.highlights)
+    assert "3개 문항 중 3개가 채점되었습니다." in joined
+    assert "영역별 최고 — 유창성 IM2 · 최저 — 문법 IL" in joined
+
+
+def test_a_flat_exam_says_so_instead_of_naming_the_same_dimension_twice():
+    """Every dimension at one band has no highest and no lowest. A real exam
+    came out flat at IH, and the line named 유창성 as both."""
+    joined = " ".join(report_of(3).closing.highlights)
+
+    assert "다섯 영역이 모두 같은 등급입니다 — IM2" in joined
+
+
+def test_the_text_report_ends_with_the_recap_and_the_arithmetic():
+    text = render_text(report_of(3))
+
+    assert "리포트 요약" in text
+    assert "이 등급이 나온 과정" in text
+    for step in report_of(3).closing.steps:
+        assert step.detail_ko in text

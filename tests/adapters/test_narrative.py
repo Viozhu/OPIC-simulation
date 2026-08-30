@@ -70,6 +70,8 @@ def an_analysis() -> dict:
         "splits_close_ko": "분할",
         "sound_ko": "소리",
         "caveats": [{"title_ko": "유의", "body_ko": "본문"}],
+        "closing_recap_ko": "요약",
+        "closing_why_ko": "등급 이유",
     }
 
 
@@ -247,6 +249,8 @@ def test_the_schemas_pin_the_fields_the_parser_reads():
         "splits_close_ko",
         "sound_ko",
         "caveats",
+        "closing_recap_ko",
+        "closing_why_ko",
     }
     rewrite = REWRITES_SCHEMA["properties"]["rewrites"]["items"]
     assert set(rewrite["required"]) == {

@@ -16,15 +16,28 @@ report that explains the grade. The report shows the level, a per-dimension
 breakdown with the candidate's own quoted mistakes and the English
 correction for each, an explanation when a weak dimension capped the grade,
 the words the recogniser could not catch clearly, breakdowns by question
-type and topic, and an answer-by-answer detail. The same report prints from
-the CLI.
+type and topic, and an answer-by-answer detail. It closes on a recap: the
+findings restated in one screen, and the arithmetic that produced the band —
+the per-dimension medians, the weighted mean and what it rounded to, whether
+the advanced set raised it, and whether a weak dimension capped it. That
+closing section is derived, so it is there with no model and no key. The same
+report prints from the CLI.
+
+The last question of the exam is a role-play complication: the situation set up
+in question fourteen breaks — the booking is gone, the shop is closed, the
+friend cancels — and the candidate has to explain the problem and propose two
+concrete solutions. That is what AL is rated on ("handles a complication or an
+unexpected turn"), and the old wording, "continue that role-play", was not
+asking for it.
 
 Every finished exam also writes `report-ko.html` into its own session folder:
 a standalone page the candidate can keep, open in any browser and hand to a
 teacher. It carries everything above plus, when the Anthropic backend is in
 use, the parts a template cannot write — the corrections grouped into named
 patterns, the weakest question type shown with the answers that made the case,
-and each answer rewritten at AL with a note on what changed. A rewrite that
+each answer rewritten at AL with a note on what changed, and, beside the
+closing arithmetic, a read of why the band is that band and not the one above
+it. A rewrite that
 contains anything the candidate did not actually say is labelled as such on
 the page.
 

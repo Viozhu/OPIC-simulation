@@ -106,6 +106,8 @@ ANALYSIS_SCHEMA: dict[str, Any] = {
         "splits_close_ko",
         "sound_ko",
         "caveats",
+        "closing_recap_ko",
+        "closing_why_ko",
     ],
     "properties": {
         "verdict_ko": _PROSE,
@@ -171,6 +173,8 @@ ANALYSIS_SCHEMA: dict[str, Any] = {
                 "properties": {"title_ko": _SHORT, "body_ko": _PROSE},
             },
         },
+        "closing_recap_ko": _PROSE,
+        "closing_why_ko": _PROSE,
     },
 }
 
@@ -276,6 +280,8 @@ def parse_analysis(payload: dict, report: Report) -> Analysis:
             )
             for raw in payload.get("caveats") or []
         ),
+        closing_recap_ko=_prose(payload, "closing_recap_ko"),
+        closing_why_ko=_prose(payload, "closing_why_ko"),
     )
 
 
@@ -442,6 +448,16 @@ Write:
 - caveats: at most two limits of this measurement that a reader should know —
   properties of the tool, not advice for the candidate. Skip any you cannot
   support from the data above.
+- closing_recap_ko: the last thing the candidate reads. Three or four sentences
+  reading the whole report back: what this exam showed she can already do, what
+  it showed she cannot yet, and the one thing to work on first. Name answer
+  numbers. Do not introduce a finding that is not already above.
+- closing_why_ko: why the final level is {report.final_level.name} and not the
+  band above or the band below it. The page prints the arithmetic next to this
+  — the per-dimension medians, the weighted mean, the advanced-set raise and
+  the weak-dimension cap — so do not restate the numbers. Say which of those
+  steps actually decided it, and what would have had to be different in the
+  answers for the next band up.
 
 Write like a teacher who has read the whole exam once and is telling the
 candidate what they actually heard. Specific over general: name the answer

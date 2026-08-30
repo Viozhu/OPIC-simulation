@@ -46,4 +46,4 @@ def test_every_question_type_has_a_korean_label():
 
     assert set(QUESTION_TYPE_LABELS_KO) == set(QuestionType)
     assert all(label.strip() for label in QUESTION_TYPE_LABELS_KO.values())
-    assert QUESTION_TYPE_LABELS_KO[QuestionType.ROLEPLAY_FOLLOWUP] == "롤플레이 (후속)"
+    assert QUESTION_TYPE_LABELS_KO[QuestionType.ROLEPLAY_FOLLOWUP] == "롤플레이 (돌발 상황)"

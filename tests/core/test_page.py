@@ -91,6 +91,8 @@ def a_narrative(report) -> Narrative:
             splits_close_ko="분할 마무리",
             sound_ko="소리 설명",
             caveats=(Caveat(title_ko="유의", body_ko="유의 본문"),),
+            closing_recap_ko="리포트 요약 문장",
+            closing_why_ko="이 등급이 나온 이유",
         ),
         rewrites=(
             AnswerRewrite(
@@ -212,6 +214,8 @@ def test_with_a_narrative_the_judged_sections_appear():
     assert "유의 본문" in page
     assert "질문 · 답변 · AL 목표 답변" in page
     assert "A better answer." in page
+    assert "리포트 요약 문장" in page
+    assert "이 등급이 나온 이유" in page
 
 
 def test_an_invented_episode_is_labelled_and_a_real_one_is_not():
@@ -331,3 +335,34 @@ def test_an_answer_block_is_not_split_across_pages():
     assert "break-inside: avoid" in printed
     assert ".tx" in printed
     assert "display: block" in printed
+
+
+# ---------------------------------------------------- the closing is not optional
+
+
+def test_the_closing_is_on_the_page_with_no_model_at_all():
+    """The arithmetic behind the band is derived, so it survives `--no-llm`.
+
+    This is the section a candidate reads to find out why the letter at the top
+    is that letter, and it must not be one of the parts that disappears when
+    nothing was available to write prose.
+    """
+    report = real_report()
+
+    page = render_html(report, META)
+
+    assert "요약과 이 등급이 나온 이유" in page
+    assert '<div class="why">' in page
+    for step in report.closing.steps:
+        assert html.escape(step.detail_ko, quote=True) in page
+    for highlight in report.closing.highlights:
+        assert html.escape(highlight, quote=True) in page
+
+
+def test_the_closing_ends_on_the_band_the_masthead_opened_with():
+    report = real_report()
+
+    page = render_html(report, META)
+
+    closing = page.split("요약과 이 등급이 나온 이유", 1)[1]
+    assert f'<div class="why__lvl">{report.final_level.name}</div>' in closing

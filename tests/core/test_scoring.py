@@ -9,6 +9,8 @@ from opic.core.scoring import (
     DimensionScore,
     aggregate,
     dimension_level,
+    grade_trace,
+    weighted_mean,
 )
 
 from core.helpers import assessment, blueprint_of, flat, metrics, slot, transcript_for
@@ -305,3 +307,58 @@ def test_a_tie_for_weakest_resolves_in_dimension_declaration_order():
     dimension, _ = limiting_dimension(blueprint_of(3), assessments)
 
     assert dimension is Dimension.GRAMMAR
+
+
+# --------------------------------------------------- the trace explains the band
+
+
+def test_the_trace_lands_on_the_band_aggregate_returns():
+    """The explanation may not disagree with the thing it explains."""
+    levels = flat(ActflLevel.IM2)
+    levels[Dimension.FLUENCY] = ActflLevel.IM3
+    bp = tuple(slot(i, QuestionType.DESCRIPTION, "movies") for i in range(3))
+    assessments = [assessment(i, levels) for i in range(3)]
+
+    trace = grade_trace(bp, assessments)
+
+    assert trace.final_level is aggregate(bp, assessments).final_level
+    assert trace.weighted_mean == weighted_mean(assessments)
+    assert trace.strongest == (Dimension.FLUENCY, ActflLevel.IM3)
+
+
+def test_the_trace_records_the_advanced_raise():
+    bp = (
+        slot(0, QuestionType.DESCRIPTION, "movies"),
+        slot(1, QuestionType.DESCRIPTION, "yoga", advanced=True),
+    )
+    assessments = [
+        assessment(0, flat(ActflLevel.IM2)),
+        assessment(1, flat(ActflLevel.AL)),
+    ]
+
+    trace = grade_trace(bp, assessments)
+
+    assert trace.stretch_level is ActflLevel.AL
+    assert trace.raised is True
+    assert trace.pre_cap_level.rank == trace.weighted_level.rank + 1
+    assert trace.capped is False
+
+
+def test_the_trace_records_the_weak_dimension_cap():
+    levels = flat(ActflLevel.AL)
+    levels[Dimension.GRAMMAR] = ActflLevel.IM1
+    bp = tuple(slot(i, QuestionType.DESCRIPTION, "movies") for i in range(3))
+    assessments = [assessment(i, levels) for i in range(3)]
+
+    trace = grade_trace(bp, assessments)
+
+    assert trace.capped is True
+    assert trace.weakest == (Dimension.GRAMMAR, ActflLevel.IM1)
+    assert trace.final_level.rank == trace.pre_cap_level.rank - 1
+
+
+def test_the_trace_knows_when_no_answer_was_asked_above_the_declared_level():
+    bp = tuple(slot(i, QuestionType.DESCRIPTION, "movies") for i in range(2))
+    assessments = [assessment(i, flat(ActflLevel.IM2)) for i in range(2)]
+
+    assert grade_trace(bp, assessments).stretch_level is None
