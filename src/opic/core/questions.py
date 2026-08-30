@@ -24,7 +24,7 @@ QUESTION_TYPE_LABELS_KO: dict[QuestionType, str] = {
     QuestionType.HABIT: "습관·일상",
     QuestionType.EXPERIENCE: "경험",
     QuestionType.ROLEPLAY_SETUP: "롤플레이 (상황 설정)",
-    QuestionType.ROLEPLAY_FOLLOWUP: "롤플레이 (후속)",
+    QuestionType.ROLEPLAY_FOLLOWUP: "롤플레이 (돌발 상황)",
 }
 
 

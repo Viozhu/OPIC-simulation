@@ -12,6 +12,7 @@ from opic.adapters.llm import (
     RaterError,
     decode_response,
     parse_rating,
+    questions_prompt,
 )
 from opic.core.ports import QuestionWriter, Rater
 from opic.core.rubric import ActflLevel, Dimension
@@ -282,3 +283,87 @@ def test_a_correction_differing_only_in_case_and_spacing_is_still_a_no_op():
     p = keyed_payload()
     p["grammar"]["evidence"][0]["correction_en"] = "  We take a bath.  "
     assert all(s.evidence == () for s in parse_rating(p, SAID))
+
+
+# ------------------------------------------------ the last question is a problem
+
+
+def a_blueprint():
+    from opic.core.questions import QuestionSlot, QuestionType
+
+    return (
+        QuestionSlot(
+            index=0,
+            qtype=QuestionType.SELF_INTRO,
+            topic_id=None,
+            combo_id=None,
+            advanced=False,
+            target=ActflLevel.IM2,
+        ),
+        QuestionSlot(
+            index=1,
+            qtype=QuestionType.ROLEPLAY_SETUP,
+            topic_id="movies",
+            combo_id=None,
+            advanced=False,
+            target=ActflLevel.IM2,
+        ),
+        QuestionSlot(
+            index=2,
+            qtype=QuestionType.ROLEPLAY_FOLLOWUP,
+            topic_id="movies",
+            combo_id=None,
+            advanced=False,
+            target=ActflLevel.IM2,
+        ),
+    )
+
+
+def test_the_last_role_play_item_asks_for_an_unexpected_complication():
+    """AL is rated on handling a complication. "continue that role-play" asked
+    for a second question about the same topic instead, which the candidate
+    answered the same way they answered the first."""
+    prompt = questions_prompt(a_blueprint())
+
+    assert "unexpected complication" in prompt
+    assert "Item 3 is the complication" in prompt
+    assert "two specific solutions" in prompt
+
+
+def test_the_role_play_pair_is_written_as_a_pair():
+    prompt = questions_prompt(a_blueprint())
+
+    assert "Item 2 sets the scene" in prompt
+    assert "belong together" in prompt
+
+
+def test_the_complication_may_be_longer_than_the_other_questions():
+    prompt = questions_prompt(a_blueprint())
+
+    assert "except the last role-play item" in prompt
+    assert "three or four sentences" in prompt
+
+
+def test_the_worked_example_is_marked_as_one_to_replace():
+    """The example is a hotel. A model handed one without that line writes the
+    hotel again, whatever the topic was."""
+    prompt = questions_prompt(a_blueprint())
+
+    assert "Do not reuse the hotel." in prompt
+
+
+def test_an_exam_with_no_role_play_carries_no_role_play_brief():
+    from opic.core.questions import QuestionSlot, QuestionType
+
+    only_intro = (
+        QuestionSlot(
+            index=0,
+            qtype=QuestionType.SELF_INTRO,
+            topic_id=None,
+            combo_id=None,
+            advanced=False,
+            target=ActflLevel.IM2,
+        ),
+    )
+
+    assert "complication" not in questions_prompt(only_intro)

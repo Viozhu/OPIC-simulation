@@ -23,6 +23,13 @@ the advanced set raised it, and whether a weak dimension capped it. That
 closing section is derived, so it is there with no model and no key. The same
 report prints from the CLI.
 
+The last question of the exam is a role-play complication: the situation set up
+in question fourteen breaks — the booking is gone, the shop is closed, the
+friend cancels — and the candidate has to explain the problem and propose two
+concrete solutions. That is what AL is rated on ("handles a complication or an
+unexpected turn"), and the old wording, "continue that role-play", was not
+asking for it.
+
 Every finished exam also writes `report-ko.html` into its own session folder:
 a standalone page the candidate can keep, open in any browser and hand to a
 teacher. It carries everything above plus, when the Anthropic backend is in

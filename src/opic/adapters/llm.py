@@ -71,8 +71,14 @@ _TYPE_BRIEF: dict[QuestionType, str] = {
     QuestionType.DESCRIPTION: "ask them to describe their {topic}",
     QuestionType.HABIT: "ask what they normally do regarding {topic}",
     QuestionType.EXPERIENCE: "ask about a specific past experience with {topic}",
-    QuestionType.ROLEPLAY_SETUP: "set up a role-play situation about {topic}",
-    QuestionType.ROLEPLAY_FOLLOWUP: "continue that role-play about {topic}",
+    QuestionType.ROLEPLAY_SETUP: (
+        "set up a role-play about {topic}: give them a role and a concrete "
+        "task to carry out in it"
+    ),
+    QuestionType.ROLEPLAY_FOLLOWUP: (
+        "break that same {topic} role-play with an unexpected complication "
+        "they have to talk their way out of"
+    ),
 }
 
 
@@ -233,6 +239,55 @@ def rating_prompt(
     )
 
 
+ROLEPLAY_BRIEF = """The last two items are one role-play and belong together: the
+second happens inside the situation the first sets up, so write them as a pair.
+
+Item {setup} sets the scene. Give the candidate a role and one concrete task
+inside it — call the place, ask the person three or four questions, arrange the
+thing. Address them as "you".
+
+Item {complication} is the complication, and it is the only item that may run
+to three or four sentences. Put them back in that same situation and break it:
+something has gone wrong that they did not cause and could not have foreseen.
+State what went wrong concretely — who tells them, and what it means for them
+right now — then ask them to explain the problem to the person in front of them
+and propose two specific solutions. Present tense, as if it is happening.
+
+This is the shape, for a role-play that had been about changing a hotel booking:
+
+  "You arrive at the resort on your newly changed dates, and the front desk
+  staff looks up your reservation, looks very confused, and tells you that due
+  to a major system glitch they are completely overbooked and have no record of
+  your modification — and there are no empty rooms left in the entire building.
+  Explain the problem clearly to them and propose two concrete solutions for
+  how they can fix this for you."
+
+Write your own situation for the topic at hand. Do not reuse the hotel."""
+
+
+def _roleplay_brief(blueprint: tuple[QuestionSlot, ...]) -> str:
+    """The extra instructions for the role-play pair, when the exam has one.
+
+    The complication is the one question on this exam that tests what AL is
+    actually rated on — "handles a complication or an unexpected turn" — and
+    "continue that role-play" did not ask for one: it produced a second
+    question about the same topic, which the candidate answered the same way
+    they answered the first. Asking for the turn is what makes the last answer
+    a different measurement from the one before it.
+    """
+    numbers = {
+        slot.qtype: slot.index + 1
+        for slot in blueprint
+        if slot.qtype in (QuestionType.ROLEPLAY_SETUP, QuestionType.ROLEPLAY_FOLLOWUP)
+    }
+    if len(numbers) != 2:
+        return ""
+    return "\n\n" + ROLEPLAY_BRIEF.format(
+        setup=numbers[QuestionType.ROLEPLAY_SETUP],
+        complication=numbers[QuestionType.ROLEPLAY_FOLLOWUP],
+    )
+
+
 def questions_prompt(blueprint: tuple[QuestionSlot, ...]) -> str:
     """What the question writer is asked. Module level so both adapters share it.
 
@@ -248,9 +303,11 @@ def questions_prompt(blueprint: tuple[QuestionSlot, ...]) -> str:
     return (
         "You are writing questions for an OPIc English speaking test.\n"
         "Write one spoken-English question for each item below. Each must be "
-        "one or two sentences, natural, and answerable in 90 seconds.\n"
+        "one or two sentences — except the last role-play item, see below — "
+        "natural, and answerable in 90 seconds.\n"
         "Return them in order, exactly one per item.\n\n"
         + "\n".join(lines)
+        + _roleplay_brief(blueprint)
     )
 
 
