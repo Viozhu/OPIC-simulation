@@ -100,9 +100,9 @@ export async function render(state, {api, show}) {
   next.addEventListener("click", async () => {
     next.disabled = true;
     replay.disabled = true;
-    let blob, filename;
+    let blob, filename, replaySpans;
     try {
-      ({blob, filename} = await machine.stop());
+      ({blob, filename, replaySpans} = await machine.stop());
     } catch (error) {
       // The recording itself never finalized, so there is nothing captured
       // to upload and nothing here worth retrying in place. Nothing was ever
@@ -127,6 +127,10 @@ export async function render(state, {api, show}) {
       try {
         const updated = await uploadWithRetries(
           api, `/api/sessions/${state.id}/answers/${index}`, blob, filename,
+          // The seconds the question was replaying over the microphone. The
+          // candidate was not answering then, so the server subtracts them
+          // before it measures speed and silence.
+          {replay_spans: JSON.stringify(replaySpans)},
         );
         await show(updated);
       } catch (error) {

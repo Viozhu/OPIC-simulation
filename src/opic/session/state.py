@@ -71,6 +71,13 @@ class AnswerRecord:
     state: AnswerState
     audio_path: str | None = None
     error: str | None = None
+    # When the question was replayed over the live microphone, in seconds from
+    # the start of this recording. The browser is the only thing that can know
+    # this — the replay is audible to the candidate but need not be audible in
+    # the file — so it reports it with the upload and it is kept here until the
+    # answer is judged. Empty for an answer recorded before this was carried,
+    # which then measures the way it always did.
+    replay_spans: tuple[tuple[float, float], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

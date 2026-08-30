@@ -30,6 +30,7 @@ from opic.core.ports import (
 )
 from opic.core.questions import build_blueprint
 from opic.core.scoring import AnswerAssessment
+from opic.core.transcript import Span
 from opic.session import assessments as answers_on_disk
 from opic.session import pages
 from opic.session import store
@@ -272,7 +273,10 @@ class Worker:
     def _judge(self, state: SessionState, index: int, audio: Path) -> AnswerAssessment:
         question = answers_on_disk.question_from_record(state.questions[index])
         transcript = self._attempt(lambda: self._stt.transcribe(audio))
-        metrics = compute_metrics(transcript)
+        replayed = tuple(
+            Span(start, end) for start, end in state.answers[index].replay_spans
+        )
+        metrics = compute_metrics(transcript, replayed)
         scores = self._attempt(lambda: self._rater.rate(question, transcript, metrics))
         return AnswerAssessment(
             question=question,

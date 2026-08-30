@@ -13,6 +13,11 @@ _STRIP = ".,!?;:\"'()[]…-"
 
 @dataclass(frozen=True, slots=True)
 class AnswerMetrics:
+    # The time the candidate had to answer in, which is not the length of the
+    # recording: the microphone keeps running while the question is replayed,
+    # and `compute_metrics` takes those stretches back out. Everything derived
+    # from time here — speed, silence — is measured against this window, so a
+    # candidate who used their one replay is not reported as slower for it.
     duration_s: float
     word_count: int
     words_per_minute: float
@@ -50,7 +55,28 @@ def merge_spans(
     return tuple(merged)
 
 
-def compute_metrics(transcript: Transcript) -> AnswerMetrics:
+def clip_spans(spans: Sequence[Span], start: float, end: float) -> tuple[Span, ...]:
+    """The parts of `spans` that fall inside [start, end), overlaps merged.
+
+    Merging first is what makes `total_duration` of the result a length rather
+    than a sum: two spans covering the same second must count that second once.
+    """
+    inside = []
+    for span in merge_spans(spans, threshold=0.0):
+        low, high = max(span.start, start), min(span.end, end)
+        if high > low:
+            inside.append(Span(low, high))
+    return tuple(inside)
+
+
+def total_duration(spans: Sequence[Span]) -> float:
+    return sum(span.duration for span in spans)
+
+
+def compute_metrics(
+    transcript: Transcript,
+    replayed: Sequence[Span] = (),
+) -> AnswerMetrics:
     """Derive the objective half of the score.
 
     Everything here is arithmetic, which is exactly why it does not go to the
@@ -66,10 +92,25 @@ def compute_metrics(transcript: Transcript) -> AnswerMetrics:
     are far too coarse — under them no gap below about 1.2s can exist, the
     merge threshold never fires, and these metrics collapse back to the values
     that made them useless in the first place.
+
+    `replayed` is when the question audio was playing back over the live
+    microphone, in seconds from the start of the recording, as reported by the
+    browser. The candidate is not answering during those stretches, so they
+    come out of the answering window before speed and silence are measured;
+    `transcript.duration_s` keeps the real length of the file, because the word
+    and span timings are offsets into it.
     """
     words = transcript.words
-    duration_s = transcript.duration_s
     count = len(words)
+
+    dead = clip_spans(replayed, 0.0, transcript.duration_s)
+    duration_s = transcript.duration_s - total_duration(dead)
+    if duration_s <= 0:
+        # A recording that is nothing but replay cannot also hold an answer, so
+        # the reported spans are wrong. Fall back to the file's own length
+        # rather than divide a word count by a window of zero seconds.
+        dead = ()
+        duration_s = transcript.duration_s
 
     if count == 0:
         return AnswerMetrics(
@@ -85,9 +126,14 @@ def compute_metrics(transcript: Transcript) -> AnswerMetrics:
 
     utterances = merge_spans(transcript.speech_spans)
     if utterances:
-        window = utterances[-1].end - utterances[0].start
+        first, last = utterances[0].start, utterances[-1].end
+        # A replay taken mid-answer leaves a silence between two utterances
+        # that the candidate did not choose; counting it would report them as
+        # hesitant for having used the button the real exam also gives them.
+        window = last - first - total_duration(clip_spans(dead, first, last))
         paused = sum(
-            later.start - earlier.end
+            (later.start - earlier.end)
+            - total_duration(clip_spans(dead, earlier.end, later.start))
             for earlier, later in zip(utterances, utterances[1:], strict=False)
         )
         pause_ratio = min(1.0, paused / window) if window > 0 else 0.0

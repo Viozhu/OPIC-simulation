@@ -7,13 +7,14 @@ No exam logic lives here. Anything that decides what happens next belongs in
 from __future__ import annotations
 
 import json
+import math
 import secrets
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -77,6 +78,45 @@ ALLOWED_AUDIO_SUFFIXES = frozenset({".webm", ".mp4", ".m4a", ".ogg", ".wav"})
 def _safe_audio_suffix(filename: str | None) -> str:
     suffix = Path(filename or "answer.webm").suffix.lower()
     return suffix if suffix in ALLOWED_AUDIO_SUFFIXES else ".webm"
+
+
+# The real exam allows one replay per question, and the client enforces that.
+# A handful is still accepted here so a client bug shows up as odd metrics
+# rather than a refused upload — but not an unbounded list, which would let a
+# forged POST push arbitrarily much into `session.json`.
+MAX_REPLAY_SPANS = 8
+
+
+def _replay_spans(raw: str) -> tuple[tuple[float, float], ...]:
+    """Parse the browser's replay timings, or refuse the upload.
+
+    These arrive as JSON in a form field because they belong to the recording
+    and must land with it — an answer is judged as soon as it is uploaded, so
+    there is no later request to carry them. The browser is not trusted: this
+    is the boundary where a malformed or hostile list stops.
+    """
+    try:
+        parsed = json.loads(raw or "[]")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=422, detail="replay_spans is not JSON") from None
+    if not isinstance(parsed, list) or len(parsed) > MAX_REPLAY_SPANS:
+        raise HTTPException(status_code=422, detail="replay_spans must be a short list")
+
+    spans = []
+    for pair in parsed:
+        if not isinstance(pair, list | tuple) or len(pair) != 2:
+            raise HTTPException(status_code=422, detail="replay_spans holds a non-pair")
+        start, end = pair
+        # `bool` is an `int`, and `math.isfinite` accepts NaN's type happily —
+        # both are rejected here so nothing but a real number reaches metrics.
+        if any(isinstance(v, bool) or not isinstance(v, int | float) for v in pair):
+            raise HTTPException(status_code=422, detail="replay_spans is not numeric")
+        if not (math.isfinite(start) and math.isfinite(end)):
+            raise HTTPException(status_code=422, detail="replay_spans is not finite")
+        if start < 0 or end < start:
+            raise HTTPException(status_code=422, detail="replay_spans is not ordered")
+        spans.append((float(start), float(end)))
+    return tuple(spans)
 
 
 SHARE_COOKIE = "opic_share"
@@ -326,8 +366,17 @@ def create_app(
         return session_json(state)
 
     @app.post("/api/sessions/{session_id}/answers/{index}", status_code=202)
-    async def post_answer(session_id: str, index: int, audio: UploadFile = File(...)):
+    async def post_answer(
+        session_id: str,
+        index: int,
+        audio: UploadFile = File(...),
+        # Defaulted, so a client that does not send it — the sample step, an
+        # older cached page — still uploads, and simply measures as if the
+        # question had never been replayed.
+        replay_spans: str = Form("[]"),
+    ):
         state = load_or_404(session_id)
+        replayed = _replay_spans(replay_spans)
         if state.step is not Step.TEST:
             # `reason` is what the browser is meant to branch on; the sentence
             # in `detail` is only for whoever is reading devtools. Keeping
@@ -374,7 +423,14 @@ def create_app(
                         "reason": "answer_already_recorded",
                     },
                 )
-            return s.with_answer(AnswerRecord(index, AnswerState.RECORDED, target.name))
+            return s.with_answer(
+                AnswerRecord(
+                    index,
+                    AnswerState.RECORDED,
+                    target.name,
+                    replay_spans=replayed,
+                )
+            )
 
         try:
             # `worker.update` holds the same lock every other mutation goes
@@ -426,18 +482,31 @@ def create_app(
         return JSONResponse(content=answers_on_disk.report_json(built))
 
     @app.get("/api/sessions/{session_id}/page", response_class=HTMLResponse)
-    def report_page(session_id: str) -> str:
+    def report_page(session_id: str) -> HTMLResponse:
         """The report as `core/page.py` renders it — the same document the
         candidate can keep, framed by the done screen.
+
+        Two statuses, because there are two pages. `200` is the written one,
+        narrative and all. `202` is the same report rendered on the spot
+        without it: the worker writes `result.json` first and pays for the
+        narrative afterwards, so for about a minute after grading ends this is
+        the only page that exists — and a candidate who reads it then would
+        otherwise keep the poorer document forever, since nothing asks again.
+        The status is what lets the browser wait for the better one instead of
+        framing this. It is still a whole page, so a direct visit shows a
+        report rather than an error.
 
         `/report` next to this one is the JSON the older screen was built on
         and stays where it is: it is what the fallback path reads when this
         route has nothing to give.
         """
         load_or_404(session_id)
-        html = pages.html_for(root, session_id)
-        if html is None:
+        final = pages.written(root, session_id)
+        if final is not None:
+            return HTMLResponse(final)
+        provisional = pages.render_now(root, session_id)
+        if provisional is None:
             raise HTTPException(status_code=404, detail="not scored yet")
-        return html
+        return HTMLResponse(provisional, status_code=202)
 
     return app

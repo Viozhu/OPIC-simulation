@@ -36,13 +36,29 @@ def test_the_written_page_is_served_as_it_is(client, scored_session, sessions_ro
     assert response.headers["content-type"].startswith("text/html")
 
 
-def test_a_missing_page_is_rendered_on_demand(client, scored_session, sessions_root):
+def test_a_missing_page_is_provisional_and_says_so(
+    client, scored_session, sessions_root
+):
+    """The minute between `result.json` and the written page is the whole
+    reason for the status: the body is a real report, but the narrative is
+    still being paid for, so the browser is told to ask again rather than
+    keep this one."""
     store.page_path(sessions_root, scored_session).unlink()
 
     response = client.get(f"/api/sessions/{scored_session}/page")
 
-    assert response.status_code == 200
+    assert response.status_code == 202
     assert response.text.startswith("<!doctype html>")
+    assert "AL 목표 답변" not in response.text
+
+
+def test_the_written_page_is_never_provisional(client, scored_session, sessions_root):
+    """A 200 is the promise that nothing better is coming."""
+    store.page_path(sessions_root, scored_session).write_text(
+        "<!doctype html>\n<html lang=\"ko\">written</html>", encoding="utf-8"
+    )
+
+    assert client.get(f"/api/sessions/{scored_session}/page").status_code == 200
 
 
 def test_every_answer_unreadable_and_no_page_is_a_404(

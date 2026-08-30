@@ -145,7 +145,7 @@ def test_the_written_page_is_what_is_served(tmp_path, ports, survey):
     session_id = a_graded_session(tmp_path, ports, survey)
     store.page_path(tmp_path, session_id).write_text("<h1>the written one</h1>", encoding="utf-8")
 
-    assert pages.html_for(tmp_path, session_id) == "<h1>the written one</h1>"
+    assert pages.written(tmp_path, session_id) == "<h1>the written one</h1>"
 
 
 def test_a_missing_page_is_rendered_on_demand(tmp_path, ports, survey):
@@ -154,7 +154,8 @@ def test_a_missing_page_is_rendered_on_demand(tmp_path, ports, survey):
     session_id = a_graded_session(tmp_path, ports, survey)
     store.page_path(tmp_path, session_id).unlink()
 
-    html = pages.html_for(tmp_path, session_id)
+    assert pages.written(tmp_path, session_id) is None
+    html = pages.render_now(tmp_path, session_id)
 
     assert html is not None
     assert html.startswith("<!doctype html>")
@@ -164,7 +165,8 @@ def test_a_missing_page_is_rendered_on_demand(tmp_path, ports, survey):
 def test_nothing_graded_is_nothing_to_serve(tmp_path, survey):
     state = a_session(tmp_path, survey)
 
-    assert pages.html_for(tmp_path, state.id) is None
+    assert pages.written(tmp_path, state.id) is None
+    assert pages.render_now(tmp_path, state.id) is None
 
 
 def test_a_tmp_file_from_an_interrupted_write_is_not_served(
@@ -177,4 +179,4 @@ def test_a_tmp_file_from_an_interrupted_write_is_not_served(
     page.with_suffix(".html.tmp").write_text("<h1>half a page</h1>", encoding="utf-8")
     page.write_text("<h1>the real one</h1>", encoding="utf-8")
 
-    assert pages.html_for(tmp_path, session_id) == "<h1>the real one</h1>"
+    assert pages.written(tmp_path, session_id) == "<h1>the real one</h1>"

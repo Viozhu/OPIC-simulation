@@ -51,6 +51,35 @@ def test_a_full_state_survives_the_round_trip(tmp_path: Path):
     assert loaded.answers[0].error == "boom"
 
 
+def test_replay_timings_survive_the_round_trip(tmp_path: Path):
+    state = store.create(tmp_path, seed=7, now=datetime(2026, 8, 19, 14, 30, 52))
+    state = state.with_questions(
+        (QuestionRecord(0, QuestionType.SELF_INTRO.value, None, None, False, "IM1", "Tell me.", None),)
+    )
+    state = state.with_answer(
+        AnswerRecord(0, AnswerState.RECORDED, "answer-00.webm", replay_spans=((2.0, 7.5),))
+    )
+    store.save(tmp_path, state)
+
+    assert store.load(tmp_path, state.id).answers[0].replay_spans == ((2.0, 7.5),)
+
+
+def test_an_answer_written_before_replay_timings_still_loads(tmp_path: Path):
+    """A session already in progress has answers on disk without the key."""
+    state = store.create(tmp_path, seed=7, now=datetime(2026, 8, 19, 14, 30, 52))
+    state = state.with_questions(
+        (QuestionRecord(0, QuestionType.SELF_INTRO.value, None, None, False, "IM1", "Tell me.", None),)
+    )
+    state = state.with_answer(AnswerRecord(0, AnswerState.RECORDED, "answer-00.webm"))
+    store.save(tmp_path, state)
+    path = tmp_path / state.id / "session.json"
+    payload = json.loads(path.read_text())
+    del payload["answers"][0]["replay_spans"]
+    path.write_text(json.dumps(payload))
+
+    assert store.load(tmp_path, state.id).answers[0].replay_spans == ()
+
+
 def test_save_never_leaves_a_half_written_file(tmp_path: Path):
     state = store.create(tmp_path, seed=7, now=datetime(2026, 8, 19, 14, 30, 52))
     path = tmp_path / state.id / "session.json"

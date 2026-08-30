@@ -7,9 +7,24 @@ export function supportedType() {
   return CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
 }
 
+// The question is played over the speakers while the microphone is live, so
+// without echo cancellation a candidate answering without headphones records
+// the question along with their answer — and Whisper transcribes it. Those
+// words then reach the rater as if the candidate had said them, which is the
+// one way this leak can move a grade.
+//
+// Browsers turn this on by default, but a default is not a decision: it is
+// stated here so it cannot quietly change underneath the exam. `true` and not
+// `{exact: true}` — an exact constraint a device cannot meet fails
+// getUserMedia outright, and losing the microphone costs the candidate far
+// more than the leak does. `noiseSuppression` and `autoGainControl` are left
+// alone deliberately: both reshape the speech itself, and pauses and word
+// confidence are measured from it.
+const AUDIO_CONSTRAINTS = {echoCancellation: true};
+
 export async function askForMicrophone() {
   try {
-    return await navigator.mediaDevices.getUserMedia({audio: true});
+    return await navigator.mediaDevices.getUserMedia({audio: AUDIO_CONSTRAINTS});
   } catch (error) {
     // The Korean message is for the candidate; the console keeps the real
     // cause (denied permission, no device, hardware error) for whoever has
