@@ -179,6 +179,74 @@ uv run python -m opic.cli --survey my-survey.json --level 4
 
 Start from `examples/survey.json`.
 
+### The question voice
+
+Candidates reported the questions as flat and robotic. Two separate things
+cause that, and only one of them is code.
+
+The cadence is code, and is fixed. `say` used to read a whole question as one
+unbroken contour; it now takes a 300ms lead-in, a 600ms stop where the setup
+ends and the question begins, and 400ms between sub-questions. Where those cuts
+go was measured over the 105 questions in `data/sessions`: 22 have a second
+sentence, 23 use an em-dash for the same beat, and the other 62 are one
+sentence of up to 28 words with comma-separated sub-questions — so pausing only
+at full stops would have reached a fifth of them.
+
+The durations carry a trap worth knowing. `[[slnc N]]` does not add N
+milliseconds; it *replaces* the pause the punctuation would have made. So there
+is a floor, and under it the reading comes out faster and flatter than with no
+marker at all. Measured at a comma, 95 wpm, holding everything else fixed:
+
+| `[[slnc N]]` after a comma | Samantha | Ava (Premium) |
+| --- | --- | --- |
+| none | 2.866s | 2.805s |
+| 50 | 2.692s (−174ms) | 2.735s (−70ms) |
+| 150 | 2.808s (−58ms) | 2.851s (+46ms) |
+| 200 | 2.866s (0) | 2.921s (+116ms) |
+| 400 | 3.110s (+244ms) | 3.153s (+348ms) |
+| 600 | 3.354s (+488ms) | 3.397s (+592ms) |
+
+The floor belongs to the voice, not to `say`: 200ms for Samantha, about 115ms
+for Ava. Re-measure it whenever `SAY_VOICE` changes — a value that cleared the
+old voice's floor is not thereby audible in the new one. A test asserts the
+defaults clear the higher of the two.
+
+The timbre was the other half, and it is the voice. `SAY_VOICE` was Samantha, a
+*compact* system voice — concatenative, one unbroken contour, flat by
+construction. It is now `Ava (Premium)`, one of the neural voices macOS offers
+as a free download under System Settings, Accessibility, Spoken Content, System
+Voice, Manage Voices. They are not installed by default; until one is, `say -v
+'?'` lists only the compact set. Nothing about the privacy story changes —
+Premium voices synthesise on the machine like any other.
+
+The full `Ava (Premium)` and not the bare `Ava` on purpose. Bare `Ava` resolves
+to whichever Ava is installed, and would fall back to `Ava (Enhanced)` the
+moment Premium were removed. The cache key stores the string, not the voice it
+resolved to, so that fallback would be silent: questions already spoken would
+keep their Premium audio and only new wordings would come back in the lesser
+voice.
+
+`SAY_RATE` did not survive the change intact either. Quantisation turned out to
+be a property of the voice: Samantha ignored most of the number, with 115-140
+producing one duration, 85-105 the next and 60-75 the next, and 95 was the
+middle of three usable steps. Ava has no plateaus — every step from 60 to 175
+changes the duration — and reads faster at the same number, taking 6.246s over
+a question Samantha took 6.506s on. Matching the old pace exactly would mean
+about 80. It is left at 95 because Ava is intelligible at a speed Samantha was
+not.
+
+Pick voice, speed and pauses by ear — there is no metric for robotic:
+
+```bash
+uv run python tools/voice_preview.py --session data/sessions/<id> --questions 3
+uv run python tools/voice_preview.py --voices Samantha Ava --rates 95 115
+uv run python tools/voice_preview.py --pauses 400 600 800 --clauses 0 400
+```
+
+Every change to the voice, the rate or a pause changes the cache key, so the
+next exam resynthesises instead of quietly replaying the old audio. The old
+entries under `data/tts_cache` are then dead weight and can be deleted.
+
 ## Development
 
 ```bash

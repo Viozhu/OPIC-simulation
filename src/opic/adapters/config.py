@@ -19,17 +19,65 @@ from pathlib import Path
 # under 160 characters, and prove it with a test — moving the project to a
 # deeper directory is enough to break synthesis with an error that points
 # somewhere else entirely.
-SAY_VOICE = "Samantha"
+# The name is the full "Ava (Premium)" and not the bare "Ava" on purpose.
+# Bare "Ava" resolves to whichever Ava is installed — verified identical to
+# Premium byte for byte while both are present, and it would fall back to
+# "Ava (Enhanced)" the moment Premium were removed. The cache key stores this
+# string, not the voice it resolved to, so that fallback would be silent: every
+# question already spoken would keep its Premium audio and only new wordings
+# would come back in the lesser voice.
+#
+# Samantha, the previous value, is a *compact* voice: concatenative, one
+# unbroken contour, and flat by construction. That is what candidates were
+# hearing. Premium voices are a free download under System Settings,
+# Accessibility, Spoken Content, System Voice, Manage Voices, and stay entirely
+# on the machine — nothing about the privacy story changes.
+SAY_VOICE = "Ava (Premium)"
 
 # Words per minute for `say`. The default delivery was too fast to sit an exam
 # against — a candidate hears each question once, twice at most, and has to
 # parse it before the recording starts.
 #
-# `say` quantises this: measured against a real fifteen-question exam, 115-140
-# all produce one duration, 85-105 the next, 60-75 the next. So there are three
-# steps below the default, worth +10%, +20% and +30% of speaking time. This is
-# the middle one, chosen by listening to all four.
+# Quantisation is a property of the voice, not of `say`. Samantha ignored most
+# of this number — 115-140 all produced one duration, 85-105 the next, 60-75
+# the next — and 95 was the middle of three usable steps, chosen by listening
+# to all four. Ava (Premium) has no plateaus at all: measured on one real
+# question, every step from 60 to 175 wpm changes the duration, monotonically.
+#
+# It also reads faster at the same number. The question that took Samantha
+# 6.506s at 95 wpm takes Ava 6.246s, and matching the old pace exactly would
+# mean about 80. Left at 95 because Ava is intelligible at a speed Samantha was
+# not, and because the pace to keep is the one that sounds like an examiner,
+# not the one that matches the voice we are leaving behind.
 SAY_RATE = 95
+
+# Prosody. The compact `say` voices deliver a whole question as one unbroken
+# contour: no lead-in, and a sentence boundary worth barely a comma. A real
+# OPIc prompt sets the scene, stops, and only then asks. Candidates reported
+# the delivery as flat and robotic, and this is half of why — the timbre is the
+# voice, the cadence is here.
+#
+# `say` reads `[[slnc N]]` as an embedded speech command. It does not add N
+# milliseconds of silence: it *replaces* the pause the punctuation would have
+# produced. So there is a floor, and under it the reading comes out faster and
+# flatter than with no marker at all — a setting that reads as a fix and is a
+# regression.
+#
+# The floor belongs to the voice. Measured at a comma, 95 wpm, holding
+# everything else fixed: Samantha is neutral at 200 (50 runs 174ms short, 400
+# adds 244ms), Ava (Premium) is neutral at about 115 (50 runs 70ms short, 400
+# adds 348ms). Re-measure it when the voice changes; a value that cleared the
+# old voice's floor is not thereby audible in the new one.
+#
+# Where the cuts go is measured too — see the note above `_AFTER_FULL_BREAK` in
+# adapters/tts.py. The three durations below are not: they clear both floors by
+# a margin chosen to be audible, and the right values are whatever sounds like
+# an examiner. Pick them by ear with `tools/voice_preview.py`, which is how
+# SAY_RATE above was chosen.
+TTS_LEAD_IN_MS = 300
+TTS_SENTENCE_PAUSE_MS = 600
+TTS_CLAUSE_PAUSE_MS = 400
+
 TTS_SAMPLE_RATE = 16000
 
 # Speech to text.

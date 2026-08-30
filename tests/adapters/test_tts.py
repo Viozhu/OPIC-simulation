@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from opic.adapters import config
-from opic.adapters.tts import SayTextToSpeech, cache_path
+from opic.adapters.tts import SayTextToSpeech, cache_path, with_prosody
 from opic.core.ports import TextToSpeech
 
 RATE = config.SAY_RATE
@@ -62,7 +62,7 @@ def test_the_rate_reaches_the_say_command(tmp_path):
 def test_a_cached_file_is_returned_without_synthesising(tmp_path):
     voice = "Samantha"
     text = "already here"
-    target = cache_path(text, voice, RATE, tmp_path)
+    target = cache_path(with_prosody(text), voice, RATE, tmp_path)
     target.write_bytes(b"not really a wav")
 
     calls: list[str] = []
@@ -103,7 +103,9 @@ def test_a_failed_conversion_leaves_no_cache_entry(tmp_path):
     with pytest.raises(RuntimeError):
         tts.synthesize("this will not convert")
 
-    assert not cache_path("this will not convert", "Samantha", RATE, tmp_path).exists()
+    assert not cache_path(
+        with_prosody("this will not convert"), config.SAY_VOICE, RATE, tmp_path
+    ).exists()
     assert list(tmp_path.iterdir()) == []
 
 
@@ -118,3 +120,132 @@ def test_a_successful_synthesis_leaves_only_the_cached_wav(tmp_path):
     out = tts.synthesize("hello there")
     assert out.exists()
     assert [p.name for p in tmp_path.iterdir()] == [out.name]
+
+
+def test_a_sentence_boundary_becomes_a_real_pause():
+    """The setup and the question are two beats, not one contour."""
+    spoken = with_prosody(
+        "You said you go to cafes. Tell me about the last time you went.",
+        lead_in_ms=300,
+        sentence_pause_ms=600,
+        clause_pause_ms=0,
+    )
+    assert spoken == (
+        "[[slnc 300]] You said you go to cafes. "
+        "[[slnc 600]] Tell me about the last time you went."
+    )
+
+
+def test_an_em_dash_is_the_same_beat_as_a_full_stop():
+    """It is how most of these questions separate the setup from the question.
+
+    Twenty-three of the 105 questions in `data/sessions` break this way and
+    twenty-two with a full stop, so a rule that only knew about full stops
+    would miss half the questions that have a beat at all.
+    """
+    spoken = with_prosody(
+        "Describe your cooking — what dishes do you make?",
+        lead_in_ms=300,
+        sentence_pause_ms=600,
+        clause_pause_ms=0,
+    )
+    assert spoken == (
+        "[[slnc 300]] Describe your cooking — [[slnc 600]] what dishes do you make?"
+    )
+
+
+def test_the_punctuation_survives_the_pause():
+    """The silence goes after the mark, never instead of it.
+
+    Cutting the mark out to make room for the silence measures the same
+    length and throws away the intonation the voice does there, which is the
+    flatness this exists to fix.
+    """
+    for mark in (".", "?", "—", ","):
+        assert mark in with_prosody(f"One{mark} two", sentence_pause_ms=600)
+
+
+def test_sub_questions_are_separated_even_inside_one_sentence():
+    """The majority case: one sentence, three things to remember."""
+    spoken = with_prosody(
+        "Tell me what you did, where you went, and what made it memorable.",
+        lead_in_ms=300,
+        sentence_pause_ms=600,
+        clause_pause_ms=400,
+    )
+    assert spoken == (
+        "[[slnc 300]] Tell me what you did, [[slnc 400]] where you went, "
+        "[[slnc 400]] and what made it memorable."
+    )
+
+
+def test_a_pause_set_to_zero_leaves_no_marker():
+    """Otherwise turning it off resynthesises everything to no audible effect."""
+    spoken = with_prosody(
+        "Tell me what you did, where you went.",
+        lead_in_ms=0,
+        sentence_pause_ms=600,
+        clause_pause_ms=0,
+    )
+    assert spoken == "Tell me what you did, where you went."
+
+
+def test_the_defaults_clear_the_measured_floor():
+    """`say` replaces the punctuation's own pause with the marker.
+
+    A pause set at or below that floor makes the delivery faster and flatter
+    than no marker at all — a setting that reads as a fix and is a regression.
+    The floor belongs to the voice: 200ms for Samantha, about 115ms for Ava
+    (Premium), both measured in the note in adapters/config.py. This asserts
+    against the higher of the two, so a value that passes here is audible in
+    either voice.
+    """
+    assert config.TTS_SENTENCE_PAUSE_MS > 200
+    assert config.TTS_CLAUSE_PAUSE_MS > 200
+
+
+def test_every_question_gets_a_lead_in_even_with_one_sentence():
+    assert with_prosody("Tell me about your job.", lead_in_ms=300) == (
+        "[[slnc 300]] Tell me about your job."
+    )
+
+
+def test_a_bracket_in_the_question_is_not_read_as_a_command():
+    """`say` swallows `[[...]]`, and the questions are written by a model.
+
+    Left alone, a question containing one would be spoken with a hole in it
+    that nothing in the pipeline would report.
+    """
+    spoken = with_prosody("Describe [[your]] hometown.")
+    assert "[[your]]" not in spoken
+    assert "[ [your]]" in spoken
+
+
+def test_the_pauses_reach_the_say_command(tmp_path):
+    spoken: list[list[str]] = []
+
+    def record(command: list[str]) -> None:
+        if command[0] == "say":
+            spoken.append(command)
+            Path(command[command.index("-o") + 1]).write_bytes(b"aiff")
+        else:
+            Path(command[-1]).write_bytes(b"wav")
+
+    SayTextToSpeech(
+        cache_dir=tmp_path,
+        runner=record,
+        lead_in_ms=300,
+        sentence_pause_ms=600,
+        clause_pause_ms=400,
+    ).synthesize("One. Two.")
+
+    assert spoken[0][-1] == "[[slnc 300]] One. [[slnc 600]] Two."
+
+
+def test_changing_a_pause_is_a_different_cache_entry(tmp_path):
+    """Otherwise the cadence setting is silent, exactly as the rate once was."""
+    a = with_prosody("One. Two.", sentence_pause_ms=600)
+    b = with_prosody("One. Two.", sentence_pause_ms=800)
+    assert cache_path(a, "Samantha", RATE, tmp_path) != cache_path(
+        b, "Samantha", RATE, tmp_path
+    )
