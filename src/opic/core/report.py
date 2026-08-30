@@ -18,7 +18,14 @@ from opic.core.rubric import (
     ActflLevel,
     Dimension,
 )
-from opic.core.scoring import Evidence, ExamResult, limiting_dimension
+from opic.core.scoring import (
+    WEAK_DIMENSION_GAP,
+    Evidence,
+    ExamResult,
+    GradeTrace,
+    grade_trace,
+    limiting_dimension,
+)
 from opic.core.transcript import Word
 from opic.core.survey import ITEMS_BY_ID
 
@@ -137,6 +144,37 @@ class LimitingDimension:
 
 
 @dataclass(frozen=True, slots=True)
+class GradeStep:
+    """One step of the grading rule, already written out.
+
+    The steps are the same three `scoring.py` applies, in the same order, and
+    they are always all present: "no dimension was far enough behind to cost a
+    band" is as much a part of the explanation as the cap firing would have
+    been. A reader who can only see the steps that changed something cannot
+    tell a rule that did not fire from a rule that does not exist.
+    """
+
+    label_ko: str
+    detail_ko: str
+
+
+@dataclass(frozen=True, slots=True)
+class Closing:
+    """What the report found, and how the band was arrived at.
+
+    Last section of the document, and the only one that recaps. Everything in
+    it is derived — `highlights` restates numbers printed further up, `steps`
+    restates the arithmetic — so it survives an exam graded with no model at
+    all, which is exactly when a candidate most needs to be told why the letter
+    at the top is the letter it is.
+    """
+
+    final_level: ActflLevel
+    highlights: tuple[str, ...]
+    steps: tuple[GradeStep, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ScaleRung:
     """One band of the ACTFL scale, and who landed on it.
 
@@ -163,6 +201,7 @@ class Report:
     averages: MetricSummary | None
     answers: tuple[AnswerReport, ...]
     scale: tuple[ScaleRung, ...]
+    closing: Closing
 
 
 def build_report(
@@ -187,6 +226,17 @@ def build_report(
             DIMENSION_WEIGHTS.items(), key=lambda pair: -pair[1]
         )
     )
+    by_type = tuple(
+        (qtype, QUESTION_TYPE_LABELS_KO[qtype], level)
+        for qtype, level in result.by_type
+    )
+    by_topic = tuple(
+        (topic_id, _topic_label(topic_id) or topic_id, level)
+        for topic_id, level in result.by_topic
+    )
+    answers = _answers(result, questions, unreadable)
+    unclear = _unclear_words(result)
+    averages = _averages(result)
     return Report(
         final_level=result.final_level,
         scored_answers=len(result.assessments),
@@ -202,18 +252,175 @@ def build_report(
             else None
         ),
         dimensions=dimensions,
-        unclear=_unclear_words(result),
-        by_type=tuple(
-            (qtype, QUESTION_TYPE_LABELS_KO[qtype], level)
-            for qtype, level in result.by_type
-        ),
-        by_topic=tuple(
-            (topic_id, _topic_label(topic_id) or topic_id, level)
-            for topic_id, level in result.by_topic
-        ),
-        averages=_averages(result),
-        answers=_answers(result, questions, unreadable),
+        unclear=unclear,
+        by_type=by_type,
+        by_topic=by_topic,
+        averages=averages,
+        answers=answers,
         scale=_scale(result.final_level, dimensions),
+        closing=_closing(
+            trace=grade_trace(blueprint, result.assessments),
+            dimensions=dimensions,
+            by_type=by_type,
+            by_topic=by_topic,
+            answers=answers,
+            unclear=unclear,
+            averages=averages,
+            expected_answers=len(questions),
+            scored_answers=len(result.assessments),
+        ),
+    )
+
+
+def _extremes(
+    rows: Sequence[tuple[object, str, ActflLevel]],
+) -> tuple[tuple[str, ActflLevel], tuple[str, ActflLevel]] | None:
+    """The best and worst row of a breakdown, or nothing when it says nothing.
+
+    A table where every row carries the same band has no best and no worst, and
+    a sentence naming one anyway would be picking a winner out of a tie.
+    """
+    if len(rows) < 2:
+        return None
+    best = max(rows, key=lambda row: row[2].rank)
+    worst = min(rows, key=lambda row: row[2].rank)
+    if best[2] is worst[2]:
+        return None
+    return (best[1], best[2]), (worst[1], worst[2])
+
+
+def _closing(
+    *,
+    trace: GradeTrace,
+    dimensions: tuple[DimensionSummary, ...],
+    by_type: tuple[tuple[QuestionType, str, ActflLevel], ...],
+    by_topic: tuple[tuple[str, str, ActflLevel], ...],
+    answers: tuple[AnswerReport, ...],
+    unclear: tuple[UnclearWord, ...],
+    averages: MetricSummary | None,
+    expected_answers: int,
+    scored_answers: int,
+) -> Closing:
+    """The recap, written from what the rest of the report already holds.
+
+    Nothing is recomputed here — the bands come from `trace`, which walked
+    `scoring.py`'s own rules, and every count is of something printed further
+    up. The Korean is written around the band names rather than after them:
+    "IM2" takes a different particle depending on how a reader pronounces it,
+    so the sentences here end in the label and let a colon carry the join.
+    """
+    strongest_dimension, strongest_level = trace.strongest
+    weakest_dimension, weakest_level = trace.weakest
+
+    highlights = [f"{expected_answers}개 문항 중 {scored_answers}개가 채점되었습니다."]
+
+    # A spread only exists when the two ends differ. On a real exam every
+    # dimension came out at IH, and naming a highest and a lowest anyway
+    # printed the same dimension twice — a sentence that reads as a finding
+    # and says nothing.
+    if strongest_level is weakest_level:
+        highlights.append(f"다섯 영역이 모두 같은 등급입니다 — {strongest_level.name}")
+    else:
+        highlights.append(
+            f"영역별 최고 — {DIMENSION_LABELS_KO[strongest_dimension]} "
+            f"{strongest_level.name} · 최저 — "
+            f"{DIMENSION_LABELS_KO[weakest_dimension]} {weakest_level.name}"
+        )
+
+    types = _extremes(by_type)
+    if types is not None:
+        (best_label, best_level), (worst_label, worst_level) = types
+        highlights.append(
+            f"문항 유형별 최고 — {best_label} {best_level.name} · "
+            f"최저 — {worst_label} {worst_level.name}"
+        )
+
+    topics = _extremes(by_topic)
+    if topics is not None:
+        (best_label, best_level), (worst_label, worst_level) = topics
+        highlights.append(
+            f"주제별 최고 — {best_label} {best_level.name} · "
+            f"최저 — {worst_label} {worst_level.name}"
+        )
+
+    corrections = sum(
+        len(score.evidence) for answer in answers for score in answer.scores
+    )
+    if corrections:
+        highlights.append(f"고쳐야 할 문장으로 {corrections}개가 인용되었습니다.")
+    if unclear:
+        highlights.append(
+            f"음성 인식기가 또렷하게 잡지 못한 단어는 {len(unclear)}개입니다."
+        )
+    if averages is not None:
+        display = format_metrics(averages)
+        highlights.append(
+            f"답변 평균 — 길이 {display['duration_s']} · "
+            f"속도 {display['words_per_minute']} · "
+            f"침묵 {display['pause_ratio']}"
+        )
+
+    medians = " · ".join(f"{d.label_ko} {d.level.name}" for d in dimensions)
+    weights = " · ".join(f"{d.label_ko} {d.weight:.0%}" for d in dimensions)
+
+    steps = [
+        GradeStep(
+            label_ko="1. 영역별 중앙값",
+            detail_ko=f"문항마다 매긴 등급의 중앙값입니다 — {medians}",
+        ),
+        GradeStep(
+            label_ko="2. 가중 평균",
+            detail_ko=(
+                f"가중치({weights})를 적용한 평균 {trace.weighted_mean:.2f} — "
+                f"가장 가까운 등급 {trace.weighted_level.name}"
+            ),
+        ),
+    ]
+
+    if trace.stretch_level is None:
+        stretch_detail = "이 시험에는 상위 난이도로 출제된 문항이 없었습니다."
+    elif trace.raised:
+        stretch_detail = (
+            f"자기 평가보다 한 단계 높게 출제된 문항들이 받은 등급 "
+            f"{trace.stretch_level.name} — 한 단계 올려 {trace.pre_cap_level.name}"
+        )
+    else:
+        stretch_detail = (
+            f"자기 평가보다 한 단계 높게 출제된 문항들이 받은 등급 "
+            f"{trace.stretch_level.name} — 가중 평균을 넘지 못해 상승은 없습니다."
+        )
+    steps.append(GradeStep(label_ko="3. 상위 난이도 문항", detail_ko=stretch_detail))
+
+    if trace.capped:
+        cap_detail = (
+            f"{DIMENSION_LABELS_KO[weakest_dimension]} {weakest_level.name}이 "
+            f"{WEAK_DIMENSION_GAP}단계 이상 뒤처져 한 단계 내려갔습니다 — "
+            f"이 상한이 없었다면 {trace.pre_cap_level.name}"
+        )
+    elif strongest_level is weakest_level:
+        cap_detail = (
+            f"다섯 영역이 모두 같은 등급이라 깎일 여지가 없습니다 — "
+            f"{weakest_level.name}"
+        )
+    else:
+        cap_detail = (
+            f"{WEAK_DIMENSION_GAP}단계 이상 뒤처진 영역이 없어 깎이지 않았습니다 — "
+            f"가장 낮은 영역은 {DIMENSION_LABELS_KO[weakest_dimension]} "
+            f"{weakest_level.name}"
+        )
+    steps.append(GradeStep(label_ko="4. 약점 상한", detail_ko=cap_detail))
+
+    steps.append(
+        GradeStep(
+            label_ko="5. 최종 등급",
+            detail_ko=f"위의 네 단계를 거쳐 나온 등급 — {trace.final_level.name}",
+        )
+    )
+
+    return Closing(
+        final_level=trace.final_level,
+        highlights=tuple(highlights),
+        steps=tuple(steps),
     )
 
 
@@ -428,6 +635,16 @@ def render_text(report: Report) -> str:
                 lines.append(f"      \"{item.quote}\"")
                 lines.append(f"        {item.issue_ko}")
                 lines.append(f"        → {item.correction_en}")
+
+    lines.append("")
+    lines.append("리포트 요약")
+    for highlight in report.closing.highlights:
+        lines.append(f"  {highlight}")
+
+    lines.append("")
+    lines.append(f"이 등급이 나온 과정 — 최종 {report.closing.final_level.name}")
+    for step in report.closing.steps:
+        lines.append(f"  {step.label_ko}: {step.detail_ko}")
 
     return "\n".join(lines)
 

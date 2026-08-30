@@ -111,6 +111,7 @@ def render_html(
     parts.append(_sound(report, narrative))
     parts.append(_table(report))
     parts.append(_answers(report, narrative))
+    parts.append(_closing(report, narrative))
     parts.append(_caveats(report, narrative))
     parts.append(_footer(report, meta))
     parts.append("</div>")
@@ -671,6 +672,52 @@ def _answer_block(answer: AnswerReport, narrative: Narrative | None) -> str:
     </article>"""
 
 
+def _closing(report: Report, narrative: Narrative | None) -> str:
+    """The last word: the report read back, and the arithmetic behind the band.
+
+    Both halves are derived, so this section is here whether or not a model
+    wrote anything. A narrative adds the two things the arithmetic cannot say —
+    what the exam showed, and which of the steps actually decided the outcome —
+    around the same numbers rather than instead of them.
+    """
+    analysis = _analysis(narrative)
+    closing = report.closing
+    highlights = "\n".join(
+        f"    <li>{esc(item)}</li>" for item in closing.highlights
+    )
+    steps = "\n".join(
+        f"""      <div class="step{' step--final' if step is closing.steps[-1] else ''}">
+        <span class="step__k">{esc(step.label_ko)}</span>
+        <span class="step__v">{esc(step.detail_ko)}</span>
+      </div>"""
+        for step in closing.steps
+    )
+    recap = _prose(analysis.closing_recap_ko) if analysis is not None else ""
+    why = _prose(analysis.closing_why_ko) if analysis is not None else ""
+    return f"""
+<section>
+{_sec_head(
+    "요약과 이 등급이 나온 이유",
+    "위에서 나온 것들을 한 번에 다시 읽고, 최종 등급이 어떻게 계산되었는지 봅니다.",
+)}
+  {recap}
+  <ul class="recap">
+{highlights}
+  </ul>
+  <div class="why">
+    <div class="why__head">
+      <div class="eyebrow">계산 과정</div>
+      <div class="why__lvl">{closing.final_level.name}</div>
+      {_gauge(closing.final_level, small=True)}
+    </div>
+    <div class="why__steps">
+{steps}
+    </div>
+  </div>
+  {why}
+</section>"""
+
+
 def _caveats(report: Report, narrative: Narrative | None) -> str:
     analysis = _analysis(narrative)
     items = [("발음은 점수가 아닙니다", PRONUNCIATION_CAVEAT_KO)]
@@ -1013,6 +1060,26 @@ tr:last-child td { border-bottom:0; }
   .tx__num { margin-left:0; flex-basis:100%; }
 }
 
+.recap { list-style:none; margin:0 0 18px; padding:0;
+  display:flex; flex-direction:column; gap:7px; max-width:44em; }
+.recap li { position:relative; padding-left:17px; color:var(--ink-2); font-size:15px; }
+.recap li::before { content:"—"; position:absolute; left:0; color:var(--ink-3); }
+.why { background:var(--surface); border:1px solid var(--rule); border-radius:4px;
+  padding:20px 22px; display:flex; flex-direction:column; gap:14px; }
+.why__head { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.why__lvl { font-family:var(--mono); font-size:20px; font-weight:700;
+  color:var(--accent-ink); letter-spacing:-.01em; }
+.why__steps { display:flex; flex-direction:column; gap:11px; }
+.step { display:grid; grid-template-columns:minmax(112px,140px) 1fr;
+  gap:4px 18px; align-items:baseline; }
+.step__k { font-family:var(--mono); font-size:11.5px; letter-spacing:.05em;
+  color:var(--ink-3); }
+.step__v { font-size:14.5px; line-height:1.7; color:var(--ink-2); }
+.step--final .step__v { color:var(--ink); font-weight:700; }
+@media (max-width:640px) {
+  .step { grid-template-columns:1fr; }
+}
+
 .caveats { display:flex; flex-direction:column; gap:16px; }
 .cav { border-left:2px solid var(--warn); padding:2px 0 2px 18px;
   display:flex; flex-direction:column; gap:6px; }
@@ -1078,7 +1145,7 @@ footer { margin-top:72px; padding-top:20px; border-top:1px solid var(--rule);
    * at all. Their children already stack in source order, so `gap` is the
    * only casualty, and it comes back as a margin between children.
    */
-  .qa, .pat, .verdict, .chart, .dim, .split, .cav, .tx {
+  .qa, .pat, .verdict, .chart, .dim, .split, .cav, .tx, .why {
     break-inside: avoid;
     display: block;
   }
@@ -1089,6 +1156,8 @@ footer { margin-top:72px; padding-top:20px; border-top:1px solid var(--rule);
   .chart > * + *   { margin-top: 14px; }
   .split > * + *   { margin-top: 10px; }
   .cav > * + *     { margin-top: 6px; }
+  .why > * + *     { margin-top: 12px; }
+  .recap > * + *   { margin-top: 6px; }
   .tx > * + *      { margin-top: 11px; }
 
   h1, h2, h3, .sec-head { break-after: avoid; }
