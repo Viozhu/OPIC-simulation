@@ -36,9 +36,39 @@ export function askAndRecord({audioUrl, onState}) {
   let replays = 0;
   const audio = new Audio(audioUrl);
 
+  // The microphone keeps running through a replay — stopping it would cut the
+  // recording in two and lose whatever the candidate said over the question.
+  // So the replay is timed instead, and the server takes those seconds out of
+  // the answering window. `startedAt` is null until recording begins, which is
+  // what makes the first playthrough (before the microphone is even open) not
+  // count as one of these.
+  let startedAt = null;
+  let openedAt = null;
+  const replaySpans = [];
+
+  const elapsed = () => (performance.now() - startedAt) / 1000;
+
+  audio.addEventListener("play", () => {
+    if (startedAt === null) return;
+    openedAt = elapsed();
+  });
+  // `ended` fires on a replay that finished; `pause` on one cut short by 다음.
+  // Both close the same span, and the null check makes a double fire harmless.
+  const closeSpan = () => {
+    if (openedAt === null) return;
+    replaySpans.push([openedAt, elapsed()]);
+    openedAt = null;
+  };
+  audio.addEventListener("ended", closeSpan);
+  audio.addEventListener("pause", closeSpan);
+
   async function beginRecording() {
     stream = await askForMicrophone();
     session = startRecording(stream);
+    // Taken after `startRecording` returns, so the clock these spans are
+    // measured against starts where the recording does, give or take the
+    // milliseconds MediaRecorder spends opening its first chunk.
+    startedAt = performance.now();
     // The caller owns what is on screen, so it is the caller that gets the
     // stream — the panel it mounts must attach to this microphone and not ask
     // for another one.
@@ -92,17 +122,19 @@ export function askAndRecord({audioUrl, onState}) {
       throw error;
     }
     onState("uploading", {});
-    return recorded;
+    // The spans ride along with the blob because they only mean anything
+    // against this recording: they are offsets into it, not wall-clock times.
+    return {...recorded, replaySpans: replaySpans.slice()};
   }
 
   return {play, replay, skip, stop, replaysLeft: () => 1 - replays};
 }
 
-export async function uploadWithRetries(api, path, blob, filename, attempts = 3) {
+export async function uploadWithRetries(api, path, blob, filename, fields = {}, attempts = 3) {
   let last = null;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      return await api.upload(path, blob, filename);
+      return await api.upload(path, blob, filename, fields);
     } catch (error) {
       // A 409 is the server deliberately refusing a second upload for this
       // index, not a dropped connection — retrying it changes nothing but the

@@ -119,6 +119,7 @@ def to_json(state: SessionState) -> dict:
                 "state": a.state.value,
                 "audio_path": a.audio_path,
                 "error": a.error,
+                "replay_spans": [[start, end] for start, end in a.replay_spans],
             }
             for a in state.answers
         ],
@@ -151,6 +152,12 @@ def from_json(payload: dict) -> SessionState:
                 state=AnswerState(a["state"]),
                 audio_path=a["audio_path"],
                 error=a["error"],
+                # `.get`, unlike every other field here, because a session that
+                # was already in progress when replay timing landed has answers
+                # on disk without the key; those answers still have to load.
+                replay_spans=tuple(
+                    (start, end) for start, end in a.get("replay_spans", ())
+                ),
             )
             for a in payload["answers"]
         ),

@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from opic.core.questions import EXAM_LENGTH
+from opic.session import assessments as answers_on_disk
 from opic.session import store
 from opic.session.state import AnswerRecord, AnswerState, Step, advance
 from opic.session.worker import Task, Worker
@@ -73,6 +74,35 @@ def test_evaluating_one_answer_writes_its_file_and_marks_it_scored(tmp_path, por
     assert loaded.answers[0].state is AnswerState.SCORED
     assert (tmp_path / state.id / "answer-00.json").exists()
     assert ports["rater"].calls == [0]
+
+
+def test_a_replay_is_taken_out_of_the_answering_window(tmp_path, ports, survey):
+    """The candidate replayed the question over the first half of the recording.
+
+    The double transcribes one second of audio; half of it was the question
+    playing back, so what is measured is the half-second that was theirs.
+    """
+    state = a_session(tmp_path, survey)
+    worker = a_worker(tmp_path, ports)
+    worker.submit(Task("generate", state.id))
+    worker.drain()
+    path = store.answer_audio_path(tmp_path, state.id, 0, ".webm")
+    path.write_bytes(b"webm")
+    worker.update(
+        state.id,
+        lambda s: s.with_answer(
+            AnswerRecord(0, AnswerState.RECORDED, path.name, replay_spans=((0.0, 0.5),))
+        ),
+    )
+
+    worker.submit(Task("evaluate", state.id, 0))
+    worker.drain()
+
+    judged = answers_on_disk.read_answer(tmp_path, state.id, 0)
+    assert judged.metrics.duration_s == 0.5
+    assert judged.metrics.words_per_minute == 360.0
+    # The recording itself is untouched: the word timings are offsets into it.
+    assert judged.transcript.duration_s == 1.0
 
 
 def test_a_rater_that_fails_twice_is_retried_and_succeeds(tmp_path, ports, survey):

@@ -95,6 +95,58 @@ def test_words_without_speech_spans_are_refused():
         compute_metrics(t)
 
 
+def test_replay_time_leaves_the_answering_window():
+    words = ["one"] * 30
+    plain = compute_metrics(make(words, duration_s=60.0))
+    replayed = compute_metrics(make(words, duration_s=90.0), [Span(0.0, 30.0)])
+    assert replayed.duration_s == pytest.approx(60.0)
+    assert replayed.words_per_minute == pytest.approx(plain.words_per_minute)
+
+
+def test_replay_before_the_first_word_does_not_change_the_pause_ratio():
+    spans = [(0.0, 1.0), (4.0, 5.0)]
+    plain = compute_metrics(make(["a", "b"], spans=spans, duration_s=10.0))
+    # The recording opened, the question played back for four seconds, and only
+    # then did the candidate start: the pause between their two utterances is
+    # the same pause either way.
+    replayed = compute_metrics(
+        make(["a", "b"], spans=[(4.0, 5.0), (8.0, 9.0)], duration_s=14.0),
+        [Span(0.0, 4.0)],
+    )
+    assert replayed.pause_ratio == pytest.approx(plain.pause_ratio)
+
+
+def test_a_replay_taken_mid_answer_is_not_counted_as_hesitation():
+    # Speaks, replays the question for three seconds, speaks again. What is
+    # left of that gap is one second of actual silence.
+    m = compute_metrics(
+        make(["a", "b"], spans=[(0.0, 1.0), (5.0, 6.0)], duration_s=10.0),
+        [Span(1.5, 4.5)],
+    )
+    assert m.pause_ratio == pytest.approx(1.0 / 3.0)
+
+
+def test_replay_spans_outside_the_recording_are_clipped():
+    m = compute_metrics(make(["one"] * 30, duration_s=60.0), [Span(50.0, 90.0)])
+    assert m.duration_s == pytest.approx(50.0)
+
+
+def test_replay_covering_the_whole_recording_is_ignored():
+    # An answer with words in it cannot be nothing but replay, so the spans are
+    # wrong; the file's own length is used rather than a window of zero.
+    m = compute_metrics(make(["one"] * 30, duration_s=60.0), [Span(0.0, 60.0)])
+    assert m.duration_s == pytest.approx(60.0)
+    assert m.words_per_minute == pytest.approx(30.0)
+
+
+def test_overlapping_replay_spans_count_their_seconds_once():
+    m = compute_metrics(
+        make(["one"] * 30, duration_s=60.0),
+        [Span(0.0, 20.0), Span(10.0, 30.0)],
+    )
+    assert m.duration_s == pytest.approx(30.0)
+
+
 def test_type_token_ratio_measures_lexical_variety():
     m = compute_metrics(make(["cat", "cat", "dog", "bird"]))
     assert m.type_token_ratio == pytest.approx(0.75)

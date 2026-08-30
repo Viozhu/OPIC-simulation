@@ -7,8 +7,13 @@ import {SILENCE_PEAK, levelMeter} from "../meter.js";
 export async function render(state, {api, show}) {
   const app = document.getElementById("app");
   const explanation = document.createElement("p");
+  // Echo cancellation is asked for in `recorder.js`, but it is the browser's
+  // best effort and not a guarantee. Headphones are the one thing that removes
+  // the leak outright, and this screen — before the exam, while the candidate
+  // can still go and fetch a pair — is the only place worth saying so.
   explanation.textContent =
-    "마이크를 점검합니다. 녹음 버튼을 누르고 몇 초간 말한 뒤, 재생하여 소리가 들리는지 확인해 주세요.";
+    "마이크를 점검합니다. 녹음 버튼을 누르고 몇 초간 말한 뒤, 재생하여 소리가 들리는지 확인해 주세요. " +
+    "이어폰을 사용하시면 질문 음성이 답변 녹음에 섞이지 않습니다.";
 
   const record = document.createElement("button");
   record.textContent = "녹음 시작";

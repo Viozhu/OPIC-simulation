@@ -18,9 +18,13 @@ export const api = {
     if (!response.ok) throw Object.assign(new Error(path), {status: response.status, payload});
     return payload;
   },
-  async upload(path, blob, filename) {
+  async upload(path, blob, filename, fields = {}) {
     const form = new FormData();
     form.append("audio", blob, filename);
+    // Anything the recording carries besides the audio itself — the replay
+    // timings, today — goes in the same multipart body, so it cannot arrive
+    // late or attach to a different upload.
+    for (const [name, value] of Object.entries(fields)) form.append(name, value);
     const response = await fetch(path, {method: "POST", body: form});
     const payload = await response.json().catch(() => ({}));
     // The `detail` in this payload is what lets a caller tell "someone else

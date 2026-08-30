@@ -3,6 +3,8 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
+from opic.session import store
+
 FIXTURE = Path(__file__).parent / "fixtures" / "answer.webm"
 
 ALLOWED_AUDIO_SUFFIXES = {".webm", ".mp4", ".m4a", ".ogg", ".wav"}
@@ -207,3 +209,46 @@ def test_a_rejected_upload_leaves_no_part_file_behind(client, worker, a_valid_su
     assert response.status_code == 409
     session_dir = client.app.state.root / session_id
     assert list(session_dir.glob("*.part")) == []
+
+
+def test_replay_timings_are_stored_with_the_answer(client, worker, a_valid_survey):
+    session_id = ready_for_the_test(client, worker, a_valid_survey)
+
+    with FIXTURE.open("rb") as audio:
+        response = client.post(
+            f"/api/sessions/{session_id}/answers/0",
+            files={"audio": ("answer.webm", audio, "audio/webm")},
+            data={"replay_spans": "[[2.0, 7.5]]"},
+        )
+
+    assert response.status_code == 202
+    state = store.load(client.app.state.root, session_id)
+    assert state.answers[0].replay_spans == ((2.0, 7.5),)
+
+
+def test_an_answer_uploaded_without_replay_timings_carries_none(
+    client, worker, a_valid_survey
+):
+    session_id = ready_for_the_test(client, worker, a_valid_survey)
+
+    assert upload(client, session_id, 0).status_code == 202
+
+    state = store.load(client.app.state.root, session_id)
+    assert state.answers[0].replay_spans == ()
+
+
+def test_malformed_replay_timings_are_refused(client, worker, a_valid_survey):
+    session_id = ready_for_the_test(client, worker, a_valid_survey)
+
+    for bad in ("not json", '{"a": 1}', "[[1.0]]", "[[5.0, 1.0]]", "[[-1.0, 2.0]]",
+                '[["a", "b"]]', "[[1e999, 2.0]]", "[" + "[1,2]," * 9 + "]"):
+        with FIXTURE.open("rb") as audio:
+            response = client.post(
+                f"/api/sessions/{session_id}/answers/0",
+                files={"audio": ("answer.webm", audio, "audio/webm")},
+                data={"replay_spans": bad},
+            )
+        assert response.status_code == 422, bad
+
+    # Nothing was claimed, so the answer is still recordable.
+    assert upload(client, session_id, 0).status_code == 202
