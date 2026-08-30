@@ -7,6 +7,16 @@
 // rung: no page but a `result.json` still shows a level (`renderMinimal`), and
 // neither shows the retry screen (`renderRetry`). The top rung is the only one
 // that changed.
+//
+// The route answers `200` for the written page and `202` for the same report
+// rendered without the narrative — the only page that exists for the minute
+// the worker spends on that model call. Framing the `202` would hand the
+// candidate the poorer document permanently, since this screen asks once and
+// nothing refreshes it. So a `202` waits for the `200` instead, with a way
+// out for the sessions where the better page is never coming.
+const PAGE_POLL_MS = 3000;
+const PAGE_WAIT_MS = 150000;
+
 export async function render(state, {api}) {
   const app = document.getElementById("app");
   await load(app, state, api);
@@ -14,9 +24,13 @@ export async function render(state, {api}) {
 
 async function load(app, state, api) {
   const url = `/api/sessions/${state.id}/page`;
-  const html = await fetchPage(url);
-  if (html !== null) {
-    renderFrame(app, url, html);
+  const page = await fetchPage(url);
+  if (page.ready) {
+    renderFrame(app, url, page.html);
+    return;
+  }
+  if (page.html !== null) {
+    await waitForWrittenPage(app, url, page.html);
     return;
   }
   // No rendered page. `result.json` may still be there — it is written before
@@ -39,10 +53,64 @@ async function load(app, state, api) {
 async function fetchPage(url) {
   try {
     const response = await fetch(url);
-    return response.ok ? await response.text() : null;
+    if (!response.ok) {
+      return {ready: false, html: null};
+    }
+    // 202: a report, but the provisional one. Everything else in the 2xx
+    // range is the written page.
+    return {ready: response.status !== 202, html: await response.text()};
   } catch (error) {
-    return null;
+    return {ready: false, html: null};
   }
+}
+
+// The narrative call takes about a minute after grading ends, so this waits
+// rather than showing a report the candidate would have to be told to reload.
+// It is a bounded wait with a door in it: a session graded before the written
+// page existed, or one whose narrative call failed, has nothing better coming
+// and must not trap anyone behind a spinner. Either exit frames the page —
+// the provisional one is a whole report, only missing the judged sections.
+async function waitForWrittenPage(app, url, provisional) {
+  const heading = document.createElement("h2");
+  heading.textContent = "리포트를 마무리하는 중입니다";
+  const note = document.createElement("p");
+  note.textContent =
+    "채점은 끝났습니다. 지금은 답변마다 AL 목표 답변과 총평을 쓰는 중이며, 보통 1분쯤 걸립니다.";
+  const skip = document.createElement("button");
+  skip.className = "secondary";
+  skip.textContent = "기다리지 않고 결과 보기";
+  const actions = document.createElement("p");
+  actions.className = "actions";
+  actions.append(skip);
+  app.replaceChildren(heading, note, actions);
+  app.setAttribute("aria-busy", "true");
+  heading.tabIndex = -1;
+  heading.focus({preventScroll: true});
+
+  let skipped = false;
+  skip.addEventListener("click", () => {
+    skipped = true;
+  });
+
+  const deadline = Date.now() + PAGE_WAIT_MS;
+  let latest = provisional;
+  while (!skipped && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, PAGE_POLL_MS));
+    if (skipped) {
+      break;
+    }
+    const page = await fetchPage(url);
+    if (page.ready) {
+      app.removeAttribute("aria-busy");
+      renderFrame(app, url, page.html);
+      return;
+    }
+    if (page.html !== null) {
+      latest = page.html;
+    }
+  }
+  app.removeAttribute("aria-busy");
+  renderFrame(app, url, latest);
 }
 
 function renderFrame(app, url, html) {

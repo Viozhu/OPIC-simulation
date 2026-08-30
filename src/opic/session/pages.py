@@ -39,34 +39,44 @@ def build(root: Path, session_id: str) -> tuple[Report, Meta] | None:
     return report, _meta(state)
 
 
-def html_for(root: Path, session_id: str) -> str | None:
-    """The report page for a session: the written file, or one rendered now.
+def written(root: Path, session_id: str) -> str | None:
+    """The page the worker wrote, or `None` if it is not there (yet).
 
-    The file on disk is the better answer whenever it is there — it is the one
-    the worker rendered with a narrative, and that narrative cost a model call
-    that a page view has no business paying again. Rendering on demand covers
-    the session graded before this file existed and the one whose narrative
-    call failed: the same page, minus the judged sections.
+    This is the finished article: the only render that carries the narrative,
+    because the narrative costs a model call the worker already paid for.
+    Its absence right after grading is normal and temporary — `result.json`
+    lands first and the narrative call runs for a minute or so after it — so
+    callers must treat `None` as "not yet", not as "never".
+    """
+    page = store.page_path(root, session_id)
+    if not page.exists():
+        return None
+    try:
+        return page.read_text(encoding="utf-8")
+    except OSError:
+        # An unreadable page is not a reason to have no page: everything it
+        # was built from is still sitting next to it.
+        traceback.print_exc()
+        return None
 
-    `None` when there is nothing to render at all — no `result.json`, or not
-    one readable answer file. The web layer turns that into a 404.
+
+def render_now(root: Path, session_id: str) -> str | None:
+    """The same page rendered from disk on the spot, minus the narrative.
+
+    What a session gets when it was graded before the written page existed,
+    when the narrative call failed, or in the minute between the result and
+    the page. `None` when there is nothing to render at all — no
+    `result.json`, or not one readable answer file.
 
     Reading never writes. A GET that leaves a file behind is a GET that can
     fail in ways a reader cannot see.
     """
-    written = store.page_path(root, session_id)
-    if written.exists():
-        try:
-            return written.read_text(encoding="utf-8")
-        except OSError:
-            # An unreadable page is not a reason to have no page: everything
-            # it was built from is still sitting next to it.
-            traceback.print_exc()
     built = build(root, session_id)
     if built is None:
         return None
     report, meta = built
     return render_html(report, meta, None)
+
 
 
 def _meta(state: SessionState) -> Meta:

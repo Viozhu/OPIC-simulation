@@ -482,18 +482,31 @@ def create_app(
         return JSONResponse(content=answers_on_disk.report_json(built))
 
     @app.get("/api/sessions/{session_id}/page", response_class=HTMLResponse)
-    def report_page(session_id: str) -> str:
+    def report_page(session_id: str) -> HTMLResponse:
         """The report as `core/page.py` renders it — the same document the
         candidate can keep, framed by the done screen.
+
+        Two statuses, because there are two pages. `200` is the written one,
+        narrative and all. `202` is the same report rendered on the spot
+        without it: the worker writes `result.json` first and pays for the
+        narrative afterwards, so for about a minute after grading ends this is
+        the only page that exists — and a candidate who reads it then would
+        otherwise keep the poorer document forever, since nothing asks again.
+        The status is what lets the browser wait for the better one instead of
+        framing this. It is still a whole page, so a direct visit shows a
+        report rather than an error.
 
         `/report` next to this one is the JSON the older screen was built on
         and stays where it is: it is what the fallback path reads when this
         route has nothing to give.
         """
         load_or_404(session_id)
-        html = pages.html_for(root, session_id)
-        if html is None:
+        final = pages.written(root, session_id)
+        if final is not None:
+            return HTMLResponse(final)
+        provisional = pages.render_now(root, session_id)
+        if provisional is None:
             raise HTTPException(status_code=404, detail="not scored yet")
-        return html
+        return HTMLResponse(provisional, status_code=202)
 
     return app
