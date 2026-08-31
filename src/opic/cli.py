@@ -226,6 +226,49 @@ def regenerate_report(session_dir: Path, use_llm: bool = True, force: bool = Fal
     return 0
 
 
+def find_sessions(root: Path, needle: str, out=print) -> int:
+    """Listar los exámenes cuyo nombre o correo contienen `needle`.
+
+    Vive en la consola y no en la API a propósito: todos los invitados
+    comparten el mismo token de la puerta, así que un endpoint de listado le
+    enseñaría a cualquiera de ellos los exámenes de todos los demás.
+    """
+    wanted = needle.strip().lower()
+    if not root.exists():
+        out(f"no hay sesiones en {root}")
+        return 0
+
+    rows = []
+    for directory in sorted(root.iterdir()):
+        if not (directory / store.SESSION_FILE).exists():
+            continue
+        try:
+            state = store.load(root, directory.name)
+        except (OSError, ValueError, KeyError):
+            continue
+        if state.candidate is None:
+            continue
+        haystack = f"{state.candidate.name} {state.candidate.email}".lower()
+        if wanted not in haystack:
+            continue
+        level = ""
+        result = store.result_path(root, state.id)
+        if result.exists():
+            try:
+                level = json.loads(result.read_text(encoding="utf-8")).get("final_level", "")
+            except (OSError, ValueError):
+                level = "?"
+        rows.append((state.created_at, state.id, state.candidate, state.step.value, level))
+
+    for created_at, session_id, candidate, step, level in sorted(rows):
+        out(
+            f"{created_at:%Y-%m-%d %H:%M}  {session_id}  "
+            f"{candidate.name} <{candidate.email}>  {step}  {level}"
+        )
+    out(f"{len(rows)} sesión(es)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="opic", description="Run a local OPIc mock exam")
     parser.add_argument("--survey", type=Path, help="survey answers as JSON")
@@ -259,7 +302,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="with --report, overwrite an existing report-ko.html",
     )
+    parser.add_argument(
+        "--find",
+        metavar="TEXT",
+        help="list sessions whose candidate name or email contains TEXT, and exit",
+    )
+    parser.add_argument(
+        "--sessions-root",
+        type=Path,
+        default=Path("data/sessions"),
+        help="where sessions live; used by --find and --publish",
+    )
     args = parser.parse_args(argv)
+
+    if args.find is not None:
+        return find_sessions(args.sessions_root, args.find)
 
     if args.report is not None:
         return regenerate_report(args.report, use_llm=not args.no_llm, force=args.force)
