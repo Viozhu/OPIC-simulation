@@ -24,6 +24,11 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from opic.core.candidate import (
+    Candidate,
+    describe_candidate_error_ko,
+    validate_candidate,
+)
 from opic.core.report import build_report
 from opic.core.selfassess import SELF_ASSESS_OPTIONS
 from opic.core.survey import (
@@ -61,6 +66,11 @@ class SurveyPayload(BaseModel):
 
 class LevelPayload(BaseModel):
     level: int
+
+
+class IdentityPayload(BaseModel):
+    name: str
+    email: str
 
 
 class StepPayload(BaseModel):
@@ -254,6 +264,37 @@ def create_app(
                 for group in TopicGroup
             ],
         }
+
+    @app.put("/api/sessions/{session_id}/identity")
+    def put_identity(session_id: str, payload: IdentityPayload):
+        state = load_or_404(session_id)
+        if state.step is not Step.IDENTITY:
+            raise HTTPException(
+                status_code=409,
+                detail=f"expected step identity, session is at {state.step.value}",
+            )
+        name = payload.name.strip()
+        email = payload.email.strip()
+        issues = validate_candidate(name, email)
+        if issues:
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "issues": [
+                        {
+                            "error": issue.value,
+                            "detail": "",
+                            "message_ko": describe_candidate_error_ko(issue),
+                        }
+                        for issue in issues
+                    ]
+                },
+            )
+        state = worker.update(
+            session_id,
+            lambda s: advance(s.with_candidate(Candidate(name, email)), Step.SURVEY),
+        )
+        return session_json(state)
 
     @app.put("/api/sessions/{session_id}/survey")
     def put_survey(session_id: str, payload: SurveyPayload):

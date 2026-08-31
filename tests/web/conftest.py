@@ -36,7 +36,11 @@ def worker(sessions_root: Path, tmp_path: Path) -> Worker:
 
 @pytest.fixture
 def client(sessions_root: Path, worker: Worker) -> TestClient:
-    """A client whose clock is frozen, so session ids are predictable."""
+    """A client whose clock is frozen, so `created_at` is predictable.
+
+    The id is random now, so nothing here may hardcode one: read it from the
+    response.
+    """
     app = create_app(
         root=sessions_root,
         worker=worker,
@@ -57,9 +61,20 @@ def a_valid_survey() -> dict:
 
 
 @pytest.fixture
-def session_id(client: TestClient, worker: Worker, a_valid_survey: dict) -> str:
-    """A session that has reached the TEST step, ready to receive answers."""
+def identified(client: TestClient) -> str:
+    """Una sesión con la identidad ya enviada, parada en la encuesta."""
     session_id = client.post("/api/sessions").json()["id"]
+    client.put(
+        f"/api/sessions/{session_id}/identity",
+        json={"name": "김민준", "email": "minjun@example.com"},
+    )
+    return session_id
+
+
+@pytest.fixture
+def session_id(client: TestClient, worker: Worker, identified: str, a_valid_survey: dict) -> str:
+    """A session that has reached the TEST step, ready to receive answers."""
+    session_id = identified
     client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
     client.put(f"/api/sessions/{session_id}/level", json={"level": 4})
     worker.drain()

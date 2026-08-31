@@ -12,6 +12,10 @@ ALLOWED_AUDIO_SUFFIXES = {".webm", ".mp4", ".m4a", ".ogg", ".wav"}
 
 def ready_for_the_test(client, worker, a_valid_survey) -> str:
     session_id = client.post("/api/sessions").json()["id"]
+    client.put(
+        f"/api/sessions/{session_id}/identity",
+        json={"name": "김민준", "email": "minjun@example.com"},
+    )
     client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
     client.put(f"/api/sessions/{session_id}/level", json={"level": 4})
     worker.drain()
@@ -28,8 +32,8 @@ def upload(client, session_id: str, index: int, filename: str = "answer.webm"):
         )
 
 
-def test_a_step_can_only_advance_to_the_next_one(client, worker, a_valid_survey):
-    session_id = client.post("/api/sessions").json()["id"]
+def test_a_step_can_only_advance_to_the_next_one(client, worker, identified, a_valid_survey):
+    session_id = identified
     client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
     client.put(f"/api/sessions/{session_id}/level", json={"level": 4})
 
@@ -62,8 +66,8 @@ def test_the_queued_answer_is_scored_when_the_worker_runs(client, worker, a_vali
     assert progress["done"] is False
 
 
-def test_uploading_to_a_session_that_is_not_in_the_test_is_refused(client, worker, a_valid_survey):
-    session_id = client.post("/api/sessions").json()["id"]
+def test_uploading_to_a_session_that_is_not_in_the_test_is_refused(client, worker, identified, a_valid_survey):
+    session_id = identified
     client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
     assert upload(client, session_id, 0).status_code == 409
 
@@ -78,6 +82,10 @@ def test_the_wrong_step_409_carries_a_machine_readable_reason(client, worker, a_
     """FIX ROUND 2: the browser must not have to guess this cause from the
     English sentence — a `reason` field is what it actually branches on."""
     session_id = client.post("/api/sessions").json()["id"]
+    client.put(
+        f"/api/sessions/{session_id}/identity",
+        json={"name": "김민준", "email": "minjun@example.com"},
+    )
     client.put(f"/api/sessions/{session_id}/survey", json=a_valid_survey)
 
     response = upload(client, session_id, 0)
@@ -104,6 +112,10 @@ def test_the_two_409_reasons_are_never_the_same_value(client, worker, a_valid_su
     round fixed — a wrong-step 409 misread as a prior success, discarding a
     recording and leaving that answer PENDING forever."""
     not_in_test_session = client.post("/api/sessions").json()["id"]
+    client.put(
+        f"/api/sessions/{not_in_test_session}/identity",
+        json={"name": "김민준", "email": "minjun@example.com"},
+    )
     client.put(f"/api/sessions/{not_in_test_session}/survey", json=a_valid_survey)
     not_in_test_reason = upload(client, not_in_test_session, 0).json()["detail"]["reason"]
 

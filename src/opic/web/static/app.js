@@ -36,6 +36,7 @@ export const api = {
 };
 
 const LABELS = {
+  identity: "시작 · 응시자 정보",
   survey: "1단계 · 배경 설문",
   level: "2단계 · 자기 평가",
   setup: "3단계 · 마이크 점검",
@@ -112,7 +113,7 @@ async function boot() {
   await show(state);
 }
 
-for (const name of ["survey", "level", "setup", "sample", "test", "grading", "done"]) {
+for (const name of ["identity", "survey", "level", "setup", "sample", "test", "grading", "done"]) {
   try {
     steps[name] = await import(`/static/steps/${name}.js`);
   } catch (error) {
