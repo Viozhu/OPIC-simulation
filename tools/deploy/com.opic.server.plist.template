@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.opic.server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <!-- El entorno de un agente de launchd no es el de tu terminal: no hay
+         `.env` cargado, ni PATH de Homebrew, ni uv. Por eso el `source` y la
+         ruta absoluta. -->
+    <string>set -a; source REPO/.env.deploy; set +a; cd REPO &amp;&amp; UV --directory REPO run uvicorn --factory opic.web.serve:app --host 127.0.0.1 --port 8000</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>REPO/data/logs/server.log</string>
+  <key>StandardErrorPath</key>
+  <string>REPO/data/logs/server.err.log</string>
+</dict>
+</plist>

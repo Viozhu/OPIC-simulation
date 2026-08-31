@@ -61,6 +61,13 @@ uv run python -m opic.cli --serve      # http://localhost:8000
 Needs macOS for `say` and an Anthropic API key (or `OPIC_LLM=ollama` and
 `ollama serve`). The first run downloads the Whisper model.
 
+### En pie sin nadie delante
+
+`tools/share.sh` sirve para un examen suelto: túnel efímero, enlace nuevo cada
+vez. Para dejarlo disponible de forma permanente —dominio propio, dos agentes
+de `launchd`, hoja de cálculo con las valoraciones— está `docs/deploy.md`, que
+también explica qué se pierde en seguridad al hacerlo.
+
 ### The rater
 
 One object writes the questions and grades the answers, and two adapters

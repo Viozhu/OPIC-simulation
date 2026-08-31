@@ -1,0 +1,10 @@
+# Copiar a ~/.cloudflared/config.yml y sustituir los marcadores.
+# TUNNEL_ID sale de `cloudflared tunnel create opic`.
+tunnel: TUNNEL_ID
+credentials-file: /Users/USERNAME/.cloudflared/TUNNEL_ID.json
+
+ingress:
+  - hostname: HOSTNAME
+    service: http://localhost:8000
+  # Cloudflare exige una regla final que lo recoja todo.
+  - service: http_status:404
