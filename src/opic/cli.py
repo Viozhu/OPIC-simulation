@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import urllib.error
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -269,6 +271,53 @@ def find_sessions(root: Path, needle: str, out=print) -> int:
     return 0
 
 
+def publish_session(
+    root: Path,
+    session_id: str,
+    sink=None,
+    public_url: str | None = None,
+    out=print,
+) -> int:
+    """Mandar a la hoja la fila de un examen, otra vez si hace falta.
+
+    Sirve para un examen anterior a que esto existiera y para uno cuyo envío
+    agotó los reintentos del worker. Reenvía aunque ya conste publicado: si la
+    fila se perdió del otro lado, nada de este lado puede enterarse.
+    """
+    from opic.adapters.sheets import make_sheet_sink
+    from opic.session.publish import sheet_row
+
+    sink = sink if sink is not None else make_sheet_sink()
+    base = public_url if public_url is not None else os.environ.get("OPIC_PUBLIC_URL", "").strip()
+
+    try:
+        state = store.load(root, session_id)
+    except (FileNotFoundError, OSError, ValueError, KeyError) as error:
+        out(f"error: {error}")
+        return 1
+    if state.feedback is None:
+        out(f"{session_id}: sin feedback que publicar")
+        return 1
+
+    result = None
+    path = store.result_path(root, session_id)
+    if path.exists():
+        try:
+            result = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            result = None
+
+    try:
+        sink.append(sheet_row(state, result, base))
+    except Exception as error:  # noqa: BLE001 - lo que falle, se informa igual
+        out(f"error: la hoja no aceptó la fila: {error}")
+        return 1
+
+    store.save(root, state.with_feedback(replace(state.feedback, published=True)))
+    out(f"{session_id}: publicado")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="opic", description="Run a local OPIc mock exam")
     parser.add_argument("--survey", type=Path, help="survey answers as JSON")
@@ -308,6 +357,11 @@ def main(argv: list[str] | None = None) -> int:
         help="list sessions whose candidate name or email contains TEXT, and exit",
     )
     parser.add_argument(
+        "--publish",
+        metavar="SESSION_ID",
+        help="send this session's row to the sheet again, and exit",
+    )
+    parser.add_argument(
         "--sessions-root",
         type=Path,
         default=Path("data/sessions"),
@@ -317,6 +371,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.find is not None:
         return find_sessions(args.sessions_root, args.find)
+
+    if args.publish is not None:
+        return publish_session(args.sessions_root, args.publish)
 
     if args.report is not None:
         return regenerate_report(args.report, use_llm=not args.no_llm, force=args.force)
