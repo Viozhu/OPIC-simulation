@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from opic.core.candidate import Candidate
 from opic.core.questions import QuestionType
 from opic.core.survey import Housing, Occupation, RecentCourse, SurveyAnswers
 from opic.session import store
@@ -157,3 +158,20 @@ def test_loading_a_session_that_does_not_exist_says_so(tmp_path: Path):
     with pytest.raises(FileNotFoundError) as excinfo:
         store.load(tmp_path, "nope")
     assert "nope" in str(excinfo.value)
+
+
+def test_the_candidate_survives_the_round_trip(tmp_path: Path):
+    state = store.create(tmp_path, seed=7, now=datetime(2026, 8, 31, 14, 0, 0))
+    state = state.with_candidate(Candidate("김민준", "minjun@example.com"))
+    store.save(tmp_path, state)
+    assert store.load(tmp_path, state.id).candidate == Candidate("김민준", "minjun@example.com")
+
+
+def test_a_session_saved_before_candidates_existed_loads_without_one(tmp_path: Path):
+    state = store.create(tmp_path, seed=7, now=datetime(2026, 8, 31, 14, 0, 0))
+    payload = json.loads((tmp_path / state.id / "session.json").read_text(encoding="utf-8"))
+    del payload["candidate"]
+    (tmp_path / state.id / "session.json").write_text(
+        json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+    )
+    assert store.load(tmp_path, state.id).candidate is None

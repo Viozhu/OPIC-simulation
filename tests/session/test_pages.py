@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+from opic.core.candidate import Candidate
 from opic.core.narrative import AnswerRewrite, Narrative
 from opic.core.questions import EXAM_LENGTH
 from opic.session import pages, store
@@ -19,6 +20,8 @@ from opic.session.worker import Task, Worker
 
 def a_session(root: Path, survey, level: int = 4):
     state = store.create(root, seed=7, now=datetime(2026, 8, 19, 14, 30, 52))
+    state = state.with_candidate(Candidate("김민준", "minjun@example.com"))
+    state = advance(state, Step.SURVEY)
     state = state.with_survey(survey).with_level(level)
     store.save(root, state)
     return state

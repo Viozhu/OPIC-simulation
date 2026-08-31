@@ -11,10 +11,12 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import Enum
 
+from opic.core.candidate import Candidate
 from opic.core.survey import SurveyAnswers
 
 
 class Step(Enum):
+    IDENTITY = "identity"
     SURVEY = "survey"
     LEVEL = "level"
     SETUP = "setup"
@@ -33,6 +35,7 @@ class AnswerState(Enum):
 
 
 ORDER: tuple[Step, ...] = (
+    Step.IDENTITY,
     Step.SURVEY,
     Step.LEVEL,
     Step.SETUP,
@@ -88,6 +91,7 @@ class SessionState:
     step: Step
     seed: int
     survey: SurveyAnswers | None
+    candidate: Candidate | None
     self_assess_level: int | None
     questions: tuple[QuestionRecord, ...]
     answers: tuple[AnswerRecord, ...]
@@ -97,9 +101,10 @@ class SessionState:
         return cls(
             id=session_id,
             created_at=created_at,
-            step=Step.SURVEY,
+            step=Step.IDENTITY,
             seed=seed,
             survey=None,
+            candidate=None,
             self_assess_level=None,
             questions=(),
             answers=(),
@@ -112,6 +117,9 @@ class SessionState:
 
     def with_survey(self, survey: SurveyAnswers) -> SessionState:
         return replace(self, survey=survey)
+
+    def with_candidate(self, candidate: Candidate) -> SessionState:
+        return replace(self, candidate=candidate)
 
     def with_level(self, level: int) -> SessionState:
         return replace(self, self_assess_level=level)

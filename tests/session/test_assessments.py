@@ -81,6 +81,7 @@ def a_state(questions: tuple[QuestionRecord, ...], scored: set[int]) -> SessionS
         step=Step.GRADING,
         seed=1,
         survey=None,
+        candidate=None,
         self_assess_level=4,
         questions=questions,
         answers=answers,

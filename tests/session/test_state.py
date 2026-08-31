@@ -4,6 +4,7 @@ from datetime import datetime
 
 import pytest
 
+from opic.core.candidate import Candidate
 from opic.core.questions import QuestionType
 from opic.core.survey import Housing, Occupation, RecentCourse, SurveyAnswers
 from opic.session.state import (
@@ -30,8 +31,15 @@ def a_survey() -> SurveyAnswers:
 _CREATED_AT = datetime(2026, 8, 19, 14, 30, 52)
 
 
+def an_identified_session(session_id: str) -> SessionState:
+    """A session already past IDENTITY, ready for the survey transitions below."""
+    state = SessionState.new(session_id, seed=7, created_at=_CREATED_AT)
+    state = state.with_candidate(Candidate("김민준", "minjun@example.com"))
+    return advance(state, Step.SURVEY)
+
+
 def test_a_new_session_starts_at_the_survey():
-    state = SessionState.new("20260819-143052", seed=7, created_at=_CREATED_AT)
+    state = an_identified_session("20260819-143052")
     assert state.step is Step.SURVEY
     assert state.survey is None
     assert state.questions == ()
@@ -39,7 +47,7 @@ def test_a_new_session_starts_at_the_survey():
 
 
 def test_legal_transitions_move_the_step():
-    state = SessionState.new("s", seed=7, created_at=_CREATED_AT)
+    state = an_identified_session("s")
     for step in (Step.LEVEL, Step.SETUP, Step.SAMPLE, Step.TEST, Step.GRADING, Step.DONE):
         state = advance(state, step)
     assert state.step is Step.DONE
@@ -54,13 +62,13 @@ def test_skipping_a_step_is_rejected():
 
 
 def test_going_backwards_is_rejected():
-    state = advance(SessionState.new("s", seed=7, created_at=_CREATED_AT), Step.LEVEL)
+    state = advance(an_identified_session("s"), Step.LEVEL)
     with pytest.raises(TransitionError):
         advance(state, Step.SURVEY)
 
 
 def test_recording_the_survey_keeps_the_step():
-    state = SessionState.new("s", seed=7, created_at=_CREATED_AT).with_survey(a_survey())
+    state = an_identified_session("s").with_survey(a_survey())
     assert state.survey == a_survey()
     assert state.step is Step.SURVEY
 
@@ -121,9 +129,28 @@ def test_questions_are_ready_only_when_every_one_has_audio():
 
 
 def test_advancing_past_the_last_step_is_rejected():
-    state = SessionState.new("s", seed=7, created_at=_CREATED_AT)
+    state = an_identified_session("s")
     for step in (Step.LEVEL, Step.SETUP, Step.SAMPLE, Step.TEST, Step.GRADING, Step.DONE):
         state = advance(state, step)
     with pytest.raises(TransitionError) as excinfo:
         advance(state, Step.DONE)
     assert "last step" in str(excinfo.value)
+
+
+def test_a_new_session_starts_at_identity():
+    state = SessionState.new("abc", 7, datetime(2026, 8, 31, 14, 0, 0))
+    assert state.step is Step.IDENTITY
+    assert state.candidate is None
+
+
+def test_identity_advances_to_survey():
+    state = SessionState.new("abc", 7, datetime(2026, 8, 31, 14, 0, 0))
+    named = state.with_candidate(Candidate("김민준", "minjun@example.com"))
+    assert advance(named, Step.SURVEY).step is Step.SURVEY
+    assert named.candidate.email == "minjun@example.com"
+
+
+def test_identity_cannot_be_skipped():
+    state = SessionState.new("abc", 7, datetime(2026, 8, 31, 14, 0, 0))
+    with pytest.raises(TransitionError):
+        advance(state, Step.LEVEL)

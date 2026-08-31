@@ -13,6 +13,7 @@ import secrets
 from datetime import datetime
 from pathlib import Path
 
+from opic.core.candidate import Candidate
 from opic.core.survey import Housing, Occupation, RecentCourse, SurveyAnswers
 from opic.session.state import (
     AnswerRecord,
@@ -125,6 +126,11 @@ def to_json(state: SessionState) -> dict:
         "seed": state.seed,
         "self_assess_level": state.self_assess_level,
         "survey": _survey_json(state.survey),
+        "candidate": (
+            None
+            if state.candidate is None
+            else {"name": state.candidate.name, "email": state.candidate.email}
+        ),
         "questions": [
             {
                 "index": q.index,
@@ -158,6 +164,7 @@ def from_json(payload: dict, fallback: datetime | None = None) -> SessionState:
         step=Step(payload["step"]),
         seed=payload["seed"],
         survey=_survey_from_json(payload["survey"]),
+        candidate=_candidate_from_json(payload.get("candidate")),
         self_assess_level=payload["self_assess_level"],
         questions=tuple(
             QuestionRecord(
@@ -197,6 +204,12 @@ def _created_at(payload: dict, fallback: datetime | None) -> datetime:
     if _LEGACY_ID.match(payload["id"]):
         return datetime.strptime(payload["id"], "%Y%m%d-%H%M%S")
     return fallback or datetime.min
+
+
+def _candidate_from_json(payload: dict | None) -> Candidate | None:
+    if payload is None:
+        return None
+    return Candidate(name=payload["name"], email=payload["email"])
 
 
 def _survey_json(survey: SurveyAnswers | None) -> dict | None:
