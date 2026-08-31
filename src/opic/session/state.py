@@ -85,6 +85,19 @@ class AnswerRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class Feedback:
+    """Lo que el candidato opina, y si ya llegó a la hoja.
+
+    `published` es lo que permite reintentar sin duplicar filas: la tarea de
+    publicación lo comprueba antes de enviar y lo marca después.
+    """
+
+    rating: int
+    comment: str
+    published: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class SessionState:
     id: str
     created_at: datetime
@@ -95,6 +108,7 @@ class SessionState:
     self_assess_level: int | None
     questions: tuple[QuestionRecord, ...]
     answers: tuple[AnswerRecord, ...]
+    feedback: Feedback | None
 
     @classmethod
     def new(cls, session_id: str, seed: int, created_at: datetime) -> SessionState:
@@ -108,6 +122,7 @@ class SessionState:
             self_assess_level=None,
             questions=(),
             answers=(),
+            feedback=None,
         )
 
     @property
@@ -120,6 +135,9 @@ class SessionState:
 
     def with_candidate(self, candidate: Candidate) -> SessionState:
         return replace(self, candidate=candidate)
+
+    def with_feedback(self, feedback: Feedback) -> SessionState:
+        return replace(self, feedback=feedback)
 
     def with_level(self, level: int) -> SessionState:
         return replace(self, self_assess_level=level)

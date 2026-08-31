@@ -23,13 +23,22 @@ def sessions_root(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def worker(sessions_root: Path, tmp_path: Path) -> Worker:
+def sheet():
+    from doubles import FakeSheet
+
+    return FakeSheet()
+
+
+@pytest.fixture
+def worker(sessions_root: Path, tmp_path: Path, sheet) -> Worker:
     return Worker(
         root=sessions_root,
         tts=FakeTextToSpeech(tmp_path / "tts_cache"),
         stt=FakeSpeechToText(),
         writer=FakeQuestionWriter(),
         rater=FakeRater(),
+        sheet=sheet,
+        public_url="https://opic.example.com",
         sleeper=lambda _: None,
     )
 

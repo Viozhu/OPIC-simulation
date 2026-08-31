@@ -52,7 +52,7 @@ from opic.core.survey import (
 from opic.session import assessments as answers_on_disk
 from opic.session import pages
 from opic.session import store
-from opic.session.state import AnswerRecord, AnswerState, Step, TransitionError, advance
+from opic.session.state import AnswerRecord, AnswerState, Feedback, Step, TransitionError, advance
 from opic.session.worker import Task, Worker
 
 
@@ -75,6 +75,17 @@ class IdentityPayload(BaseModel):
 
 class StepPayload(BaseModel):
     step: str
+
+
+class FeedbackPayload(BaseModel):
+    rating: int
+    comment: str = ""
+
+
+# Un comentario más largo que esto no es una opinión, es un accidente (o un
+# intento de llenar el disco). Se recorta en vez de rechazarse: el candidato ya
+# terminó el examen y no va a volver a escribirlo.
+MAX_COMMENT = 2000
 
 
 # The browser's filename picks the suffix, and the browser is not trusted: it
@@ -549,5 +560,35 @@ def create_app(
         if provisional is None:
             raise HTTPException(status_code=404, detail="not scored yet")
         return HTMLResponse(provisional, status_code=202)
+
+    @app.post("/api/sessions/{session_id}/feedback", status_code=202)
+    def post_feedback(session_id: str, payload: FeedbackPayload) -> dict:
+        """Guardar la opinión del candidato, y sólo después intentar la hoja.
+
+        El orden es lo importante: `worker.update` deja el feedback en
+        `session.json` antes de que Google entre en la historia, así que el
+        envío del candidato no espera a la red y no falla por ella.
+        """
+        load_or_404(session_id)
+        if payload.rating not in range(1, 6):
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "issues": [
+                        {
+                            "error": "bad_rating",
+                            "detail": str(payload.rating),
+                            "message_ko": "1점부터 5점 사이로 선택해 주세요.",
+                        }
+                    ]
+                },
+            )
+        comment = payload.comment.strip()[:MAX_COMMENT]
+        worker.update(
+            session_id,
+            lambda s: s.with_feedback(Feedback(rating=payload.rating, comment=comment)),
+        )
+        worker.submit(Task("publish", session_id))
+        return {"ok": True}
 
     return app

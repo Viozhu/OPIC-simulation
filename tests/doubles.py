@@ -113,3 +113,24 @@ class ExplodingRater:
         if self.always or self.attempts <= self.failures:
             raise TimeoutError("ollama timed out")
         return FakeRater().rate(question, transcript, metrics)
+
+
+class FakeSheet:
+    """Guarda las filas en vez de enviarlas."""
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, str]] = []
+
+    def append(self, row: dict[str, str]) -> None:
+        self.rows.append(row)
+
+
+class ExplodingSheet:
+    """Falla siempre, para comprobar que el feedback no se pierde."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def append(self, row: dict[str, str]) -> None:
+        self.calls += 1
+        raise RuntimeError("the sheet is down")

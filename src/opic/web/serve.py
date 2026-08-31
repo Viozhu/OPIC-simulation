@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 
 from opic.adapters import make_llm_client
+from opic.adapters.sheets import make_sheet_sink
 from opic.adapters.stt import WhisperSpeechToText
 from opic.adapters.tts import SayTextToSpeech
 from opic.session.worker import Worker
@@ -67,6 +68,11 @@ def app():
         # The same client, when it can also write the report's prose. The
         # local backend cannot, and gets the derived page.
         narrator=client if hasattr(client, "write_narrative") else None,
+        sheet=make_sheet_sink(),
+        # El servidor no puede saber bajo qué nombre lo ven desde fuera; sin
+        # esto la fila va a la hoja sin enlace al informe, que es peor pero no
+        # es un fallo.
+        public_url=os.environ.get("OPIC_PUBLIC_URL", "").strip(),
     )
     worker.resume()
     worker.start()

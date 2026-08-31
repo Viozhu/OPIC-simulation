@@ -20,11 +20,13 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from opic.adapters.sheets import NullSheet
 from opic.core.metrics import compute_metrics
 from opic.core.ports import (
     NarrativeWriter,
     QuestionWriter,
     Rater,
+    SheetSink,
     SpeechToText,
     TextToSpeech,
 )
@@ -34,9 +36,11 @@ from opic.core.transcript import Span
 from opic.session import assessments as answers_on_disk
 from opic.session import pages
 from opic.session import store
+from opic.session.publish import sheet_row
 from opic.session.state import (
     ORDER,
     AnswerState,
+    Feedback,
     QuestionRecord,
     SessionState,
     Step,
@@ -47,6 +51,7 @@ GENERATE = "generate"
 SYNTHESIZE = "synthesize"
 EVALUATE = "evaluate"
 AGGREGATE = "aggregate"
+PUBLISH = "publish"
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +70,8 @@ class Worker:
         writer: QuestionWriter,
         rater: Rater,
         narrator: NarrativeWriter | None = None,
+        sheet: SheetSink | None = None,
+        public_url: str = "",
         retries: int = 3,
         sleeper: Callable[[float], None] = time.sleep,
         join_timeout: float = 5.0,
@@ -75,6 +82,8 @@ class Worker:
         self._writer = writer
         self._rater = rater
         self._narrator = narrator
+        self._sheet = sheet or NullSheet()
+        self._public_url = public_url
         self._retries = retries
         self._sleep = sleeper
         self._join_timeout = join_timeout
@@ -159,6 +168,8 @@ class Worker:
             self._evaluate(task.session_id, task.index)
         elif task.kind == AGGREGATE:
             self._aggregate(task.session_id)
+        elif task.kind == PUBLISH:
+            self._publish(task.session_id)
         else:
             raise ValueError(f"unknown task kind {task.kind!r}")
 
@@ -326,6 +337,31 @@ class Worker:
         # language model for something the candidate can already live without,
         # and `write_with_narrator` swallows every failure for that reason.
         pages.write_with_narrator(self._root, session_id, self._narrator)
+
+    def _publish(self, session_id: str) -> None:
+        """Mandar la fila del examen a la hoja, una sola vez.
+
+        El feedback ya está en `session.json` cuando esto corre: el endpoint lo
+        guarda antes de encolar la tarea. Si la hoja no contesta, `_attempt`
+        acaba lanzando, el bucle del worker lo registra, y el feedback se queda
+        en disco con `published: False` — que es lo que `--publish` reenvía.
+        """
+        state = store.load(self._root, session_id)
+        if state.feedback is None or state.feedback.published:
+            return
+        result = None
+        path = store.result_path(self._root, session_id)
+        if path.exists():
+            try:
+                result = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                result = None
+        row = sheet_row(state, result, self._public_url)
+        self._attempt(lambda: self._sheet.append(row))
+        self.update(
+            session_id,
+            lambda s: s.with_feedback(replace(s.feedback, published=True)),
+        )
 
     def _advance_to_done(self, s: SessionState) -> SessionState:
         while s.step is not Step.DONE:

@@ -85,6 +85,7 @@ def a_state(questions: tuple[QuestionRecord, ...], scored: set[int]) -> SessionS
         self_assess_level=4,
         questions=questions,
         answers=answers,
+        feedback=None,
     )
 
 

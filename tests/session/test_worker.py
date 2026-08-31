@@ -5,11 +5,13 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from opic.core.candidate import Candidate
 from opic.core.questions import EXAM_LENGTH
 from opic.session import assessments as answers_on_disk
 from opic.session import store
-from opic.session.state import AnswerRecord, AnswerState, Step, advance
+from opic.session.state import AnswerRecord, AnswerState, Feedback, Step, advance
 from opic.session.worker import Task, Worker
 
 from doubles import ExplodingQuestionWriter, ExplodingRater
@@ -566,3 +568,71 @@ def test_a_second_aggregate_on_a_session_already_done_does_not_raise(
     worker.drain()  # must not raise
 
     assert store.load(tmp_path, state.id).step is Step.DONE
+
+
+def test_publishing_sends_the_row_and_marks_it(tmp_path, ports):
+    from doubles import FakeSheet
+
+    sheet = FakeSheet()
+    root = tmp_path / "sessions"
+    worker = Worker(root=root, sheet=sheet, public_url="https://opic.example.com",
+                    sleeper=lambda _: None, **ports)
+    state = store.create(root, seed=1, now=datetime(2026, 8, 31, 14, 30, 52))
+    worker.update(
+        state.id,
+        lambda s: s.with_candidate(Candidate("김민준", "minjun@example.com")).with_feedback(
+            Feedback(5, "좋았습니다")
+        ),
+    )
+
+    worker.run_one(Task("publish", state.id))
+
+    assert len(sheet.rows) == 1
+    assert sheet.rows[0]["email"] == "minjun@example.com"
+    assert store.load(root, state.id).feedback.published is True
+
+
+def test_publishing_twice_sends_one_row(tmp_path, ports):
+    from doubles import FakeSheet
+
+    sheet = FakeSheet()
+    root = tmp_path / "sessions"
+    worker = Worker(root=root, sheet=sheet, sleeper=lambda _: None, **ports)
+    state = store.create(root, seed=1, now=datetime(2026, 8, 31, 14, 30, 52))
+    worker.update(state.id, lambda s: s.with_feedback(Feedback(5, "")))
+
+    worker.run_one(Task("publish", state.id))
+    worker.run_one(Task("publish", state.id))
+
+    assert len(sheet.rows) == 1
+
+
+def test_a_sheet_that_is_down_leaves_the_feedback_unpublished(tmp_path, ports):
+    from doubles import ExplodingSheet
+
+    sheet = ExplodingSheet()
+    root = tmp_path / "sessions"
+    worker = Worker(root=root, sheet=sheet, retries=2, sleeper=lambda _: None, **ports)
+    state = store.create(root, seed=1, now=datetime(2026, 8, 31, 14, 30, 52))
+    worker.update(state.id, lambda s: s.with_feedback(Feedback(5, "좋았습니다")))
+
+    with pytest.raises(RuntimeError):
+        worker.run_one(Task("publish", state.id))
+
+    assert sheet.calls == 2
+    saved = store.load(root, state.id).feedback
+    assert saved.published is False
+    assert saved.comment == "좋았습니다"
+
+
+def test_publishing_a_session_with_no_feedback_does_nothing(tmp_path, ports):
+    from doubles import FakeSheet
+
+    sheet = FakeSheet()
+    root = tmp_path / "sessions"
+    worker = Worker(root=root, sheet=sheet, sleeper=lambda _: None, **ports)
+    state = store.create(root, seed=1, now=datetime(2026, 8, 31, 14, 30, 52))
+
+    worker.run_one(Task("publish", state.id))
+
+    assert sheet.rows == []

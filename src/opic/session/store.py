@@ -18,6 +18,7 @@ from opic.core.survey import Housing, Occupation, RecentCourse, SurveyAnswers
 from opic.session.state import (
     AnswerRecord,
     AnswerState,
+    Feedback,
     QuestionRecord,
     SessionState,
     Step,
@@ -154,6 +155,15 @@ def to_json(state: SessionState) -> dict:
             }
             for a in state.answers
         ],
+        "feedback": (
+            None
+            if state.feedback is None
+            else {
+                "rating": state.feedback.rating,
+                "comment": state.feedback.comment,
+                "published": state.feedback.published,
+            }
+        ),
     }
 
 
@@ -194,6 +204,7 @@ def from_json(payload: dict, fallback: datetime | None = None) -> SessionState:
             )
             for a in payload["answers"]
         ),
+        feedback=_feedback_from_json(payload.get("feedback")),
     )
 
 
@@ -210,6 +221,16 @@ def _candidate_from_json(payload: dict | None) -> Candidate | None:
     if payload is None:
         return None
     return Candidate(name=payload["name"], email=payload["email"])
+
+
+def _feedback_from_json(payload: dict | None) -> Feedback | None:
+    if payload is None:
+        return None
+    return Feedback(
+        rating=payload["rating"],
+        comment=payload["comment"],
+        published=payload.get("published", False),
+    )
 
 
 def _survey_json(survey: SurveyAnswers | None) -> dict | None:
