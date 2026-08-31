@@ -10,11 +10,11 @@ import json
 import math
 import secrets
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -101,6 +101,25 @@ def _safe_audio_suffix(filename: str | None) -> str:
     return suffix if suffix in ALLOWED_AUDIO_SUFFIXES else ".webm"
 
 
+async def _read_capped(upload: UploadFile, limit: int) -> bytes | None:
+    """Leer la subida sin dejar que su tamaño lo decida el cliente.
+
+    `await upload.read()` a secas se traga lo que llegue, y con una sola cola un
+    fichero enorme la bloquea entera. `None` significa que se pasó.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await upload.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 # The real exam allows one replay per question, and the client enforces that.
 # A handful is still accepted here so a client bug shows up as odd metrics
 # rather than a refused upload — but not an unbounded list, which would let a
@@ -162,6 +181,10 @@ def _install_share_gate(app: FastAPI, token: str) -> None:
 
     @app.middleware("http")
     async def gate(request, call_next):
+        # El chequeo de salud queda fuera del secreto a propósito: un vigilante
+        # externo no tiene el token, y lo único que aprende es `ok`.
+        if request.url.path == "/healthz":
+            return await call_next(request)
         if secrets.compare_digest(request.cookies.get(SHARE_COOKIE, ""), token):
             return await call_next(request)
 
@@ -191,11 +214,56 @@ def _install_share_gate(app: FastAPI, token: str) -> None:
         return JSONResponse(status_code=404, content={"detail": "not found"})
 
 
+class _RateLimiter:
+    """Cuántas veces se ha hecho algo por origen, en una ventana móvil.
+
+    En memoria y por proceso: hay un solo proceso por diseño (`serve.py`), y
+    reiniciar el servidor perdona a todo el mundo, que es aceptable para lo que
+    esto defiende — que un enlace filtrado no genere mil exámenes a tu cuenta
+    de Anthropic mientras duermes.
+    """
+
+    def __init__(self, limit: int, window: timedelta, clock: Callable[[], datetime]) -> None:
+        self._limit = limit
+        self._window = window
+        self._clock = clock
+        self._seen: dict[str, list[datetime]] = {}
+
+    def allow(self, key: str) -> bool:
+        now = self._clock()
+        cutoff = now - self._window
+        recent = [when for when in self._seen.get(key, []) if when > cutoff]
+        if len(recent) >= self._limit:
+            self._seen[key] = recent
+            return False
+        recent.append(now)
+        self._seen[key] = recent
+        return True
+
+
+def _caller(request: Request) -> str:
+    """Quién pregunta, visto desde detrás del túnel.
+
+    cloudflared habla con este proceso desde 127.0.0.1, así que sin la cabecera
+    todos los invitados serían el mismo origen. `cf-connecting-ip` es fiable
+    aquí sólo porque el puerto no es alcanzable de otra forma: la pone
+    Cloudflare y nadie más llega a este proceso.
+    """
+    forwarded = request.headers.get("cf-connecting-ip") or request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 def create_app(
     root: Path,
     worker: Worker,
     clock: Callable[[], datetime] = datetime.now,
     share_token: str | None = None,
+    # Unos diez minutos de Opus a 64 kbps. Una respuesta de OPIc dura minuto y
+    # medio; esto es holgura, no un objetivo.
+    max_answer_bytes: int = 40 * 1024 * 1024,
+    creates_per_hour: int = 20,
 ) -> FastAPI:
     app = FastAPI(title="OPIc simulator")
     app.state.root = root
@@ -203,12 +271,20 @@ def create_app(
     if share_token:
         _install_share_gate(app, share_token)
 
+    creations = _RateLimiter(creates_per_hour, timedelta(hours=1), clock)
+
     here = Path(__file__).parent
     app.mount("/static", StaticFiles(directory=here / "static"), name="static")
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
         return (here / "templates" / "index.html").read_text(encoding="utf-8")
+
+    @app.get("/healthz")
+    def healthz():
+        if not worker.alive:
+            return JSONResponse(status_code=503, content={"status": "worker down"})
+        return {"status": "ok"}
 
     @app.exception_handler(TransitionError)
     async def transition_error_handler(request, exc: TransitionError):
@@ -232,7 +308,15 @@ def create_app(
             raise HTTPException(status_code=404, detail="session not found") from None
 
     @app.post("/api/sessions", status_code=201)
-    def create_session() -> dict:
+    def create_session(request: Request) -> dict:
+        if not creations.allow(_caller(request)):
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "detail": "too many sessions from this address",
+                    "reason": "too_many_sessions",
+                },
+            )
         state = store.create(root, seed=int(clock().timestamp()), now=clock())
         return session_json(state)
 
@@ -456,13 +540,24 @@ def create_app(
         suffix = _safe_audio_suffix(audio.filename)
         target = store.answer_audio_path(root, session_id, index, suffix)
         target.parent.mkdir(parents=True, exist_ok=True)
+
+        body = await _read_capped(audio, max_answer_bytes)
+        if body is None:
+            raise HTTPException(
+                status_code=413,
+                detail={
+                    "detail": f"the answer is larger than {max_answer_bytes} bytes",
+                    "reason": "answer_too_large",
+                },
+            )
+
         # Write to a unique temporary file first, and only publish it at the
         # final path once the claim below succeeds. Two uploads racing for the
         # same index would otherwise both pass the PENDING check above (it was
         # read outside any lock) and both write the same final path, silently
         # discarding whichever recording lost the write.
         temporary = target.with_name(f"{target.name}.{uuid4().hex}.part")
-        temporary.write_bytes(await audio.read())
+        temporary.write_bytes(body)
 
         def claim(s):
             current = next((a for a in s.answers if a.index == index), None)

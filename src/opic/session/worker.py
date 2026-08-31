@@ -127,6 +127,18 @@ class Worker:
             if task is not None:
                 self.run_one(task)
 
+    @property
+    def alive(self) -> bool:
+        """Si el hilo, habiendo arrancado, sigue en pie.
+
+        Un worker que nunca se arrancó cuenta como vivo: la CLI y las pruebas
+        conducen la cola con `drain()` y no tienen hilo. Lo que esto detecta es
+        el fallo silencioso que sí importa en el servidor — el hilo murió y
+        FastAPI sigue contestando, así que el candidato hace el examen entero y
+        no se transcribe nada.
+        """
+        return self._thread is None or self._thread.is_alive()
+
     def start(self) -> None:
         if self._thread is not None:
             return
