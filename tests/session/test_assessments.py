@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -76,6 +77,7 @@ def a_state(questions: tuple[QuestionRecord, ...], scored: set[int]) -> SessionS
     )
     return SessionState(
         id="s",
+        created_at=datetime(2026, 8, 19, 14, 30, 52),
         step=Step.GRADING,
         seed=1,
         survey=None,

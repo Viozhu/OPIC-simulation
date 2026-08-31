@@ -5,7 +5,8 @@ def test_creating_a_session_returns_its_id_and_first_step(client):
     response = client.post("/api/sessions")
     assert response.status_code == 201
     body = response.json()
-    assert body["id"] == "20260819-143052"
+    assert body["id"]
+    assert body["created_at"] == "2026-08-19T14:30:52"
     assert body["step"] == "survey"
 
 

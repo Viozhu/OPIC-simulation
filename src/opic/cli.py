@@ -5,6 +5,7 @@ import json
 import subprocess
 import urllib.error
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 
 import anthropic
@@ -103,7 +104,7 @@ def run_exam(
 
     session_dir.mkdir(parents=True, exist_ok=True)
     state = (
-        SessionState.new(session_id, seed)
+        SessionState.new(session_id, seed, created_at=datetime.now())
         .with_survey(answers)
         .with_level(self_assess_level)
     )

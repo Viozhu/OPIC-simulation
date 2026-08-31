@@ -22,8 +22,47 @@ def a_survey() -> SurveyAnswers:
     )
 
 
-def test_the_id_is_the_creation_timestamp():
-    assert store.new_session_id(datetime(2026, 8, 19, 14, 30, 52)) == "20260819-143052"
+def test_the_id_is_not_guessable():
+    first = store.new_session_id()
+    second = store.new_session_id()
+    assert first != second
+    assert len(first) >= 22
+    assert "-" not in first or not first[:8].isdigit()
+
+
+def test_create_records_when_it_happened(tmp_path: Path):
+    made = datetime(2026, 8, 31, 14, 30, 52)
+    state = store.create(tmp_path, seed=7, now=made)
+    assert state.created_at == made
+    assert store.load(tmp_path, state.id).created_at == made
+
+
+def test_two_sessions_in_the_same_second_do_not_share_a_folder(tmp_path: Path):
+    same = datetime(2026, 8, 31, 14, 30, 52)
+    first = store.create(tmp_path, seed=1, now=same)
+    second = store.create(tmp_path, seed=2, now=same)
+    assert first.id != second.id
+    assert store.load(tmp_path, first.id).seed == 1
+    assert store.load(tmp_path, second.id).seed == 2
+
+
+def test_a_legacy_session_takes_its_date_from_its_folder_name(tmp_path: Path):
+    directory = tmp_path / "20260819-143052"
+    directory.mkdir(parents=True)
+    state = store.create(tmp_path, seed=7, now=datetime(2026, 8, 31, 14, 0, 0))
+    payload = json.loads((tmp_path / state.id / "session.json").read_text(encoding="utf-8"))
+    del payload["created_at"]
+    payload["id"] = "20260819-143052"
+    (directory / "session.json").write_text(
+        json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+    )
+    assert store.load(tmp_path, "20260819-143052").created_at == datetime(2026, 8, 19, 14, 30, 52)
+
+
+def test_unfinished_sessions_come_back_oldest_first(tmp_path: Path):
+    late = store.create(tmp_path, seed=1, now=datetime(2026, 8, 31, 18, 0, 0))
+    early = store.create(tmp_path, seed=2, now=datetime(2026, 8, 31, 9, 0, 0))
+    assert store.list_unfinished(tmp_path) == (early.id, late.id)
 
 
 def test_create_writes_a_session_that_loads_back(tmp_path: Path):

@@ -8,6 +8,7 @@ exercised in milliseconds.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from datetime import datetime
 from enum import Enum
 
 from opic.core.survey import SurveyAnswers
@@ -83,6 +84,7 @@ class AnswerRecord:
 @dataclass(frozen=True, slots=True)
 class SessionState:
     id: str
+    created_at: datetime
     step: Step
     seed: int
     survey: SurveyAnswers | None
@@ -91,9 +93,10 @@ class SessionState:
     answers: tuple[AnswerRecord, ...]
 
     @classmethod
-    def new(cls, session_id: str, seed: int) -> SessionState:
+    def new(cls, session_id: str, seed: int, created_at: datetime) -> SessionState:
         return cls(
             id=session_id,
+            created_at=created_at,
             step=Step.SURVEY,
             seed=seed,
             survey=None,
