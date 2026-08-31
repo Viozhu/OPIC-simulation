@@ -56,7 +56,23 @@ def claim_the_lock(root: Path, pid: int | None = None, is_running=_is_running) -
     lock.write_text(str(pid or os.getpid()), encoding="utf-8")
 
 
-def app():
+def app(local: bool = False):
+    """Build the real app. `local=True` is the CLI's `--serve`, bound to
+    `127.0.0.1` and reached only from this machine; everything else — the
+    uvicorn factory path, which is what a tunnel or a launchd agent runs — is
+    reachable by whoever finds the hostname, so it refuses to start without
+    the share gate rather than come up silently public. A `.env.deploy` that
+    goes missing or fails to `source` (a renamed file, a launchd restart with
+    a stale environment) must not turn into an ungated server that keeps
+    answering `/healthz` with `ok`; it has to fail loudly instead.
+    """
+    token = os.environ.get("OPIC_SHARE_TOKEN", "").strip()
+    if not local and not token:
+        raise RuntimeError(
+            "OPIC_SHARE_TOKEN is not set; refusing to start without the share "
+            "gate, since this server would otherwise be publicly readable. "
+            "Set OPIC_SHARE_TOKEN in .env.deploy."
+        )
     claim_the_lock(SESSIONS)
     client = make_llm_client()
     worker = Worker(
@@ -82,5 +98,5 @@ def app():
     return create_app(
         root=SESSIONS,
         worker=worker,
-        share_token=os.environ.get("OPIC_SHARE_TOKEN", "").strip() or None,
+        share_token=token or None,
     )

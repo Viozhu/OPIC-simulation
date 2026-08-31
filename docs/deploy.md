@@ -63,6 +63,14 @@ con acceso «cualquier usuario». La URL que da es `OPIC_SHEET_URL`.
 **Esa URL es el secreto entero:** quien la tenga puede añadir filas. Vive en
 `.env.deploy` y en ningún otro sitio.
 
+**El enlace de la columna `report_url` sólo abre desde un navegador que ya
+tenga la cookie de la puerta** — la que deja una visita anterior a la URL con
+`?k=...` en las últimas doce horas. Sin esa cookie da 404, no un error
+explicable. Para abrir uno en frío: visitar primero
+`https://<tu-dominio>/?k=<OPIC_SHARE_TOKEN>` y luego pulsar el enlace de la
+hoja. El token no va en la URL de la hoja a propósito — la hoja se comparte
+con mucha más soltura que `.env.deploy`.
+
 ## Lo que empeora respecto a `share.sh`
 
 `share.sh` es seguro porque vive un examen: el nombre de máquina es nuevo en
@@ -86,6 +94,7 @@ Lo que lo compensa, y hay que mantenerlo:
 | Síntoma | Dónde mirar |
 |---|---|
 | El enlace da 502 | `data/logs/server.err.log`. Normalmente la clave de la API o `data/sessions/.server.lock` de un proceso anterior |
+| El servidor no arranca, `data/logs/server.err.log` dice que falta la puerta | `OPIC_SHARE_TOKEN` no está en `.env.deploy` (o no se cargó). Es deliberado: el servidor se niega a arrancar sin la puerta antes que quedar público en silencio |
 | El enlace no resuelve | `data/logs/tunnel.err.log`, y `cloudflared tunnel info opic` |
 | `/healthz` da 503 | El hilo del worker murió. El servidor contesta pero no transcribe nada. `launchctl kickstart -k gui/$(id -u)/com.opic.server` |
 | Todo en pie y nadie puede grabar | Sin HTTPS no hay micrófono. Comprobar que se entra por el nombre de Cloudflare y no por `localhost` desde fuera |

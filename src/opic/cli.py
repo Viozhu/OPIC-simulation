@@ -383,7 +383,7 @@ def main(argv: list[str] | None = None) -> int:
 
         from opic.web.serve import app
 
-        uvicorn.run(app(), host="127.0.0.1", port=8000)
+        uvicorn.run(app(local=True), host="127.0.0.1", port=8000)
         return 0
 
     if args.survey is None or args.level is None:

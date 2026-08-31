@@ -40,6 +40,7 @@ from opic.session.publish import sheet_row
 from opic.session.state import (
     ORDER,
     AnswerState,
+    Feedback,
     QuestionRecord,
     SessionState,
     Step,
@@ -360,6 +361,14 @@ class Worker:
         state = store.load(self._root, session_id)
         if state.feedback is None or state.feedback.published:
             return
+        # Capturado antes de la llamada a la hoja, que puede tardar más de un
+        # minuto entre reintentos: si un segundo POST llega mientras tanto,
+        # sobrescribe el feedback en disco y encola su propia publicación.
+        # Marcar `published` sobre lo que haya entonces confundiría la fila
+        # que sí se mandó (la primera) con la que quedó pendiente (la
+        # segunda). Comparar por valor — `Feedback` es un dataclass congelado
+        # — es lo que distingue "sigue siendo lo que mandé" de "ya no lo es".
+        sent = state.feedback
         result = None
         path = store.result_path(self._root, session_id)
         if path.exists():
@@ -369,10 +378,16 @@ class Worker:
                 result = None
         row = sheet_row(state, result, self._public_url)
         self._attempt(lambda: self._sheet.append(row))
-        self.update(
-            session_id,
-            lambda s: s.with_feedback(replace(s.feedback, published=True)),
-        )
+        self.update(session_id, lambda s: self._mark_sent(s, sent))
+
+    def _mark_sent(self, s: SessionState, sent: Feedback) -> SessionState:
+        if s.feedback != sent:
+            # Otro POST llegó y sobrescribió el feedback mientras la hoja
+            # respondía. Lo que hay en disco ahora nunca salió: se deja tal
+            # cual, pendiente, para que la tarea de publicación que ese POST
+            # ya encoló sea quien lo mande.
+            return s
+        return s.with_feedback(replace(sent, published=True))
 
     def _advance_to_done(self, s: SessionState) -> SessionState:
         while s.step is not Step.DONE:

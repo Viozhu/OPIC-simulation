@@ -636,3 +636,30 @@ def test_publishing_a_session_with_no_feedback_does_nothing(tmp_path, ports):
     worker.run_one(Task("publish", state.id))
 
     assert sheet.rows == []
+
+
+def test_a_revision_that_arrives_while_the_sheet_call_is_in_flight_is_not_marked_sent(
+    tmp_path, ports
+):
+    """FINDING: the sheet call can take a while (retries plus backoff). If a
+    second feedback lands on disk before it returns, `_publish` must not
+    stamp `published` over a row that was never actually sent — the row on
+    disk stays pending, for the second POST's own publish task to send.
+    """
+    root = tmp_path / "sessions"
+    worker = Worker(root=root, sheet=None, sleeper=lambda _: None, **ports)
+    state = store.create(root, seed=1, now=datetime(2026, 8, 31, 14, 30, 52))
+    worker.update(state.id, lambda s: s.with_feedback(Feedback(5, "first")))
+
+    class ReviseMidCall:
+        def append(self, row: dict[str, str]) -> None:
+            worker.update(state.id, lambda s: s.with_feedback(Feedback(2, "second")))
+
+    worker._sheet = ReviseMidCall()
+
+    worker.run_one(Task("publish", state.id))
+
+    saved = store.load(root, state.id).feedback
+    assert saved.rating == 2
+    assert saved.comment == "second"
+    assert saved.published is False
