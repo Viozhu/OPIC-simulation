@@ -11,12 +11,27 @@
     <!-- El entorno de un agente de launchd no es el de tu terminal: no hay
          `.env` cargado, ni PATH de Homebrew, ni uv. Por eso el `source` y la
          ruta absoluta. -->
-    <string>set -a; source REPO/.env.deploy; set +a; cd REPO &amp;&amp; UV --directory REPO run uvicorn --factory opic.web.serve:app --host 127.0.0.1 --port 8000</string>
+    <!-- La cola traduce el 143 en 0. El servidor se apaga solo mandándose un
+         SIGTERM (`opic/web/shutdown.py`), y uvicorn, tras cerrar en orden,
+         vuelve a lanzarse la señal para conservar su semántica: el proceso
+         siempre muere de SIGTERM y sale 143, apagado deliberado o no. Sin esta
+         línea, `SuccessfulExit` de abajo lee ese 143 como un fallo y launchd
+         levanta el servidor acto seguido. Cualquier otro código sigue siendo
+         un fallo y sí revive. -->
+    <string>set -a; source REPO/.env.deploy; set +a; cd REPO &amp;&amp; UV --directory REPO run uvicorn --factory opic.web.serve:app --host 127.0.0.1 --port 8000; status=$?; [ $status -eq 143 ] &amp;&amp; exit 0; exit $status</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
+  <!-- Revive un fallo, no una salida limpia. El servidor se apaga solo veinte
+       minutos después del último examen terminado (`opic/web/shutdown.py`), y
+       con `KeepAlive` a secas launchd lo levantaría acto seguido: el apagado
+       automático no existiría en la máquina donde más falta hace. Volver a
+       levantarlo es `launchctl kickstart -k gui/$UID/com.opic.server`. -->
   <key>KeepAlive</key>
-  <true/>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
   <key>StandardOutPath</key>
   <string>REPO/data/logs/server.log</string>
   <key>StandardErrorPath</key>

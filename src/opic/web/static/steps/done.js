@@ -154,7 +154,22 @@ function renderFrame(app, url, html, state, api) {
   actions.className = "actions";
   actions.append(save, open, restartButton());
 
-  app.replaceChildren(frame, actions, feedbackCard(state, api));
+  app.replaceChildren(frame, actions, closingNote(), feedbackCard(state, api));
+}
+
+// El servidor se apaga solo veinte minutos después del último examen
+// terminado (`opic/web/shutdown.py`). Lo que está en pantalla sobrevive — el
+// informe llegó entero en un `srcdoc` y no vuelve a pedirle nada al origen —
+// pero recargar, imprimir desde la pestaña nueva o mandar el feedback deja de
+// funcionar en cuanto el proceso muere. Decirlo aquí cuesta una línea; no
+// decirlo convierte un apagado previsto en una página rota.
+function closingNote() {
+  const note = document.createElement("p");
+  note.className = "closing-note";
+  note.textContent =
+    "시험이 끝났습니다. 잠시 후 서버가 자동으로 종료되니, 리포트를 저장하려면 지금 내려받아 주세요. " +
+    "이 창은 그대로 두면 계속 보실 수 있습니다.";
+  return note;
 }
 
 // Both fetches failed: nothing to show, so the candidate gets the retry

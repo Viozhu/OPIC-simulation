@@ -94,9 +94,14 @@ Traceback|Error|Exception|FAILED| 5[0-9][0-9] |RaterError|credit|rate_limit|over
 
 ## Teardown
 
-Stop the server, then confirm the port is actually free — a process that
-ignored the signal looks identical to a clean shutdown until the next launch
-fails.
+The server usually does this itself: twenty minutes after the last exam reaches
+its report, with nobody else inside, it exits (`opic/web/shutdown.py`). So a
+port that is free without anyone having stopped anything is the expected
+ending, not a crash — check `data/logs/` only if it went before the report did.
+
+To stop it earlier, stop the server, then confirm the port is actually free —
+a process that ignored the signal looks identical to a clean shutdown until the
+next launch fails.
 
 ```bash
 lsof -nP -iTCP:8000 -sTCP:LISTEN || echo "libre"

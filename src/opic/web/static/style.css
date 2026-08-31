@@ -210,6 +210,9 @@ progress::-moz-progress-bar { background: var(--accent); border-radius: 999px; }
   box-shadow: var(--shadow);
 }
 .report-open { font-size: 0.9rem; }
+/* El aviso de apagado: informativo, no una alarma — no lleva `issues`,
+   que es el rojo reservado para lo que salió mal. */
+.closing-note { color: var(--ink-2); font-size: 0.9rem; margin-top: 1rem; }
 
 /* The fallback report — `renderMinimal` in done.js — is a heading, a list and
    the raw JSON. It exists for the case where the rendered page could not be

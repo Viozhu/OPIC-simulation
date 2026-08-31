@@ -6,10 +6,12 @@ No exam logic lives here. Anything that decides what happens next belongs in
 
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import secrets
 from collections.abc import Callable
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
@@ -54,6 +56,7 @@ from opic.session import pages
 from opic.session import store
 from opic.session.state import AnswerRecord, AnswerState, Feedback, Step, TransitionError, advance
 from opic.session.worker import Task, Worker
+from opic.web.shutdown import IdleWatch, watch_and_stop
 
 
 class SurveyPayload(BaseModel):
@@ -264,9 +267,50 @@ def create_app(
     # medio; esto es holgura, no un objetivo.
     max_answer_bytes: int = 40 * 1024 * 1024,
     creates_per_hour: int = 20,
+    # Veinte minutos después del último examen terminado, y con nadie más
+    # dentro, el proceso se apaga solo: ver `web/shutdown.py`. `None` lo
+    # desactiva, que es lo que quiere un test y lo que querría un servidor que
+    # alguien decida dejar encendido.
+    shutdown_after: timedelta | None = timedelta(minutes=20),
 ) -> FastAPI:
-    app = FastAPI(title="OPIc simulator")
+    def step_on_disk(session_id: str) -> Step | None:
+        try:
+            return store.load(root, session_id).step
+        except (FileNotFoundError, OSError, ValueError, KeyError):
+            # Una sesión ilegible no puede decidir nada; se queda como se vio
+            # por última vez y el reloj de abandono acaba con ella.
+            return None
+
+    watch = (
+        IdleWatch(shutdown_after, clock=clock, step_of=step_on_disk, busy=lambda: worker.busy)
+        if shutdown_after is not None
+        else None
+    )
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        if watch is None:
+            yield
+            return
+        # Nace con el servidor y muere con él. `cancel` sin esperar: la tarea no
+        # tiene nada que cerrar, y esto corre dentro del apagado que ella misma
+        # pudo haber pedido.
+        task = asyncio.create_task(watch_and_stop(watch))
+        try:
+            yield
+        finally:
+            task.cancel()
+            # Esperarla, no sólo cancelarla: si el bucle se queda pendiente
+            # cuando el loop se cierra, asyncio escribe un `Task was destroyed
+            # but it is pending!` en el log de errores — justo el sitio donde
+            # `docs/deploy.md` manda mirar para distinguir un apagado limpio de
+            # un fallo.
+            with suppress(asyncio.CancelledError):
+                await task
+
+    app = FastAPI(title="OPIc simulator", lifespan=lifespan)
     app.state.root = root
+    app.state.idle_watch = watch
 
     if share_token:
         _install_share_gate(app, share_token)
@@ -293,6 +337,12 @@ def create_app(
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
     def session_json(state) -> dict:
+        # Junto con `load_or_404`, esto deja "visto por última vez" al día sin
+        # un latido que alguien tenga que acordarse de mandar. Hace falta
+        # además de aquél porque una sesión recién creada no se carga: se
+        # crea.
+        if watch is not None:
+            watch.note(state.id, state.step)
         payload = store.to_json(state)
         payload["questions_ready"] = state.questions_ready
         # The browser fetches audio through its own route; the host's directory
@@ -303,9 +353,16 @@ def create_app(
 
     def load_or_404(session_id: str):
         try:
-            return store.load(root, session_id)
+            state = store.load(root, session_id)
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="session not found") from None
+        # Aquí y no sólo en `session_json`: durante la corrección el navegador
+        # sólo pide `/progress`, que devuelve un recuento y no el estado. Una
+        # sesión que pasa media hora corrigiéndose parecería abandonada, y el
+        # apagado automático la contaría como tal.
+        if watch is not None:
+            watch.note(state.id, state.step)
+        return state
 
     @app.post("/api/sessions", status_code=201)
     def create_session(request: Request) -> dict:

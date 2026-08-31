@@ -89,11 +89,34 @@ Lo que lo compensa, y hay que mantenerlo:
   `launchctl kickstart -k gui/$(id -u)/com.opic.server`. Invalida las cookies
   vivas, así que hazlo entre exámenes.
 
+## Se apaga solo
+
+Veinte minutos después del último examen terminado, y sólo si no queda ninguna
+sesión viva, el servidor sale por su propio pie (`opic/web/shutdown.py`). Por
+eso `KeepAlive` en `com.opic.server.plist` es `SuccessfulExit: false` y no
+`true`: launchd revive un fallo, no una salida deliberada — con `true` el
+apagado automático no existiría precisamente en la máquina donde está pensado.
+
+Y por eso el comando del plist termina traduciendo el 143 en 0. El apagado es
+un SIGTERM que el proceso se manda a sí mismo, y uvicorn, después de cerrar en
+orden, vuelve a lanzarse la señal para conservar su semántica: el proceso
+siempre muere de SIGTERM y sale 143, sea deliberado o no. Sin esa traducción,
+launchd lee un fallo y lo levanta de vuelta.
+
+El túnel sigue en pie y el enlace da 502 hasta que lo levantes:
+
+```bash
+launchctl kickstart -k gui/$(id -u)/com.opic.server
+```
+
+Si prefieres dejarlo encendido siempre, el apagado se desactiva pasando
+`shutdown_after=None` a `create_app` en `web/serve.py`.
+
 ## Cuando falla
 
 | Síntoma | Dónde mirar |
 |---|---|
-| El enlace da 502 | `data/logs/server.err.log`. Normalmente la clave de la API o `data/sessions/.server.lock` de un proceso anterior |
+| El enlace da 502 | `data/logs/server.err.log`. Normalmente la clave de la API o `data/sessions/.server.lock` de un proceso anterior. Si el log termina en un apagado limpio, no falló nada: se apagó solo (ver abajo) y hay que levantarlo |
 | El servidor no arranca, `data/logs/server.err.log` dice que falta la puerta | `OPIC_SHARE_TOKEN` no está en `.env.deploy` (o no se cargó). Es deliberado: el servidor se niega a arrancar sin la puerta antes que quedar público en silencio |
 | El enlace no resuelve | `data/logs/tunnel.err.log`, y `cloudflared tunnel info opic` |
 | `/healthz` da 503 | El hilo del worker murió. El servidor contesta pero no transcribe nada. `launchctl kickstart -k gui/$(id -u)/com.opic.server` |
