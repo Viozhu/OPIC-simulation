@@ -58,8 +58,14 @@ def test_an_http_error_is_reported_with_status_code():
     def opener_that_raises_http_error(request, timeout=None):
         raise urllib.error.HTTPError("https://example.com", 500, "Server Error", {}, None)
 
-    with pytest.raises(SheetError, match="500"):
+    with pytest.raises(SheetError, match="answered 500"):
         AppsScriptSheet("https://example.com/hook", opener=opener_that_raises_http_error).append({"a": "b"})
+
+    # Also verify the error message doesn't contain the transport failure wording
+    try:
+        AppsScriptSheet("https://example.com/hook", opener=opener_that_raises_http_error).append({"a": "b"})
+    except SheetError as e:
+        assert "did not answer" not in str(e)
 
 
 def test_the_null_sink_swallows_everything():
