@@ -26,11 +26,11 @@ async function load(app, state, api) {
   const url = `/api/sessions/${state.id}/page`;
   const page = await fetchPage(url);
   if (page.ready) {
-    renderFrame(app, url, page.html);
+    renderFrame(app, url, page.html, state, api);
     return;
   }
   if (page.html !== null) {
-    await waitForWrittenPage(app, url, page.html);
+    await waitForWrittenPage(app, url, page.html, state, api);
     return;
   }
   // No rendered page. `result.json` may still be there — it is written before
@@ -42,7 +42,7 @@ async function load(app, state, api) {
     renderRetry(app, state, api);
     return;
   }
-  renderMinimal(app, raw);
+  renderMinimal(app, raw, state, api);
 }
 
 // One GET, and the page's own text comes back with it. Pointing an iframe's
@@ -70,7 +70,7 @@ async function fetchPage(url) {
 // page existed, or one whose narrative call failed, has nothing better coming
 // and must not trap anyone behind a spinner. Either exit frames the page —
 // the provisional one is a whole report, only missing the judged sections.
-async function waitForWrittenPage(app, url, provisional) {
+async function waitForWrittenPage(app, url, provisional, state, api) {
   const heading = document.createElement("h2");
   heading.textContent = "리포트를 마무리하는 중입니다";
   const note = document.createElement("p");
@@ -102,7 +102,7 @@ async function waitForWrittenPage(app, url, provisional) {
     const page = await fetchPage(url);
     if (page.ready) {
       app.removeAttribute("aria-busy");
-      renderFrame(app, url, page.html);
+      renderFrame(app, url, page.html, state, api);
       return;
     }
     if (page.html !== null) {
@@ -110,10 +110,10 @@ async function waitForWrittenPage(app, url, provisional) {
     }
   }
   app.removeAttribute("aria-busy");
-  renderFrame(app, url, latest);
+  renderFrame(app, url, latest, state, api);
 }
 
-function renderFrame(app, url, html) {
+function renderFrame(app, url, html, state, api) {
   const frame = document.createElement("iframe");
   frame.className = "report-frame";
   // `srcdoc`, not `src`: the document is already here. The page is
@@ -154,7 +154,7 @@ function renderFrame(app, url, html) {
   actions.className = "actions";
   actions.append(save, open, restartButton());
 
-  app.replaceChildren(frame, actions);
+  app.replaceChildren(frame, actions, feedbackCard(state, api));
 }
 
 // Both fetches failed: nothing to show, so the candidate gets the retry
@@ -176,7 +176,7 @@ function renderRetry(app, state, api) {
 // time. This is the phase-3 view: level, how many answers it rests on, the
 // per-dimension list, the raw JSON, and a way to start over, plus one
 // honest sentence that the detailed report is the part that is missing.
-function renderMinimal(app, raw) {
+function renderMinimal(app, raw, state, api) {
   const level = document.createElement("h2");
   level.textContent = `최종 등급: ${raw.final_level}`;
 
@@ -210,6 +210,7 @@ function renderMinimal(app, raw) {
     missing,
     dimensions,
     rawDetailsFor(raw),
+    feedbackCard(state, api),
     restartButton(),
   );
 }
@@ -222,6 +223,74 @@ function rawDetailsFor(raw) {
   rawPre.textContent = JSON.stringify(raw, null, 2);
   rawDetails.append(rawSummary, rawPre);
   return rawDetails;
+}
+
+// El examen ya terminó, así que esto no es un paso más de la máquina de
+// estados: es una tarjeta debajo del informe. Se envía una vez y se sustituye
+// por el agradecimiento; un candidato que insista puede recargar, y el
+// servidor se limitará a sobrescribir su propia fila pendiente.
+function feedbackCard(state, api) {
+  const card = document.createElement("form");
+  card.className = "feedback";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "이 모의고사는 어땠나요?";
+
+  const scale = document.createElement("fieldset");
+  const legend = document.createElement("legend");
+  legend.textContent = "1점(별로) – 5점(아주 좋음)";
+  scale.append(legend);
+  for (const value of [1, 2, 3, 4, 5]) {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "rating";
+    input.value = String(value);
+    input.required = true;
+    label.append(input, ` ${value}`);
+    scale.append(label);
+  }
+
+  const commentLabel = document.createElement("label");
+  const comment = document.createElement("textarea");
+  comment.name = "comment";
+  comment.rows = 4;
+  comment.maxLength = 2000;
+  comment.placeholder = "자유롭게 남겨 주세요. (선택)";
+  commentLabel.append("의견 ", comment);
+
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.textContent = "보내기";
+
+  const status = document.createElement("p");
+  status.className = "issues";
+
+  card.append(heading, scale, commentLabel, submit, status);
+
+  card.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    submit.disabled = true;
+    status.textContent = "";
+    const data = new FormData(card);
+    try {
+      await api.send("POST", `/api/sessions/${state.id}/feedback`, {
+        rating: Number(data.get("rating")),
+        comment: String(data.get("comment") ?? ""),
+      });
+      const thanks = document.createElement("p");
+      thanks.textContent = "의견 감사합니다.";
+      card.replaceChildren(heading, thanks);
+    } catch (error) {
+      const issues = error.payload?.issues;
+      status.textContent = issues?.length
+        ? issues.map((issue) => issue.message_ko).join(" ")
+        : "의견을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.";
+      submit.disabled = false;
+    }
+  });
+
+  return card;
 }
 
 function restartButton() {

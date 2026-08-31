@@ -237,3 +237,24 @@ pre {
 }
 
 audio { display: block; margin: 0 0 1rem; max-width: 100%; }
+
+/* La tarjeta va después del informe, y tiene que leerse como algo aparte de
+   él: el informe es el documento que el candidato se lleva; esto es una
+   pregunta nuestra. */
+.feedback {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid currentColor;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.feedback fieldset {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.feedback textarea {
+  width: 100%;
+}
