@@ -143,6 +143,10 @@ a { color: var(--accent); text-underline-offset: 2px; }
 /* ------------------------------------------------------- meter and clock */
 
 .panel { display: flex; align-items: center; gap: 0.9rem; margin: 0 0 1rem; }
+/* Mientras suena el 재생 la grabación está en pausa y el reloj parado; el
+   medidor sigue vivo porque el micrófono sigue abierto. Atenuar el panel es
+   lo que evita que eso se lea como "sigo grabando". */
+.panel.paused { opacity: 0.45; }
 
 .meter {
   flex: 1 1 12rem;
@@ -210,6 +214,9 @@ progress::-moz-progress-bar { background: var(--accent); border-radius: 999px; }
   box-shadow: var(--shadow);
 }
 .report-open { font-size: 0.9rem; }
+/* El aviso de apagado: informativo, no una alarma — no lleva `issues`,
+   que es el rojo reservado para lo que salió mal. */
+.closing-note { color: var(--ink-2); font-size: 0.9rem; margin-top: 1rem; }
 
 /* The fallback report — `renderMinimal` in done.js — is a heading, a list and
    the raw JSON. It exists for the case where the rendered page could not be

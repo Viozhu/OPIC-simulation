@@ -61,6 +61,15 @@ uv run python -m opic.cli --serve      # http://localhost:8000
 Needs macOS for `say` and an Anthropic API key (or `OPIC_LLM=ollama` and
 `ollama serve`). The first run downloads the Whisper model.
 
+**El servidor se apaga solo.** Veinte minutos después de que el último examen
+llega al informe, y sólo si no queda nadie dentro, el proceso sale limpiamente:
+un examen a medias, o una sesión que dio señales de vida hace menos de esos
+veinte minutos, lo mantiene en pie. La regla está en `opic/web/shutdown.py`. El
+informe que ya está en pantalla sobrevive —llegó entero, no vuelve a pedir
+nada—, pero recargar no. En el despliegue de `launchd`, `KeepAlive` sólo revive
+un fallo, así que volver a levantarlo es explícito:
+`launchctl kickstart -k gui/$UID/com.opic.server`.
+
 ### En pie sin nadie delante
 
 `tools/share.sh` sirve para un examen suelto: túnel efímero, enlace nuevo cada

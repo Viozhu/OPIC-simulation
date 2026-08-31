@@ -90,6 +90,12 @@ class Worker:
         self._queue: queue.Queue[Task | None] = queue.Queue()
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
+        # Si hay una tarea corriendo *ahora*. La cola vacía no significa nada
+        # por sí sola: durante los cinco minutos que tarda una evaluación la
+        # cola está vacía y el worker está trabajando. Lo lee el apagado
+        # automático, que sin esto puede matar el proceso a mitad de una
+        # corrección. Un `bool` basta: lo escribe sólo el hilo del worker.
+        self._running = False
 
     # --- state access -----------------------------------------------------
 
@@ -126,7 +132,21 @@ class Worker:
             except queue.Empty:
                 return
             if task is not None:
-                self.run_one(task)
+                self._running = True
+                try:
+                    self.run_one(task)
+                finally:
+                    self._running = False
+
+    @property
+    def busy(self) -> bool:
+        """Si queda trabajo por hacer o hay algo corriendo.
+
+        Existe para el apagado automático (`opic/web/shutdown.py`): el hilo es
+        `daemon`, así que un proceso que sale con una evaluación a medias se la
+        lleva por delante y el candidato se queda sin nota.
+        """
+        return self._running or not self._queue.empty()
 
     @property
     def alive(self) -> bool:
@@ -164,10 +184,13 @@ class Worker:
             task = self._queue.get()
             if task is None:
                 return
+            self._running = True
             try:
                 self.run_one(task)
             except Exception:  # noqa: BLE001 - a dead worker is worse than a logged failure
                 traceback.print_exc()
+            finally:
+                self._running = False
 
     # --- tasks ------------------------------------------------------------
 

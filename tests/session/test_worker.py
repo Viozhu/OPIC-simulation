@@ -663,3 +663,11 @@ def test_a_revision_that_arrives_while_the_sheet_call_is_in_flight_is_not_marked
     assert saved.rating == 2
     assert saved.comment == "second"
     assert saved.published is False
+
+
+def test_a_worker_with_nothing_queued_is_not_busy(tmp_path, ports):
+    """El apagado automático lee esto para no matar una corrección a medias."""
+    worker = a_worker(tmp_path, ports)
+    assert not worker.busy
+    worker.submit(Task("generate", "no-such-session", None))
+    assert worker.busy

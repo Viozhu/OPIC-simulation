@@ -16,17 +16,42 @@ export function recordingPanel(stream) {
   clock.textContent = "0:00";
   element.append(clock);
 
-  const started = Date.now();
+  // The clock counts recorded seconds, not seconds on screen: 재생 pauses the
+  // recorder, and a clock that kept running through it would tell the
+  // candidate their answer is longer than the one being graded.
+  let started = Date.now();
+  let banked = 0;
+  let ticking = null;
+
   const paint = () => {
-    const seconds = Math.floor((Date.now() - started) / 1000);
+    const running = ticking === null ? 0 : Date.now() - started;
+    const seconds = Math.floor((banked + running) / 1000);
     clock.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   };
-  const ticking = setInterval(paint, 1000);
+  ticking = setInterval(paint, 1000);
 
   return {
     element,
-    stop() {
+    pause() {
+      if (ticking === null) return;
+      banked += Date.now() - started;
       clearInterval(ticking);
+      ticking = null;
+      // The level bar keeps moving — it is drawn from the live microphone,
+      // which a paused recorder does not close. Dimming the panel is what
+      // stops that from reading as "still recording".
+      element.classList.add("paused");
+      paint();
+    },
+    resume() {
+      if (ticking !== null) return;
+      started = Date.now();
+      ticking = setInterval(paint, 1000);
+      element.classList.remove("paused");
+    },
+    stop() {
+      if (ticking !== null) clearInterval(ticking);
+      ticking = null;
       meter.stop();
     },
   };
