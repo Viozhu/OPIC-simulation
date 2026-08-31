@@ -60,3 +60,10 @@ class NarrativeWriter(Protocol):
     """
 
     def write_narrative(self, report: Report) -> Narrative: ...
+
+
+@runtime_checkable
+class SheetSink(Protocol):
+    """Dónde va a parar una fila de resultados. Una hoja de cálculo, o nada."""
+
+    def append(self, row: dict[str, str]) -> None: ...
