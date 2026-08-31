@@ -568,8 +568,26 @@ def create_app(
         El orden es lo importante: `worker.update` deja el feedback en
         `session.json` antes de que Google entre en la historia, así que el
         envío del candidato no espera a la red y no falla por ella.
+
+        Una vez publicada, la fila ya salió hacia la hoja: sobrescribir el
+        feedback aquí no la corregiría, sólo añadiría una segunda. Mientras
+        sigue pendiente, en cambio, no hay fila que duplicar todavía, así que
+        un reenvío se limita a sobrescribir su propia fila pendiente.
         """
-        load_or_404(session_id)
+        state = load_or_404(session_id)
+        if state.feedback is not None and state.feedback.published:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "issues": [
+                        {
+                            "error": "feedback_already_sent",
+                            "detail": "",
+                            "message_ko": "이미 의견을 보내주셨습니다. 감사합니다.",
+                        }
+                    ]
+                },
+            )
         if payload.rating not in range(1, 6):
             return JSONResponse(
                 status_code=422,

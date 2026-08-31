@@ -40,7 +40,6 @@ from opic.session.publish import sheet_row
 from opic.session.state import (
     ORDER,
     AnswerState,
-    Feedback,
     QuestionRecord,
     SessionState,
     Step,

@@ -49,3 +49,60 @@ def test_a_very_long_comment_is_cut_not_refused(
 def test_an_unknown_session_is_a_404(client: TestClient):
     response = client.post("/api/sessions/nope/feedback", json={"rating": 3, "comment": ""})
     assert response.status_code == 404
+
+
+def test_a_second_submission_after_publishing_is_refused(
+    client: TestClient, worker, sessions_root: Path, scored_session: str
+):
+    client.post(
+        f"/api/sessions/{scored_session}/feedback",
+        json={"rating": 5, "comment": "좋았습니다"},
+    )
+    worker.drain()
+
+    response = client.post(
+        f"/api/sessions/{scored_session}/feedback",
+        json={"rating": 1, "comment": "다시 생각해보니 별로였습니다"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["issues"][0]["message_ko"].strip()
+    saved = store.load(sessions_root, scored_session).feedback
+    assert saved.rating == 5
+    assert saved.comment == "좋았습니다"
+
+
+def test_a_second_submission_while_still_pending_overwrites_it(
+    client: TestClient, sessions_root: Path, scored_session: str
+):
+    client.post(
+        f"/api/sessions/{scored_session}/feedback",
+        json={"rating": 5, "comment": "좋았습니다"},
+    )
+
+    response = client.post(
+        f"/api/sessions/{scored_session}/feedback",
+        json={"rating": 2, "comment": "다시 생각해보니 별로였습니다"},
+    )
+
+    assert response.status_code == 202
+    saved = store.load(sessions_root, scored_session).feedback
+    assert saved.rating == 2
+    assert saved.comment == "다시 생각해보니 별로였습니다"
+    assert saved.published is False
+
+
+def test_overwriting_a_pending_submission_still_sends_only_one_row(
+    client: TestClient, worker, sheet, scored_session: str
+):
+    client.post(
+        f"/api/sessions/{scored_session}/feedback",
+        json={"rating": 5, "comment": "좋았습니다"},
+    )
+    client.post(
+        f"/api/sessions/{scored_session}/feedback",
+        json={"rating": 2, "comment": "다시 생각해보니 별로였습니다"},
+    )
+    worker.drain()
+
+    assert len(sheet.rows) == 1
