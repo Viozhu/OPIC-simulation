@@ -48,6 +48,21 @@ export function startRecording(stream) {
     // rather than asking for it a second time — a second getUserMedia is a
     // second prompt on some browsers and a second thing that can fail.
     stream,
+    // A pause leaves no gap in the recording: MediaRecorder simply stops
+    // adding to it, so the blob goes straight from the last frame before the
+    // pause to the first one after. That is what lets the question be replayed
+    // over the speakers without landing in the answer.
+    //
+    // Both guard on `state` rather than on a flag of our own, because they
+    // race with events: `stop()` pausing the question audio fires a `pause`
+    // event that arrives after the recorder is already inactive, and resuming
+    // an inactive recorder throws InvalidStateError.
+    pause() {
+      if (recorder.state === "recording") recorder.pause();
+    },
+    resume() {
+      if (recorder.state === "paused") recorder.resume();
+    },
     stop() {
       return new Promise((resolve) => {
         recorder.onstop = () => {

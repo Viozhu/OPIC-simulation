@@ -71,12 +71,25 @@ export async function render(state, {api, show}) {
       status.textContent = {
         playing: "질문 재생 중…",
         recording: "녹음 중…",
+        // 재생 pauses the recorder, so the panel's clock stops and the answer
+        // does not grow while the question is talking. Saying so is the point:
+        // a candidate who sees 녹음 중 stay up through the replay has no way to
+        // know their answer is not being cut into by it.
+        replaying: "질문 재생 중… (녹음 일시정지)",
         uploading: "전송 중…",
       }[phase] ?? "";
-      status.className = phase === "recording" ? "recording" : "";
+      // The microphone is still open through a replay, so this stays the
+      // recording screen — it is the same answer, paused, not a new phase of
+      // the exam.
+      const live = phase === "recording" || phase === "replaying";
+      status.className = live ? "recording" : "";
       if (phase === "recording" && panel === null && info.stream) {
         panel = recordingPanel(info.stream);
         status.after(panel.element);
+      }
+      if (panel !== null) {
+        if (phase === "replaying") panel.pause();
+        if (phase === "recording") panel.resume();
       }
       if (phase === "uploading" && panel !== null) {
         panel.stop();
@@ -84,13 +97,24 @@ export async function render(state, {api, show}) {
         panel = null;
       }
       replay.disabled = phase !== "recording" || machine.replaysLeft() === 0;
-      next.disabled = phase !== "recording";
+      // 다음 stays live through the replay. Disabling it would trap the
+      // candidate for as long as the audio lasts — and for good if it stalls.
+      next.disabled = !live;
     },
   });
 
   replay.addEventListener("click", async () => {
     replay.disabled = true;
-    await machine.replay();
+    try {
+      await machine.replay();
+    } catch (error) {
+      // The replay never played. Nothing is broken — the recording is still
+      // running, the answer is unaffected — so this does not take over the
+      // status line mid-answer; it just hands the button back if there is
+      // still a replay left to spend.
+      console.error(error);
+      replay.disabled = machine.replaysLeft() === 0;
+    }
   });
 
   const retry = document.createElement("button");

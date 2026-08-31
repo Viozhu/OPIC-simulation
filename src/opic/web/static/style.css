@@ -143,6 +143,10 @@ a { color: var(--accent); text-underline-offset: 2px; }
 /* ------------------------------------------------------- meter and clock */
 
 .panel { display: flex; align-items: center; gap: 0.9rem; margin: 0 0 1rem; }
+/* Mientras suena el 재생 la grabación está en pausa y el reloj parado; el
+   medidor sigue vivo porque el micrófono sigue abierto. Atenuar el panel es
+   lo que evita que eso se lea como "sigo grabando". */
+.panel.paused { opacity: 0.45; }
 
 .meter {
   flex: 1 1 12rem;

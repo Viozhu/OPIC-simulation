@@ -36,39 +36,42 @@ export function askAndRecord({audioUrl, onState}) {
   let replays = 0;
   const audio = new Audio(audioUrl);
 
-  // The microphone keeps running through a replay — stopping it would cut the
-  // recording in two and lose whatever the candidate said over the question.
-  // So the replay is timed instead, and the server takes those seconds out of
-  // the answering window. `startedAt` is null until recording begins, which is
-  // what makes the first playthrough (before the microphone is even open) not
-  // count as one of these.
-  let startedAt = null;
-  let openedAt = null;
-  const replaySpans = [];
+  // The recording is paused while the question plays over the speakers, and
+  // resumed the moment it stops. Two things fall out of that: the question
+  // cannot leak into the answer at all (echo cancellation only ever attenuated
+  // it), and the seconds spent listening are not in the recording, so nothing
+  // downstream has to subtract them — the answer is as long as the answer.
+  //
+  // This only ever applies to the replay. On the first playthrough the
+  // microphone is not open yet, and `session` is null, so both calls are
+  // no-ops.
+  //
+  // `ended` fires on a replay that ran out; `pause` on one cut short by 다음.
+  // Both lift the same pause, and `paused` is what makes the second one a
+  // no-op — including the `pause` event 다음 queues, which lands after the
+  // recorder has already stopped and would otherwise put "녹음 중" back on a
+  // screen that is already uploading.
+  let paused = false;
 
-  const elapsed = () => (performance.now() - startedAt) / 1000;
+  function liftPause(announce) {
+    if (!paused) return;
+    paused = false;
+    session.resume();
+    if (announce) onState("recording", {stream});
+  }
 
-  audio.addEventListener("play", () => {
-    if (startedAt === null) return;
-    openedAt = elapsed();
-  });
-  // `ended` fires on a replay that finished; `pause` on one cut short by 다음.
-  // Both close the same span, and the null check makes a double fire harmless.
-  const closeSpan = () => {
-    if (openedAt === null) return;
-    replaySpans.push([openedAt, elapsed()]);
-    openedAt = null;
-  };
-  audio.addEventListener("ended", closeSpan);
-  audio.addEventListener("pause", closeSpan);
+  const resumeRecording = () => liftPause(true);
+  audio.addEventListener("ended", resumeRecording);
+  audio.addEventListener("pause", resumeRecording);
+  // A replay that dies after it started — a decode failure, a range request
+  // the tunnel dropped — is not required to fire `pause` as well. Without this
+  // listener that leaves the recorder paused with nothing left to lift it, and
+  // the candidate keeps talking into a recording that is not happening.
+  audio.addEventListener("error", resumeRecording);
 
   async function beginRecording() {
     stream = await askForMicrophone();
     session = startRecording(stream);
-    // Taken after `startRecording` returns, so the clock these spans are
-    // measured against starts where the recording does, give or take the
-    // milliseconds MediaRecorder spends opening its first chunk.
-    startedAt = performance.now();
     // The caller owns what is on screen, so it is the caller that gets the
     // stream — the panel it mounts must attach to this microphone and not ask
     // for another one.
@@ -86,7 +89,31 @@ export function askAndRecord({audioUrl, onState}) {
     if (replays >= 1) return false;
     replays += 1;
     audio.currentTime = 0;
-    await audio.play();
+    // Paused before the audio starts, not after: a pause that lands late
+    // leaves the first word of the question inside the answer, which is the
+    // whole thing this avoids.
+    if (session !== null) {
+      session.pause();
+      paused = true;
+      onState("replaying", {});
+    }
+    try {
+      await audio.play();
+    } catch (error) {
+      // play() rejected, so neither `ended` nor `pause` is coming and nothing
+      // else would ever lift the pause — the candidate would be left talking
+      // into a recorder that is not recording. Undo it here and let the
+      // caller see the failure.
+      //
+      // The replay is handed back too. The ordinary way this rejects is 다음
+      // pressed while play() is still pending: `stop()` pauses the audio and
+      // the promise aborts. That case is over anyway — but a genuine playback
+      // failure must not cost the candidate the one replay they get without
+      // ever having heard it.
+      replays -= 1;
+      resumeRecording();
+      throw error;
+    }
     return true;
   }
 
@@ -104,6 +131,12 @@ export function askAndRecord({audioUrl, onState}) {
     // A replay left running past 다음 would otherwise keep talking over the
     // next question's screen, whether the stop below succeeds or not.
     audio.pause();
+    // The `pause` event that lands here is a queued task, so it arrives after
+    // `session.stop()` has already run. Lifting the pause inline is what makes
+    // sure the recorder is not still paused when it is asked to stop — and
+    // silently, since the screen is on its way to "uploading" and has no use
+    // for one last "recording".
+    liftPause(false);
     let recorded;
     try {
       // `session.stop()` releases the microphone tracks itself once the
@@ -122,9 +155,11 @@ export function askAndRecord({audioUrl, onState}) {
       throw error;
     }
     onState("uploading", {});
-    // The spans ride along with the blob because they only mean anything
-    // against this recording: they are offsets into it, not wall-clock times.
-    return {...recorded, replaySpans: replaySpans.slice()};
+    // Empty, always: the replay is not in this recording any more. The field
+    // stays because the upload still carries it and the server still parses
+    // it — sessions recorded before this change have real spans on disk, and
+    // the metrics that subtract them are still the ones reading those.
+    return {...recorded, replaySpans: []};
   }
 
   return {play, replay, skip, stop, replaysLeft: () => 1 - replays};
