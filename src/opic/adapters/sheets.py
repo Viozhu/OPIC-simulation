@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
 import urllib.request
 
 DEFAULT_TIMEOUT_S = 20.0
@@ -56,6 +57,8 @@ class AppsScriptSheet:
         try:
             with self._opener(request, timeout=self._timeout) as response:
                 status = getattr(response, "status", 200)
+        except urllib.error.HTTPError as error:
+            raise SheetError(f"the sheet answered {error.code}") from error
         except OSError as error:
             raise SheetError(f"the sheet did not answer: {error}") from error
         if status >= 400:

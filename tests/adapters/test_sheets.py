@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import urllib.error
 from contextlib import contextmanager
 
 import pytest
@@ -51,6 +52,14 @@ def test_a_refusal_raises_so_the_worker_retries():
     opener = recording_opener(status=500)
     with pytest.raises(SheetError):
         AppsScriptSheet("https://example.com/hook", opener=opener).append({"a": "b"})
+
+
+def test_an_http_error_is_reported_with_status_code():
+    def opener_that_raises_http_error(request, timeout=None):
+        raise urllib.error.HTTPError("https://example.com", 500, "Server Error", {}, None)
+
+    with pytest.raises(SheetError, match="500"):
+        AppsScriptSheet("https://example.com/hook", opener=opener_that_raises_http_error).append({"a": "b"})
 
 
 def test_the_null_sink_swallows_everything():

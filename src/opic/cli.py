@@ -256,7 +256,7 @@ def find_sessions(root: Path, needle: str, out=print) -> int:
         if result.exists():
             try:
                 level = json.loads(result.read_text(encoding="utf-8")).get("final_level", "")
-            except (OSError, ValueError):
+            except (OSError, ValueError, AttributeError):
                 level = "?"
         rows.append((state.created_at, state.id, state.candidate, state.step.value, level))
 

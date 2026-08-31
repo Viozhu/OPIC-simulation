@@ -42,3 +42,14 @@ def test_a_session_with_no_candidate_does_not_crash_it(tmp_path: Path):
     store.create(tmp_path, seed=1, now=datetime(2026, 8, 31, 9, 0))
     lines: list[str] = []
     assert find_sessions(tmp_path, "minjun", out=lines.append) == 0
+
+
+def test_a_malformed_result_json_does_not_crash_it(tmp_path: Path):
+    wanted = _a_session(tmp_path, "김민준", "minjun@example.com", datetime(2026, 8, 31, 9, 0))
+    result = store.result_path(tmp_path, wanted)
+    result.write_text("[1, 2, 3]", encoding="utf-8")
+    lines: list[str] = []
+    assert find_sessions(tmp_path, "minjun", out=lines.append) == 0
+    printed = "\n".join(lines)
+    assert wanted in printed
+    assert "?" in printed
