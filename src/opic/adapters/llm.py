@@ -5,6 +5,7 @@ import urllib.request
 from typing import Any
 
 from opic.adapters import config
+from opic.adapters.fencing import FENCE_RULE, fenced, mint
 from opic.core.metrics import AnswerMetrics
 from opic.core.questions import Question, QuestionSlot, QuestionType
 from opic.core.rubric import LEVEL_DESCRIPTORS, ActflLevel, Dimension
@@ -195,15 +196,23 @@ def rating_prompt(
     landed on IM1 or IM2, and on the two strongest 81% and 84% did. That is a
     rater consistent about a narrow middle rather than one that discriminates. `LEVEL_DESCRIPTORS` and the sustained-performance rule
     below are what ACTFL rates on, stated where the rater can see them.
+
+    The transcript arrives fenced. The token is minted here rather than taken
+    as an argument so that no caller can forget to vary it — `fencing.py` has
+    the reason a candidate speaking into a microphone counts as someone
+    writing into this prompt. Everything the rater is actually told stays
+    fixed; only the markers move between calls.
     """
     bands = "\n".join(
         f"  {level.name} — {LEVEL_DESCRIPTORS[level]}" for level in ActflLevel
     )
+    nonce = mint(transcript.text)
     return (
         "You are an OPIc rater. Evaluate ONE spoken answer.\n\n"
         f"QUESTION (type: {question.slot.qtype.value}): {question.text_en}\n\n"
         "TRANSCRIPT (verbatim, errors preserved — do NOT assume typos):\n"
-        f"{transcript.text}\n\n"
+        f"{FENCE_RULE}\n"
+        f"{fenced(transcript.text, nonce)}\n\n"
         "OBJECTIVE METRICS (already computed — never recompute or invent these):\n"
         f"words_per_minute: {metrics.words_per_minute:.0f}\n"
         f"pause_ratio: {metrics.pause_ratio:.2f}\n"

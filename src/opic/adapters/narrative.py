@@ -20,6 +20,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
+from opic.adapters.fencing import FENCE_RULE, fenced, mint
 from opic.core.narrative import (
     Analysis,
     AnswerRewrite,
@@ -334,7 +335,24 @@ def _exam_sheet(report: Report, with_evidence: bool = True) -> str:
     fifteen answers cannot do it from one answer at a time, and a model asked
     to rewrite answer nine needs the other fourteen to know what the candidate
     has already told the examiner about herself.
+
+    Which is also what makes this sheet worth fencing: fifteen transcripts
+    reach one prompt here, so a single answer spoken as an instruction would be
+    read while the model writes about all fifteen. Each transcript is fenced
+    on its own rather than the sheet as a whole, because the sheet also carries
+    lines that ARE instructions — the levels, the episode demand — and those
+    belong outside. One token for the whole sheet, minted against every
+    transcript in it.
+
+    The evidence lines are the one place candidate words still travel unfenced.
+    They are left that way on purpose: the analysis prompt requires the model
+    to copy `quote` and `correction_en` character for character, and markers
+    around them would put two more strings in reach of that copy. They are also
+    the rater's short excerpts rather than the whole answer, and they only exist
+    because `parse_rating` found them verbatim in a transcript that was fenced
+    when it was rated.
     """
+    nonce = mint(*(answer.transcript_text for answer in report.answers))
     lines: list[str] = []
     for answer in report.answers:
         if answer.state != "scored":
@@ -363,7 +381,8 @@ def _exam_sheet(report: Report, with_evidence: bool = True) -> str:
                 "set invented=true. A rewrite that describes a routine here is "
                 "wrong even if every word of it is true."
             )
-        lines.append(f"  transcript: {answer.transcript_text}")
+        lines.append("  transcript:")
+        lines.append(fenced(answer.transcript_text, nonce))
         if with_evidence:
             for score in answer.scores:
                 for item in score.evidence:
@@ -415,7 +434,7 @@ Korean, except the English quotes, which are already fixed.
 
 {_overview(report)}
 
-The exam, answer by answer, with the grader's evidence:
+The exam, answer by answer, with the grader's evidence. {FENCE_RULE}
 
 {_exam_sheet(report)}
 
@@ -471,7 +490,7 @@ def rewrites_prompt(report: Report) -> str:
 exam as it would sound at AL — Advanced Low, the top of the nine-band scale —
 so that she can see the distance and read the target aloud.
 
-The exam, answer by answer:
+The exam, answer by answer. {FENCE_RULE}
 
 {_exam_sheet(report, with_evidence=False)}
 
