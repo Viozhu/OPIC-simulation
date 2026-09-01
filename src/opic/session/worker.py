@@ -75,6 +75,11 @@ class Worker:
         retries: int = 3,
         sleeper: Callable[[float], None] = time.sleep,
         join_timeout: float = 5.0,
+        # Una respuesta de OPIc dura minuto y medio, así que esto es más de tres
+        # veces una respuesta real: holgura, no un objetivo — el mismo criterio
+        # que el límite de bytes de `create_app`. Lo que pase de aquí no es una
+        # respuesta, es un fichero que alguien mandó a ver qué pasa.
+        max_answer_seconds: float = 300.0,
     ) -> None:
         self._root = root
         self._tts = tts
@@ -87,6 +92,7 @@ class Worker:
         self._retries = retries
         self._sleep = sleeper
         self._join_timeout = join_timeout
+        self._max_answer_seconds = max_answer_seconds
         self._queue: queue.Queue[Task | None] = queue.Queue()
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
@@ -319,6 +325,20 @@ class Worker:
     def _judge(self, state: SessionState, index: int, audio: Path) -> AnswerAssessment:
         question = answers_on_disk.question_from_record(state.questions[index])
         transcript = self._attempt(lambda: self._stt.transcribe(audio))
+        # Se recorta, no se rechaza, y aquí y no antes.
+        #
+        # La duración real no se sabe hasta que el audio está decodificado, y
+        # para entonces la transcripción ya está pagada: negarse en este punto
+        # no ahorraría el rato de Whisper que ya se gastó, y sí le costaría al
+        # candidato una pregunta corregida. Quien decide cuándo para la
+        # grabación es el navegador, no él — un botón de parar que se atasca no
+        # debería costar una nota.
+        #
+        # Lo que sí queda acotado es todo lo que viene después, que es lo que
+        # crece con la entrada y lo que se paga por token: las métricas y el
+        # prompt del corrector. El techo de bytes de `create_app` sigue siendo
+        # lo único que acota a Whisper, y por eso sigue estando.
+        transcript = transcript.clipped(self._max_answer_seconds)
         replayed = tuple(
             Span(start, end) for start, end in state.answers[index].replay_spans
         )

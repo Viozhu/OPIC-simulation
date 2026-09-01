@@ -218,7 +218,10 @@ def _install_share_gate(app: FastAPI, token: str) -> None:
 
 
 class _RateLimiter:
-    """Cuántas veces se ha hecho algo por origen, en una ventana móvil.
+    """Cuántas veces se ha hecho algo por clave, en una ventana móvil.
+
+    La clave suele ser el origen, y entonces esto limita por dirección; con una
+    clave fija (`EVERYONE`) el mismo recuento limita al proceso entero.
 
     En memoria y por proceso: hay un solo proceso por diseño (`serve.py`), y
     reiniciar el servidor perdona a todo el mundo, que es aceptable para lo que
@@ -244,15 +247,26 @@ class _RateLimiter:
         return True
 
 
+# La clave del techo global: todos los orígenes metidos en el mismo cubo.
+EVERYONE = "*"
+
+
 def _caller(request: Request) -> str:
     """Quién pregunta, visto desde detrás del túnel.
 
     cloudflared habla con este proceso desde 127.0.0.1, así que sin la cabecera
-    todos los invitados serían el mismo origen. `cf-connecting-ip` es fiable
-    aquí sólo porque el puerto no es alcanzable de otra forma: la pone
-    Cloudflare y nadie más llega a este proceso.
+    todos los invitados serían el mismo origen. `cf-connecting-ip` la pone
+    Cloudflare, y detrás del túnel nadie más llega hasta aquí para ponerla.
+
+    `x-forwarded-for` ya no se mira, aunque diga lo mismo: la pone quien hace la
+    petición. Mientras el puerto sólo sea alcanzable por el túnel da igual, pero
+    el día que este proceso esté expuesto de otra forma — una red local, un
+    puerto abierto — el limitador de sesiones se saltaba cambiando una cabecera
+    en cada intento. Sin ella ese caso cae en la IP del socket: si hay un proxy
+    delante que no es Cloudflare, todos sus clientes cuentan como uno y el
+    límite aprieta de más, que es el error que se puede permitir.
     """
-    forwarded = request.headers.get("cf-connecting-ip") or request.headers.get("x-forwarded-for")
+    forwarded = request.headers.get("cf-connecting-ip")
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
@@ -267,6 +281,11 @@ def create_app(
     # medio; esto es holgura, no un objetivo.
     max_answer_bytes: int = 40 * 1024 * 1024,
     creates_per_hour: int = 20,
+    # Y un techo para el proceso entero, porque el de arriba es por dirección y
+    # quien rota de red lo cobra entero otra vez en cada una. Un día de uso real
+    # son un puñado de exámenes; cincuenta es holgura de sobra para un portátil
+    # que corrige cada uno con su propia CPU.
+    creates_per_day: int = 50,
     # Veinte minutos después del último examen terminado, y con nadie más
     # dentro, el proceso se apaga solo: ver `web/shutdown.py`. `None` lo
     # desactiva, que es lo que quiere un test y lo que querría un servidor que
@@ -316,6 +335,7 @@ def create_app(
         _install_share_gate(app, share_token)
 
     creations = _RateLimiter(creates_per_hour, timedelta(hours=1), clock)
+    creations_today = _RateLimiter(creates_per_day, timedelta(days=1), clock)
 
     here = Path(__file__).parent
     app.mount("/static", StaticFiles(directory=here / "static"), name="static")
@@ -372,6 +392,22 @@ def create_app(
                 detail={
                     "detail": "too many sessions from this address",
                     "reason": "too_many_sessions",
+                },
+            )
+        # Después del límite por dirección y no antes. `allow` apunta el intento
+        # además de juzgarlo, así que preguntar aquí primero dejaría que una
+        # sola dirección insistente se comiera el día entero con peticiones que
+        # el límite de arriba iba a rechazar de todas formas.
+        #
+        # Dos motivos y no uno: el primero se le pasa a esta dirección dentro de
+        # una hora, el segundo no se le pasa a nadie hasta mañana, y el
+        # navegador no puede decir lo mismo en los dos casos.
+        if not creations_today.allow(EVERYONE):
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "detail": "this server has created too many sessions today",
+                    "reason": "too_many_sessions_today",
                 },
             )
         state = store.create(root, seed=int(clock().timestamp()), now=clock())

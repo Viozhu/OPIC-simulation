@@ -81,8 +81,12 @@ propietario, en pie a todas horas.
 Lo que lo compensa, y hay que mantenerlo:
 
 - Los ids de sesión son aleatorios, así que un examen no se encuentra a mano.
-- `POST /api/sessions` está limitado por origen.
-- Las subidas tienen tope de tamaño.
+- `POST /api/sessions` está limitado por origen y, además, por día para todo
+  el proceso: quien rota de red pasa el primero tantas veces como redes tenga,
+  y el segundo no.
+- Las subidas tienen tope de tamaño, y las respuestas tope de duración: lo que
+  pase de cinco minutos se corrige recortado a esos cinco, para que un fichero
+  sin fin no se convierta en un prompt sin fin.
 - Un límite de gasto en la clave de Anthropic. **Ponlo en la consola de
   Anthropic**; no hay nada en este repositorio que pueda imponerlo.
 - Rotar `OPIC_SHARE_TOKEN` de vez en cuando: cambiarlo en `.env.deploy` y
