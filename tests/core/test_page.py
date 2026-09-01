@@ -13,6 +13,7 @@ import html
 import re
 from html.parser import HTMLParser
 
+from opic.adapters.narrative import parse_analysis, parse_rewrites
 from opic.core.metrics import LOW_CONFIDENCE_THRESHOLD
 from opic.core.narrative import (
     Analysis,
@@ -148,6 +149,132 @@ def test_content_is_escaped_not_injected():
     assert "&#x27;" in page
     assert "<script" not in page.lower()
     assert "onerror=" not in page.lower()
+
+
+# ------------------------------------------------- the sanitizer/page seam
+
+
+def _hostile_prose() -> str:
+    """Four attacks in one string, the ones named in issue #17: an executable
+    tag, an event handler riding an otherwise-inert tag, an allowed tag
+    carrying an attribute, and stray quotes — plus the three bare allowed
+    tags, so the same string that tries to break `_prose` also proves it
+    still renders what it should."""
+    return (
+        "<script>alert(1)</script>"
+        "<img src=x onerror=alert(1)>"
+        '<b onclick="alert(1)">clickme</b>'
+        """ she said "hi" and it's fine """
+        "<b>bold</b><i>italic</i><code>snippet</code>"
+    )
+
+
+def a_hostile_analysis_payload(report) -> dict:
+    """Every `_ko` field `parse_analysis` reads, filled with `_hostile_prose`.
+
+    `page.py` inserts each of these into the page without escaping, on the
+    promise that `clean_markup` already ran on it. A field left out here would
+    leave that promise unchecked for that one spot.
+    """
+    quote, correction = sorted(quotes_in_report(report))[0]
+    hostile = _hostile_prose()
+    return {
+        "verdict_ko": hostile,
+        "dimensions_lede_ko": hostile,
+        "dimensions_close_ko": hostile,
+        "distribution_ko": hostile,
+        "patterns": [
+            {
+                "title_ko": hostile,
+                "blurb_ko": hostile,
+                "items": [
+                    {
+                        "answer_index": 1,
+                        "quote": quote,
+                        "correction_en": correction,
+                        "issue_ko": hostile,
+                    }
+                ],
+            }
+        ],
+        "patterns_close_ko": hostile,
+        "gap": {
+            "title_ko": hostile,
+            "blurb_ko": hostile,
+            "answer_indexes": [1],
+            "close_ko": hostile,
+        },
+        "splits_close_ko": hostile,
+        "sound_ko": hostile,
+        "caveats": [{"title_ko": hostile, "body_ko": hostile}],
+        "closing_recap_ko": hostile,
+        "closing_why_ko": hostile,
+    }
+
+
+def test_the_model_cannot_reach_the_page_with_a_script():
+    """The seam between the sanitizer and `page.py`, not either half alone.
+
+    `tests/adapters/test_narrative.py` already proves `clean_markup` escapes
+    a `<script>` and an `onerror` in isolation — that is not what is missing.
+    What ties nothing together is the other half: `_prose` trusts
+    `ALLOWED_TAGS` to have kept the markup inert, and nothing fails if that
+    trust becomes wrong. So this sends hostile prose through the real
+    adapter (`parse_analysis`, `parse_rewrites`) — the path a model's output
+    actually takes — and inspects the HTML `render_html` produced, not the
+    sanitizer's return value. Widen `ALLOWED_TAGS`, or let a tag keep an
+    attribute, and this is the test that goes red.
+    """
+    report = real_report()
+    analysis = parse_analysis(a_hostile_analysis_payload(report), report)
+    rewrites = parse_rewrites(
+        {
+            "rewrites": [
+                {
+                    "answer_index": 1,
+                    "text_en": "x" * 200,
+                    "why_ko": _hostile_prose(),
+                    "invented": False,
+                }
+            ]
+        },
+        report,
+    )
+    narrative = Narrative(analysis=analysis, rewrites=rewrites)
+
+    page = render_html(report, META, narrative)
+
+    tags: list[tuple[str, list[tuple[str, str | None]]]] = []
+
+    class Collector(HTMLParser):
+        def handle_starttag(self, tag, attrs):
+            tags.append((tag, attrs))
+
+    Collector().feed(page)
+
+    names = [tag for tag, _ in tags]
+    # the page's own docstring is explicit: "no script, no image" — so any
+    # parsed instance of either can only have come from the narrative
+    assert "script" not in names, "a <script> tag reached the rendered page"
+    assert "img" not in names, "an <img> tag reached the rendered page"
+
+    for tag, attrs in tags:
+        for attr_name, _ in attrs:
+            assert not attr_name.lower().startswith("on"), (
+                f"<{tag} {attr_name}=...> is a live event handler in the report"
+            )
+        if tag in ("b", "i", "code"):
+            assert attrs == [], f"<{tag}> carries an attribute: {attrs}"
+
+    # the three legitimate tags still render as tags, not as escaped text —
+    # the failure mode this guards against is silence, not a missing feature
+    assert "<b>bold</b>" in page
+    assert "<i>italic</i>" in page
+    assert "<code>snippet</code>" in page
+
+    # the attack text is still visible, just inert — clean_markup neutralises
+    # markup, it does not delete the model's words
+    assert "alert(1)" in page
 
 
 def test_the_page_parses_with_every_tag_closed():
