@@ -164,6 +164,12 @@ def to_json(state: SessionState) -> dict:
                 "published": state.feedback.published,
             }
         ),
+        # Las claves de la sesión se guardan porque hay que reconocerlas
+        # después: la del dueño en cada petición, y la de lectura al construir
+        # el `report_url` de la hoja, mucho más tarde que el examen. `web/app.py`
+        # las quita de la respuesta antes de que salgan al navegador.
+        "owner_key": state.owner_key,
+        "read_key": state.read_key,
     }
 
 
@@ -205,6 +211,11 @@ def from_json(payload: dict, fallback: datetime | None = None) -> SessionState:
             for a in payload["answers"]
         ),
         feedback=_feedback_from_json(payload.get("feedback")),
+        # `.get`: las sesiones grabadas antes de que estas claves existieran no
+        # las tienen, y tienen que seguir cargando — su informe es lo único que
+        # queda de un examen real.
+        owner_key=payload.get("owner_key"),
+        read_key=payload.get("read_key"),
     )
 
 

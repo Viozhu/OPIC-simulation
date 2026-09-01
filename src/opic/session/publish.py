@@ -31,6 +31,25 @@ def _as_text(value: str) -> str:
     return f"'{value}" if value[:1] in _FORMULA_TRIGGERS else value
 
 
+def _report_url(base: str, state: SessionState) -> str:
+    """El enlace que el dueño abrirá desde la hoja, con lo que hace falta para
+    que se abra.
+
+    La cookie de la sesión la tiene el candidato, en su navegador y en su
+    máquina. El dueño pincha esto desde la hoja, meses después si hace falta, y
+    sin la clave de lectura vería el mismo 404 que un desconocido. La clave va
+    en la URL porque la URL es lo único que la hoja puede guardar.
+
+    Sin clave — una sesión anterior a que existieran — el enlace se queda como
+    era: no hay nada que añadir, y su informe sigue abriéndose sin ella.
+    """
+    page = f"{base}/api/sessions/{state.id}/page"
+    if state.read_key is None:
+        return page
+    # `token_urlsafe` no produce nada que haya que escapar en una query.
+    return f"{page}?r={state.read_key}"
+
+
 def sheet_row(state: SessionState, result: dict | None, public_url: str) -> dict[str, str]:
     candidate = state.candidate
     feedback = state.feedback
@@ -45,6 +64,6 @@ def sheet_row(state: SessionState, result: dict | None, public_url: str) -> dict
         "comment": feedback.comment if feedback else "",
         # Sin URL pública no hay enlace que ofrecer: el servidor no puede saber
         # por sí mismo bajo qué nombre lo ven desde fuera.
-        "report_url": f"{base}/api/sessions/{state.id}/page" if base else "",
+        "report_url": _report_url(base, state) if base else "",
     }
     return {key: _as_text(value) for key, value in row.items()}

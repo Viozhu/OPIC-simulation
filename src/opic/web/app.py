@@ -54,7 +54,15 @@ from opic.core.survey import (
 from opic.session import assessments as answers_on_disk
 from opic.session import pages
 from opic.session import store
-from opic.session.state import AnswerRecord, AnswerState, Feedback, Step, TransitionError, advance
+from opic.session.state import (
+    AnswerRecord,
+    AnswerState,
+    Feedback,
+    SessionState,
+    Step,
+    TransitionError,
+    advance,
+)
 from opic.session.worker import Task, Worker
 from opic.web.shutdown import IdleWatch, watch_and_stop
 
@@ -167,15 +175,85 @@ SHARE_KEY_PARAM = "k"
 SHARE_COOKIE_MAX_AGE = 12 * 60 * 60
 
 
+def _cookie_is_secure(request: Request) -> bool:
+    """cloudflared speaks plain HTTP to this process and reports the real scheme
+    in a header. Marking a cookie Secure on a plain HTTP run would mean the
+    browser never sends it back."""
+    return request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+
+
+OWNER_COOKIE = "opic_owner"
+READ_KEY_PARAM = "r"
+# Bastante más que un examen — cuarenta minutos de preguntas y unos veinte de
+# corrección — porque lo que se pierde al caducar es el propio informe.
+OWNER_COOKIE_MAX_AGE = 12 * 60 * 60
+
+
+def _owner_cookie_path(session_id: str) -> str:
+    """El alcance de la cookie es la sesión, no el sitio.
+
+    Con `path=/` habría una sola cookie `opic_owner` por navegador y la segunda
+    sesión pisaría a la primera: el candidato que empieza otro examen perdería
+    el informe del anterior sin que nada se lo dijera. Acotada así, el navegador
+    guarda una por sesión y manda sólo la que corresponde a la URL que pide.
+    """
+    return f"/api/sessions/{session_id}"
+
+
+def _is_owner(state: SessionState, request: Request) -> bool:
+    """Si quien pregunta es el navegador que creó esta sesión.
+
+    Una sesión sin `owner_key` no tiene dueño y la abre cualquiera: son las
+    grabadas antes de que existieran las claves, todas del dueño del servidor y
+    ya en su disco. Inventarles una clave al cargarlas no protegería nada
+    (nadie la tendría) y las volvería ilegibles para siempre, así que la
+    ausencia se lee como lo que es: una sesión de antes de la puerta.
+    """
+    if state.owner_key is None:
+        return True
+    return secrets.compare_digest(request.cookies.get(OWNER_COOKIE, ""), state.owner_key)
+
+
+def _has_read_key(state: SessionState, request: Request) -> bool:
+    """Si quien pregunta trae la clave de lectura de esta sesión en la URL.
+
+    Se acepta en cada visita, sin la redirección 303 con la que
+    `_install_share_gate` saca su secreto de la barra. La diferencia es dónde
+    vive cada clave. El token compartido llega una vez, por fuera, y luego el
+    invitado se queda una hora dentro de la aplicación recargando y navegando:
+    sacarlo de la barra ahorra toda esa exposición, y la cookie que lo sustituye
+    hace falta igualmente para las peticiones siguientes. Esta clave, en cambio,
+    vive en una celda de la hoja de cálculo y se pincha desde allí cada vez; una
+    redirección la escondería de la barra durante una carga de página mientras
+    la copia que importa sigue en la hoja. Y para poder guardarla haría falta una
+    segunda cookie — la del dueño no, o el enlace de la hoja se convertiría en
+    permiso de escritura —, es decir una tercera forma de autenticar una página
+    que se abre una vez y se cierra.
+
+    Lo que la barra sí filtraría es un `Referer`: la página pide una fuente a
+    Google. Con la política por defecto de los navegadores
+    (`strict-origin-when-cross-origin`) sale el origen y no la query, así que la
+    clave no viaja.
+    """
+    if state.read_key is None:
+        return False
+    offered = request.query_params.get(READ_KEY_PARAM, "")
+    return secrets.compare_digest(offered, state.read_key)
+
+
 def _install_share_gate(app: FastAPI, token: str) -> None:
     """Put the whole app behind one secret carried in the link.
 
     This exists for the one case where the server runs on a laptop and a tunnel
     makes it reachable by one other person. It is not authentication: there is
-    one secret, everybody who has the link holds it, and nothing here checks
-    who owns which session. It only ensures that a stranger who finds the
-    hostname — tunnel hostnames are not private, and they get scanned — sees a
-    404 instead of somebody's exam.
+    one secret and everybody who has the link holds it. It only ensures that a
+    stranger who finds the hostname — tunnel hostnames are not private, and they
+    get scanned — sees a 404 instead of somebody's exam.
+
+    Telling one guest from another is a separate layer on top of this one, and
+    it is per session: see `_is_owner`. This gate stops the stranger at the
+    door; the session's own key stops a guest from reading another guest's exam
+    once both are inside.
 
     The key is accepted on a GET, which is how a browser opens a shared link.
     Every other method needs the cookie the GET leaves behind, so a token that
@@ -204,11 +282,7 @@ def _install_share_gate(app: FastAPI, token: str) -> None:
                 max_age=SHARE_COOKIE_MAX_AGE,
                 httponly=True,
                 samesite="lax",
-                # cloudflared speaks plain HTTP to this process and reports the
-                # real scheme in a header. Marking the cookie Secure on a plain
-                # HTTP run would mean the browser never sends it back.
-                secure=request.headers.get("x-forwarded-proto", request.url.scheme)
-                == "https",
+                secure=_cookie_is_secure(request),
             )
             return response
 
@@ -357,13 +431,20 @@ def create_app(
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
     def session_json(state) -> dict:
-        # Junto con `load_or_404`, esto deja "visto por última vez" al día sin
+        # Junto con `_seen`, esto deja "visto por última vez" al día sin
         # un latido que alguien tenga que acordarse de mandar. Hace falta
         # además de aquél porque una sesión recién creada no se carga: se
         # crea.
         if watch is not None:
             watch.note(state.id, state.step)
         payload = store.to_json(state)
+        # Las claves se guardan en `session.json`, no se devuelven. La del dueño
+        # ya viaja en una cookie que JavaScript no puede leer, y devolverla aquí
+        # la metería en el DOM y en cualquier consola abierta; la de lectura sólo
+        # tiene que llegar a la hoja, y el navegador del candidato no es el
+        # camino.
+        payload.pop("owner_key", None)
+        payload.pop("read_key", None)
         payload["questions_ready"] = state.questions_ready
         # The browser fetches audio through its own route; the host's directory
         # layout is not its business.
@@ -371,21 +452,49 @@ def create_app(
             question["audio_ready"] = question.pop("audio_path") is not None
         return payload
 
-    def load_or_404(session_id: str):
+    def _on_disk(session_id: str):
         try:
-            state = store.load(root, session_id)
+            return store.load(root, session_id)
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="session not found") from None
+
+    def _seen(state):
         # Aquí y no sólo en `session_json`: durante la corrección el navegador
         # sólo pide `/progress`, que devuelve un recuento y no el estado. Una
         # sesión que pasa media hora corrigiéndose parecería abandonada, y el
         # apagado automático la contaría como tal.
+        #
+        # Después de comprobar la clave, no antes: quien no es el dueño tampoco
+        # debería poder mantener viva la sesión de otro a base de pedirla.
         if watch is not None:
             watch.note(state.id, state.step)
         return state
 
+    def load_or_404(session_id: str, request: Request):
+        """La sesión, si quien la pide es suya."""
+        state = _on_disk(session_id)
+        if not _is_owner(state, request):
+            # El mismo 404 que una sesión inexistente, y por lo mismo que
+            # `_install_share_gate` responde 404 y no 401: cualquier otro
+            # código confirmaría que ese id existe, que es justo lo que el id
+            # aleatorio oculta.
+            raise HTTPException(status_code=404, detail="session not found")
+        return _seen(state)
+
+    def load_report_or_404(session_id: str, request: Request):
+        """La sesión para leer su informe: cookie de dueño o clave de lectura.
+
+        Sólo el informe. Es lo que sostiene el flujo del dueño — el enlace de la
+        hoja, abierto desde su navegador, que nunca tuvo la cookie del
+        candidato — sin que esa clave sirva para nada más de la sesión.
+        """
+        state = _on_disk(session_id)
+        if not (_is_owner(state, request) or _has_read_key(state, request)):
+            raise HTTPException(status_code=404, detail="session not found")
+        return _seen(state)
+
     @app.post("/api/sessions", status_code=201)
-    def create_session(request: Request) -> dict:
+    def create_session(request: Request):
         if not creations.allow(_caller(request)):
             raise HTTPException(
                 status_code=429,
@@ -411,11 +520,23 @@ def create_app(
                 },
             )
         state = store.create(root, seed=int(clock().timestamp()), now=clock())
-        return session_json(state)
+        # Este es el único momento en que se entrega la cookie: quien crea la
+        # sesión es su dueño, y nadie más vuelve a pasar por aquí para ella.
+        response = JSONResponse(status_code=201, content=session_json(state))
+        response.set_cookie(
+            OWNER_COOKIE,
+            state.owner_key,
+            max_age=OWNER_COOKIE_MAX_AGE,
+            path=_owner_cookie_path(state.id),
+            httponly=True,
+            samesite="lax",
+            secure=_cookie_is_secure(request),
+        )
+        return response
 
     @app.get("/api/sessions/{session_id}")
-    def read_session(session_id: str) -> dict:
-        return session_json(load_or_404(session_id))
+    def read_session(session_id: str, request: Request) -> dict:
+        return session_json(load_or_404(session_id, request))
 
     @app.get("/api/survey")
     def survey_schema() -> dict:
@@ -454,8 +575,8 @@ def create_app(
         }
 
     @app.put("/api/sessions/{session_id}/identity")
-    def put_identity(session_id: str, payload: IdentityPayload):
-        state = load_or_404(session_id)
+    def put_identity(session_id: str, payload: IdentityPayload, request: Request):
+        state = load_or_404(session_id, request)
         if state.step is not Step.IDENTITY:
             raise HTTPException(
                 status_code=409,
@@ -485,8 +606,8 @@ def create_app(
         return session_json(state)
 
     @app.put("/api/sessions/{session_id}/survey")
-    def put_survey(session_id: str, payload: SurveyPayload):
-        load_or_404(session_id)
+    def put_survey(session_id: str, payload: SurveyPayload, request: Request):
+        load_or_404(session_id, request)
         try:
             answers = SurveyAnswers(
                 occupation=Occupation(payload.occupation),
@@ -546,8 +667,8 @@ def create_app(
         }
 
     @app.put("/api/sessions/{session_id}/level")
-    def put_level(session_id: str, payload: LevelPayload):
-        state = load_or_404(session_id)
+    def put_level(session_id: str, payload: LevelPayload, request: Request):
+        state = load_or_404(session_id, request)
         if state.step is not Step.LEVEL:
             raise HTTPException(
                 status_code=409,
@@ -574,8 +695,8 @@ def create_app(
         return session_json(state)
 
     @app.get("/api/sessions/{session_id}/questions/{index}/audio")
-    def question_audio(session_id: str, index: int):
-        state = load_or_404(session_id)
+    def question_audio(session_id: str, index: int, request: Request):
+        state = load_or_404(session_id, request)
         record = next((q for q in state.questions if q.index == index), None)
         if record is None or not record.audio_path:
             raise HTTPException(status_code=404, detail="audio not ready")
@@ -585,8 +706,8 @@ def create_app(
         return FileResponse(path, media_type="audio/wav")
 
     @app.post("/api/sessions/{session_id}/step")
-    def post_step(session_id: str, payload: StepPayload):
-        load_or_404(session_id)
+    def post_step(session_id: str, payload: StepPayload, request: Request):
+        load_or_404(session_id, request)
         try:
             target = Step(payload.step)
         except ValueError:
@@ -598,13 +719,14 @@ def create_app(
     async def post_answer(
         session_id: str,
         index: int,
+        request: Request,
         audio: UploadFile = File(...),
         # Defaulted, so a client that does not send it — the sample step, an
         # older cached page — still uploads, and simply measures as if the
         # question had never been replayed.
         replay_spans: str = Form("[]"),
     ):
-        state = load_or_404(session_id)
+        state = load_or_404(session_id, request)
         replayed = _replay_spans(replay_spans)
         if state.step is not Step.TEST:
             # `reason` is what the browser is meant to branch on; the sentence
@@ -686,8 +808,8 @@ def create_app(
         return session_json(state)
 
     @app.get("/api/sessions/{session_id}/progress")
-    def progress(session_id: str) -> dict:
-        state = load_or_404(session_id)
+    def progress(session_id: str, request: Request) -> dict:
+        state = load_or_404(session_id, request)
         counted = {value: 0 for value in ("pending", "recorded", "transcribed", "scored", "failed")}
         for answer in state.answers:
             counted[answer.state.value] += 1
@@ -701,16 +823,19 @@ def create_app(
         }
 
     @app.get("/api/sessions/{session_id}/result")
-    def result(session_id: str):
-        load_or_404(session_id)
+    def result(session_id: str, request: Request):
+        # El JSON crudo de la corrección no es el informe: no lleva clave de
+        # lectura, sólo cookie. La hoja enlaza `/page`, y el dueño que quiera
+        # esto tiene el disco.
+        load_or_404(session_id, request)
         path = store.result_path(root, session_id)
         if not path.exists():
             raise HTTPException(status_code=404, detail="not scored yet")
         return JSONResponse(content=json.loads(path.read_text(encoding="utf-8")))
 
     @app.get("/api/sessions/{session_id}/report")
-    def report(session_id: str):
-        state = load_or_404(session_id)
+    def report(session_id: str, request: Request):
+        state = load_report_or_404(session_id, request)
         if not store.result_path(root, session_id).exists():
             raise HTTPException(status_code=404, detail="not scored yet")
         judged, broken = answers_on_disk.read_answers_tolerantly(root, session_id, state)
@@ -722,7 +847,7 @@ def create_app(
         return JSONResponse(content=answers_on_disk.report_json(built))
 
     @app.get("/api/sessions/{session_id}/page", response_class=HTMLResponse)
-    def report_page(session_id: str) -> HTMLResponse:
+    def report_page(session_id: str, request: Request) -> HTMLResponse:
         """The report as `core/page.py` renders it — the same document the
         candidate can keep, framed by the done screen.
 
@@ -740,7 +865,7 @@ def create_app(
         and stays where it is: it is what the fallback path reads when this
         route has nothing to give.
         """
-        load_or_404(session_id)
+        load_report_or_404(session_id, request)
         final = pages.written(root, session_id)
         if final is not None:
             return HTMLResponse(final)
@@ -750,7 +875,7 @@ def create_app(
         return HTMLResponse(provisional, status_code=202)
 
     @app.post("/api/sessions/{session_id}/feedback", status_code=202)
-    def post_feedback(session_id: str, payload: FeedbackPayload) -> dict:
+    def post_feedback(session_id: str, payload: FeedbackPayload, request: Request) -> dict:
         """Guardar la opinión del candidato, y sólo después intentar la hoja.
 
         El orden es lo importante: `worker.update` deja el feedback en
@@ -762,7 +887,7 @@ def create_app(
         sigue pendiente, en cambio, no hay fila que duplicar todavía, así que
         un reenvío se limita a sobrescribir su propia fila pendiente.
         """
-        state = load_or_404(session_id)
+        state = load_or_404(session_id, request)
         if state.feedback is not None and state.feedback.published:
             return JSONResponse(
                 status_code=409,
