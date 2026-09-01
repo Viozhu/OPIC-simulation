@@ -73,7 +73,7 @@ def test_every_answer_unreadable_and_no_page_is_a_404(
     assert client.get(f"/api/sessions/{scored_session}/page").status_code == 404
 
 
-def test_the_share_gate_covers_the_page(sessions_root, worker, scored_session):
+def test_the_share_gate_covers_the_page(sessions_root, worker, scored_session, client):
     """A tunnel makes this route reachable by strangers like every other one."""
     guarded = TestClient(
         create_app(
@@ -81,7 +81,10 @@ def test_the_share_gate_covers_the_page(sessions_root, worker, scored_session):
             worker=worker,
             clock=lambda: datetime(2026, 8, 24, 17, 0, 0),
             share_token="s3cret",
-        )
+        ),
+        # The candidate's own cookies: the gate is what this test is about, and
+        # without them the session's own key would refuse first.
+        cookies=client.cookies,
     )
 
     assert guarded.get(f"/api/sessions/{scored_session}/page").status_code == 404

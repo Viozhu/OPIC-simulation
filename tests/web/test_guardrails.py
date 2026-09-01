@@ -13,7 +13,10 @@ def test_an_oversized_answer_is_refused(sessions_root, worker, session_id, clien
         root=sessions_root, worker=worker, max_answer_bytes=1024 * 1024,
         clock=lambda: datetime(2026, 8, 31, 14, 0, 0),
     )
-    lean = TestClient(small_app)
+    # El mismo navegador contra un servidor configurado más estrecho: se lleva
+    # las cookies del que creó la sesión, porque sin la suya no es su dueño y
+    # el 404 llegaría antes que el límite de tamaño.
+    lean = TestClient(small_app, cookies=client.cookies)
     response = lean.post(
         f"/api/sessions/{session_id}/answers/0",
         files={"audio": ("answer.webm", big, "audio/webm")},

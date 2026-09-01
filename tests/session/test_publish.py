@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 
 from opic.core.candidate import Candidate
@@ -14,7 +15,8 @@ def a_state() -> SessionState:
 
 
 def test_every_column_is_filled_from_the_session():
-    row = sheet_row(a_state(), {"final_level": "IH"}, "https://opic.example.com")
+    state = a_state()
+    row = sheet_row(state, {"final_level": "IH"}, "https://opic.example.com")
     assert row == {
         "timestamp": "2026-08-31T14:30:52",
         "session_id": "Nk7Qz",
@@ -23,8 +25,32 @@ def test_every_column_is_filled_from_the_session():
         "level": "IH",
         "rating": "5",
         "comment": "좋았습니다",
-        "report_url": "https://opic.example.com/api/sessions/Nk7Qz/page",
+        "report_url": (
+            f"https://opic.example.com/api/sessions/Nk7Qz/page?r={state.read_key}"
+        ),
     }
+
+
+def test_the_link_carries_the_key_that_opens_the_report():
+    """La cookie de la sesión la tiene el candidato. El dueño abre esto desde la
+    hoja, en otro navegador, y sin la clave vería el mismo 404 que un extraño."""
+    state = a_state()
+    row = sheet_row(state, None, "https://opic.example.com")
+
+    assert row["report_url"].endswith(f"?r={state.read_key}")
+    # La de lectura, nunca la del dueño: el enlace vive en una hoja que se
+    # comparte, y no debe poder mandar respuestas ni opiniones.
+    assert state.owner_key not in row["report_url"]
+
+
+def test_a_session_from_before_the_keys_links_the_way_it_always_did():
+    """Las sesiones que ya estaban en disco no tienen clave que añadir, y su
+    informe se abre sin ella."""
+    state = replace(a_state(), owner_key=None, read_key=None)
+
+    row = sheet_row(state, None, "https://opic.example.com")
+
+    assert row["report_url"] == "https://opic.example.com/api/sessions/Nk7Qz/page"
 
 
 def test_an_exam_that_never_got_a_grade_leaves_the_level_empty():
@@ -36,8 +62,11 @@ def test_without_a_public_url_there_is_no_link_to_offer():
 
 
 def test_a_trailing_slash_does_not_double_up():
-    row = sheet_row(a_state(), None, "https://opic.example.com/")
-    assert row["report_url"] == "https://opic.example.com/api/sessions/Nk7Qz/page"
+    state = a_state()
+    row = sheet_row(state, None, "https://opic.example.com/")
+    assert row["report_url"] == (
+        f"https://opic.example.com/api/sessions/Nk7Qz/page?r={state.read_key}"
+    )
 
 
 def test_a_session_with_no_candidate_still_makes_a_row():

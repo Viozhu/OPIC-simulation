@@ -71,16 +71,27 @@ explicable. Para abrir uno en frío: visitar primero
 hoja. El token no va en la URL de la hoja a propósito — la hoja se comparte
 con mucha más soltura que `.env.deploy`.
 
+Pasada la puerta hay una segunda comprobación, y de ésa el enlace se ocupa
+solo: el `?r=...` que lleva es la clave de lectura de esa sesión. La cookie que
+identifica al candidato se queda en su navegador, así que sin esa clave el
+informe daría 404 también para ti. Abre ese informe y ninguno más, y no sirve
+para escribir nada — pero vive en la hoja, así que quien lea la hoja puede leer
+ese examen. Rotar `OPIC_SHARE_TOKEN` no la cambia: para cerrar un informe hay
+que borrar su fila (y, si de verdad importa, su carpeta en `data/sessions/`).
+
 ## Lo que empeora respecto a `share.sh`
 
 `share.sh` es seguro porque vive un examen: el nombre de máquina es nuevo en
 cada arranque y muere con el script. Esto borra las dos mitades de esa frase.
-Lo que queda es un secreto compartido delante de una aplicación sin noción de
-propietario, en pie a todas horas.
+Lo que queda es un secreto compartido, el mismo para todos los invitados a la
+vez, delante de una aplicación en pie a todas horas.
 
 Lo que lo compensa, y hay que mantenerlo:
 
 - Los ids de sesión son aleatorios, así que un examen no se encuentra a mano.
+- Cada sesión tiene dueño: el `POST /api/sessions` deja una cookie propia de
+  esa sesión, y sin ella no se lee ni se escribe. La puerta impide que llegue
+  un desconocido; esto impide que un invitado lea el examen de otro.
 - `POST /api/sessions` está limitado por origen.
 - Las subidas tienen tope de tamaño.
 - Un límite de gasto en la clave de Anthropic. **Ponlo en la consola de

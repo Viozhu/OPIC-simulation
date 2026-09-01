@@ -7,6 +7,7 @@ exercised in milliseconds.
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import Enum
@@ -109,6 +110,19 @@ class SessionState:
     questions: tuple[QuestionRecord, ...]
     answers: tuple[AnswerRecord, ...]
     feedback: Feedback | None
+    # Dos secretos con alcances distintos, porque hay dos personas. `owner_key`
+    # es el candidato: lo lleva la cookie que el navegador recibió al crear la
+    # sesión, y abre todo lo suyo. `read_key` es el dueño del servidor, que abre
+    # el informe desde el enlace de la hoja, en un navegador que nunca tuvo esa
+    # cookie — y por eso no puede ser la misma clave: un enlace que vive en una
+    # hoja de cálculo no debe poder mandar respuestas ni opiniones.
+    #
+    # `None` en las sesiones grabadas antes de que estas claves existieran. No
+    # se les inventa una al cargarlas: una clave que nadie tiene no protege
+    # nada, sólo dejaría esas sesiones ilegibles para siempre. Qué hacer con esa
+    # ausencia lo decide `web/app.py`, que es quien sabe qué es una petición.
+    owner_key: str | None = None
+    read_key: str | None = None
 
     @classmethod
     def new(cls, session_id: str, seed: int, created_at: datetime) -> SessionState:
@@ -123,6 +137,10 @@ class SessionState:
             questions=(),
             answers=(),
             feedback=None,
+            # Aquí y no en `store.create`, para que toda sesión nueva nazca con
+            # dueño la cree el servidor o la cree la CLI.
+            owner_key=secrets.token_urlsafe(16),
+            read_key=secrets.token_urlsafe(16),
         )
 
     @property
