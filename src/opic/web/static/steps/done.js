@@ -152,7 +152,7 @@ function renderFrame(app, url, html, state, api) {
 
   const actions = document.createElement("p");
   actions.className = "actions";
-  actions.append(save, open, restartButton());
+  actions.append(save, open);
 
   app.replaceChildren(frame, actions, closingNote(), feedbackCard(state, api));
 }
@@ -189,8 +189,8 @@ function renderRetry(app, state, api) {
 // `/report` could not be built — every `answer-NN.json` was unreadable —
 // but `result.json` still holds the level `/result` computed at grading
 // time. This is the phase-3 view: level, how many answers it rests on, the
-// per-dimension list, the raw JSON, and a way to start over, plus one
-// honest sentence that the detailed report is the part that is missing.
+// per-dimension list and the raw JSON, plus one honest sentence that the
+// detailed report is the part that is missing.
 function renderMinimal(app, raw, state, api) {
   const level = document.createElement("h2");
   level.textContent = `최종 등급: ${raw.final_level}`;
@@ -226,7 +226,6 @@ function renderMinimal(app, raw, state, api) {
     dimensions,
     rawDetailsFor(raw),
     feedbackCard(state, api),
-    restartButton(),
   );
 }
 
@@ -306,14 +305,4 @@ function feedbackCard(state, api) {
   });
 
   return card;
-}
-
-function restartButton() {
-  const again = document.createElement("button");
-  again.textContent = "새 시험 시작";
-  again.addEventListener("click", () => {
-    localStorage.removeItem("opic.session");
-    location.reload();
-  });
-  return again;
 }
