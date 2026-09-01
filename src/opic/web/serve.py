@@ -8,13 +8,16 @@ knob here.
 
 from __future__ import annotations
 
+import logging
 import os
+from datetime import datetime
 from pathlib import Path
 
 from opic.adapters import make_llm_client
 from opic.adapters.sheets import make_sheet_sink
 from opic.adapters.stt import WhisperSpeechToText
 from opic.adapters.tts import SayTextToSpeech
+from opic.session import retention
 from opic.session.worker import Worker
 from opic.web.app import create_app
 
@@ -22,6 +25,8 @@ SESSIONS = Path("data/sessions")
 TTS_CACHE = Path("data/tts_cache")
 
 LOCK_NAME = ".server.lock"
+
+logger = logging.getLogger(__name__)
 
 
 class LockedError(RuntimeError):
@@ -56,6 +61,36 @@ def claim_the_lock(root: Path, pid: int | None = None, is_running=_is_running) -
     lock.write_text(str(pid or os.getpid()), encoding="utf-8")
 
 
+def apply_retention(root: Path, now: datetime | None = None) -> retention.Swept:
+    """Enforce the issue #16 deadlines, once, as the server comes up.
+
+    Who runs the sweep was the last open question, and startup wins because of
+    how this process lives: launchd brings it up when somebody arrives and it
+    switches itself off twenty minutes after the last exam ends, so on this
+    machine "the server started" is the closest thing to a cron there is, and
+    it fires on every day the thing is used at all. A console command only
+    deletes on the days somebody remembers to type it, and a deadline that
+    depends on a person remembering is not a deadline — `opic --purge-expired`
+    exists for the operator, not for the policy. The idle-shutdown loop does
+    not repeat it either: thirty days never pass between one start and the
+    next, so a second call would only be a second chance to delete something.
+
+    A failure here must not stop the server. A candidate who cannot sit the
+    exam because a stale folder would not delete is a worse outcome than a
+    folder that lives one boot longer.
+    """
+    try:
+        swept = retention.sweep(root, now or datetime.now())
+    except OSError:
+        logger.exception("retention sweep failed; leaving %s alone", root)
+        return retention.Swept((), ())
+    if swept.expired:
+        logger.info("retention: deleted %d expired session(s)", len(swept.expired))
+    if swept.purged:
+        logger.info("retention: discarded the audio of %d session(s)", len(swept.purged))
+    return swept
+
+
 def app(local: bool = False):
     """Build the real app. `local=True` is the CLI's `--serve`, bound to
     `127.0.0.1` and reached only from this machine; everything else — the
@@ -74,6 +109,9 @@ def app(local: bool = False):
             "Set OPIC_SHARE_TOKEN in .env.deploy."
         )
     claim_the_lock(SESSIONS)
+    # After the lock and before the worker: nothing else is writing to the
+    # folder yet, so no sweep can ever race a grading in progress.
+    apply_retention(SESSIONS)
     client = make_llm_client()
     worker = Worker(
         root=SESSIONS,

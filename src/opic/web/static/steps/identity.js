@@ -11,6 +11,17 @@ export async function render(state, {api, show}) {
   note.textContent =
     "결과 리포트를 찾을 때 사용합니다. 확인 메일은 보내지 않습니다.";
 
+  // Lo que se guarda y cuánto, aquí y no en un enlace: es la pantalla donde se
+  // piden el nombre y el correo, así que es el único sitio donde el aviso
+  // llega antes de que se den. Del audio se promete sólo lo que es verdad —
+  // que el fichero no sale de este ordenador —; la transcripción sí viaja al
+  // corrector, y decir "nada sale de aquí" sería mentira.
+  const retention = document.createElement("p");
+  retention.className = "closing-note";
+  retention.textContent =
+    "녹음 파일은 이 컴퓨터를 벗어나지 않으며, 채점이 끝나 리포트가 만들어지면 바로 삭제됩니다. " +
+    "이름과 이메일, 답변 전사본, 채점 결과는 30일 뒤에 함께 삭제됩니다.";
+
   const nameLabel = document.createElement("label");
   const name = document.createElement("input");
   name.type = "text";
@@ -36,7 +47,9 @@ export async function render(state, {api, show}) {
   const status = document.createElement("p");
   status.className = "issues";
 
-  form.append(heading, note, nameLabel, emailLabel, submit, status);
+  // Antes de los campos y no debajo del botón: el aviso sólo sirve si se lee
+  // antes de escribir el nombre.
+  form.append(heading, note, retention, nameLabel, emailLabel, submit, status);
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
