@@ -8,6 +8,14 @@ microphone, Whisper and `say` are all local, and no audio is ever uploaded.
 to the Anthropic API, together with the question and the objective metrics. Set
 `OPIC_LLM=ollama` to keep everything on the machine; see **The rater** below.
 
+**Nothing is kept forever.** The recordings are deleted as soon as the session's
+`report-ko.html` is written — they were only ever the input to the transcription
+— and the whole session folder, name and email included, is deleted thirty days
+after the exam. The server applies both every time it starts;
+`uv run python -m opic.cli --purge-expired` applies them by hand. The candidate
+is told so on the screen that asks for their name. See
+`src/opic/session/retention.py`.
+
 ## Status
 
 Phases 1 to 5 complete: the pure engine, the local adapters, a browser

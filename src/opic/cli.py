@@ -23,7 +23,7 @@ from opic.core.survey import (
     SurveyAnswers,
     validate_survey,
 )
-from opic.session import assessments, pages, store
+from opic.session import assessments, pages, retention, store
 from opic.session.state import AnswerRecord, AnswerState, SessionState
 from opic.session.worker import Task, Worker
 from opic.web.serve import LockedError, claim_the_lock
@@ -228,6 +228,23 @@ def regenerate_report(session_dir: Path, use_llm: bool = True, force: bool = Fal
     return 0
 
 
+def purge_expired(root: Path, now: datetime | None = None, out=print) -> int:
+    """Aplicar los plazos de conservación ahora mismo, y decir qué se fue.
+
+    El servidor ya hace esto cada vez que arranca (`web/serve.py`), así que
+    esto no es la política: es la mano del operador. Sirve para vaciar una
+    carpeta sin levantar el servidor, y para ver el efecto de los plazos sin
+    esperar a que launchd vuelva a arrancarlo.
+    """
+    swept = retention.sweep(root, now or datetime.now())
+    for session_id in swept.expired:
+        out(f"{session_id}: borrada entera ({retention.MAX_AGE.days} días)")
+    for session_id in swept.purged:
+        out(f"{session_id}: audio borrado")
+    out(f"{len(swept.expired)} caducada(s), {len(swept.purged)} sin audio")
+    return 0
+
+
 def find_sessions(root: Path, needle: str, out=print) -> int:
     """Listar los exámenes cuyo nombre o correo contienen `needle`.
 
@@ -362,12 +379,20 @@ def main(argv: list[str] | None = None) -> int:
         help="send this session's row to the sheet again, and exit",
     )
     parser.add_argument(
+        "--purge-expired",
+        action="store_true",
+        help="apply the retention deadlines to --sessions-root now, and exit",
+    )
+    parser.add_argument(
         "--sessions-root",
         type=Path,
         default=Path("data/sessions"),
-        help="where sessions live; used by --find and --publish",
+        help="where sessions live; used by --find, --publish and --purge-expired",
     )
     args = parser.parse_args(argv)
+
+    if args.purge_expired:
+        return purge_expired(args.sessions_root)
 
     if args.find is not None:
         return find_sessions(args.sessions_root, args.find)
@@ -452,6 +477,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     if page is not None:
         print(f"리포트: {page}")
+    # Same rule the web exam follows: once the page exists the recordings are
+    # dead weight, and the CLI's `.wav` files are the biggest ones there are.
+    retention.discard_audio(args.session.parent, args.session.name)
     return 0
 
 

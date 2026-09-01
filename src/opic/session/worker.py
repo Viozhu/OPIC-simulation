@@ -35,6 +35,7 @@ from opic.core.scoring import AnswerAssessment
 from opic.core.transcript import Span
 from opic.session import assessments as answers_on_disk
 from opic.session import pages
+from opic.session import retention
 from opic.session import store
 from opic.session.publish import sheet_row
 from opic.session.state import (
@@ -392,6 +393,11 @@ class Worker:
         # language model for something the candidate can already live without,
         # and `write_with_narrator` swallows every failure for that reason.
         pages.write_with_narrator(self._root, session_id, self._narrator)
+        # With the page written, the recordings have no reader left, and they
+        # are the most personal thing the folder holds. `discard_audio` checks
+        # for the page itself, so a `write_with_narrator` that gave up leaves
+        # the audio exactly where it is. See `session/retention.py`.
+        retention.discard_audio(self._root, session_id)
 
     def _publish(self, session_id: str) -> None:
         """Mandar la fila del examen a la hoja, una sola vez.
