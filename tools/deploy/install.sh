@@ -12,6 +12,10 @@ CLOUDFLARED="$(command -v cloudflared || true)"
 [ -n "$UV" ] || { echo "falta uv"; exit 1; }
 [ -n "$CLOUDFLARED" ] || { echo "falta cloudflared: brew install cloudflared"; exit 1; }
 [ -f "$REPO/.env.deploy" ] || { echo "falta $REPO/.env.deploy — ver docs/deploy.md"; exit 1; }
+# Un editor cualquiera lo deja en 644, y dentro están la clave de Anthropic y
+# la URL de la hoja. Se corrige aquí en vez de avisar: nadie instala dos veces
+# para arreglar permisos, y el fallo es silencioso hasta que deja de serlo.
+chmod 600 "$REPO/.env.deploy"
 [ -f "$HOME/.cloudflared/config.yml" ] || { echo "falta ~/.cloudflared/config.yml — ver docs/deploy.md"; exit 1; }
 
 mkdir -p "$REPO/data/logs" "$AGENTS"

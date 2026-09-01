@@ -30,6 +30,16 @@ OPIC_PUBLIC_URL=https://opic.TU-DOMINIO.com
 OPIC_SHEET_URL=https://script.google.com/macros/s/.../exec
 ```
 
+```bash
+chmod 600 .env.deploy
+```
+
+Nace con `644` si lo creas con un editor cualquiera, y ahí dentro están la clave
+de Anthropic y la URL de la hoja — que es el secreto entero: quien la tenga
+puede añadir filas. En un Mac de un solo usuario da igual; en cuanto haya otra
+cuenta, un agente de launchd ajeno o una copia de seguridad compartida, no.
+Lo mismo vale para el `.env` de desarrollo.
+
 Después:
 
 ```bash
