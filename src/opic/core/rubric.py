@@ -66,6 +66,16 @@ DIMENSION_LABELS_KO: dict[Dimension, str] = {
 # sits. Saying so is the point of these three entries: handed the bare enum, a
 # rater reads them as three separate major bands and crowds its verdicts into
 # the middle of the scale.
+#
+# Three of these entries were rewritten after measuring the rater on 1050 stored
+# verdicts. IM3 was defined as "everything IM2 has, plus ..." and was never
+# awarded: 0% of fluency, grammar and vocabulary verdicts, 4.9% overall, so the
+# scale had one usable rung between IM2 and IH and the mass piled on IM2. IM3 now
+# names features of its own that can be looked for in an answer. IH and AL say
+# outright that errors are expected and do not lower them, because grammar came
+# back IM1 on 60% of answers and IL on 9% while correlating with answer duration
+# at -0.39 — the rater was counting errors, which is not what sets an ACTFL
+# level, and a longer answer therefore scored worse than a shorter one.
 LEVEL_DESCRIPTORS: dict[ActflLevel, str] = {
     ActflLevel.NL: (
         "Rehearsed words and phrases only. Can greet, give their identity and "
@@ -90,36 +100,44 @@ LEVEL_DESCRIPTORS: dict[ActflLevel, str] = {
         "despite strong influence from the first language."
     ),
     ActflLevel.IM1: (
-        "Intermediate Mid, lower third. Strings of sentences on familiar "
-        "topics, but the strings are short and break often, and pauses and "
-        "reformulations are frequent enough to be noticeable throughout."
+        "Intermediate Mid, lower third. Strings sentences together on familiar "
+        "topics, but the strings run two or three sentences before they break, "
+        "and pauses and reformulations are frequent enough to be noticeable "
+        "throughout. Stays close to concrete, well-rehearsed ground."
     ),
     ActflLevel.IM2: (
         "Intermediate Mid proper — where ACTFL's single Intermediate Mid sits. "
         "Creates with the language in strings of sentences across a variety of "
-        "uncomplicated social and transactional tasks. Pauses, reformulations "
+        "uncomplicated social and transactional tasks, and holds the strings "
+        "across the whole answer rather than in bursts. Pauses, reformulations "
         "and self-corrections occur; the speaker is generally understood and "
         "can sometimes repair a misunderstanding."
     ),
     ActflLevel.IM3: (
-        "Intermediate Mid, upper third. Everything IM2 has, plus tense, stress "
-        "and pronunciation held steady rather than intermittently; description "
-        "is concrete and the flow is natural. Reaches for paragraph length "
-        "without sustaining it."
+        "Intermediate Mid, upper third. The strings run long and are joined: "
+        "real connectors rather than a list, one topic carried across several "
+        "sentences, and enough detail that the answer develops instead of "
+        "restating. Tense, stress and pronunciation are steady rather than "
+        "intermittent, and the flow is natural. Touches paragraph length "
+        "occasionally; never holds it, and does not narrate across all major "
+        "time frames."
     ),
     ActflLevel.IH: (
         "Converses with ease and confidence on routine and familiar topics; "
-        "breadth of vocabulary and control reduce the need to pause. Often "
-        "narrates and describes in all major time frames in connected discourse "
-        "of paragraph length — but shows one or more features of breakdown: the "
-        "time frame is not carried through, the paragraph is not maintained, or "
-        "vocabulary narrows."
+        "breadth of vocabulary and control reduce the need to pause. Reaches "
+        "paragraph-length connected discourse and narrates or describes in all "
+        "major time frames — but does not hold it, showing one or more features "
+        "of breakdown: the time frame is not carried through, the paragraph "
+        "collapses back into sentences, or vocabulary narrows under load. "
+        "Frequent errors in complex structures are expected at this band and do "
+        "not lower it."
     ),
     ActflLevel.AL: (
         "Narrates and describes in past, present and future with some control "
         "of aspect, and *sustains* paragraph-length connected discourse rather "
-        "than reaching for it. Handles a complication or an unexpected turn. "
-        "Accurate and clear enough that the intended message is never "
+        "than reaching for it. Handles a complication or an unexpected turn "
+        "without abandoning the task. Errors persist and do not lower this "
+        "band; what it requires is that the intended message is never "
         "misrepresented."
     ),
 }

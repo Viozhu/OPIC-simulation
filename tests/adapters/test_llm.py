@@ -214,6 +214,46 @@ def test_the_rating_prompt_says_the_im_bands_are_thirds_of_one_band():
     assert "thirds of ACTFL's single Intermediate Mid" in prompt
 
 
+def test_the_rating_prompt_says_errors_do_not_set_the_band():
+    """Grammar was 60% IM1 and 9% IL across 1050 stored verdicts.
+
+    That is error counting, and ACTFL does not rate on it: an Intermediate High
+    speaker makes frequent errors in complex structures and is still
+    Intermediate High. Without this rule in front of the rater, one dimension
+    weighted at 0.20 held every exam a fifth of a band down.
+    """
+    prompt = _a_rating_prompt()
+    assert "ERRORS DO NOT SET THE BAND" in prompt
+    assert "Never for error density on its own." in prompt
+
+
+def test_the_rating_prompt_says_a_longer_answer_is_not_a_worse_one():
+    """Level correlated with answer duration at -0.39 on grammar.
+
+    Every dimension was negative. The longer a candidate spoke the worse they
+    scored, which inverts the one behaviour IH and AL are defined by — and it
+    is the behaviour the exam is trying to elicit.
+    """
+    prompt = _a_rating_prompt()
+    assert "A LONGER ANSWER EXPOSES MORE ERRORS" in prompt
+    assert "cannot earn" in prompt
+
+
+def test_every_dimension_gets_its_own_ladder_to_the_major_band():
+    """Text type fixes the major band for coherence and for nothing else.
+
+    Handed one ladder to apply to all five, the rater asked whether a 60-second
+    answer was paragraph-length, decided it was not, and capped grammar and
+    vocabulary at IM2: over 60 regraded answers IH and AL vanished entirely and
+    grammar came back IL on 37% of them.
+    """
+    prompt = _a_rating_prompt()
+    assert "WHAT FIXES THE MAJOR BAND, ONE DIMENSION AT A TIME." in prompt
+    assert "it is not the test for the other four" in prompt
+    for dimension in Dimension:
+        assert f"\n{dimension.value} — " in prompt
+
+
 def test_the_rating_prompt_defines_the_correction_field():
     prompt = _a_rating_prompt()
     assert "correction_en" in prompt
