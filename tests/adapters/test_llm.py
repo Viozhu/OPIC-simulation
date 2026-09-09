@@ -239,6 +239,21 @@ def test_the_rating_prompt_says_a_longer_answer_is_not_a_worse_one():
     assert "cannot earn" in prompt
 
 
+def test_the_rating_prompt_credits_a_repair_that_lands():
+    """A successful self-correction is evidence, not a disfluency to deduct.
+
+    The fluency ladder already says pauses and reformulations occur at every
+    band, and the vocabulary ladder puts successful circumlocution at IH — but
+    neither says what a repair that *works* is worth, so a rater can still read
+    one as a break in the flow and dock it. The rule states the credit outright
+    and bounds it: only a repair that fails counts against the band.
+    """
+    prompt = _a_rating_prompt()
+    assert "SELF-REPAIR IS A STRATEGY, NOT A FAILURE" in prompt
+    assert "evidence FOR the higher band" in prompt
+    assert "only where it fails" in prompt
+
+
 def test_every_dimension_gets_its_own_ladder_to_the_major_band():
     """Text type fixes the major band for coherence and for nothing else.
 

@@ -219,6 +219,28 @@ def rating_prompt(
     longer a candidate spoke, the worse they scored, which inverts the one
     behaviour IH and AL are defined by.
 
+    Three more were added on 2026-09-09, after the first real OPIc grade reached
+    the repository: a candidate who holds AL was returned IM2, a signed gap of
+    -3.00 bands, and the same 825 verdicts showed the band was unreachable rather
+    than merely unlikely — fluency, grammar and vocabulary never once went above
+    IM2 and AL was never awarded at all, which caps the weighted mean at 5.45. So
+    this prompt now says outright that those bands are awardable and ordinary
+    here; it names the answer shape that earns IH, because a ninety-second
+    narration of a past event with a complication is the IH definition and was
+    coming back IM1 on grammar; and it tells the rater the transcript is ASR
+    output, because the recogniser drops the very inflections grammar was being
+    docked for. Two anchors carry the contrast the numbers pointed at: the band
+    between a narrated past event and habitual present is not the band between
+    many errors and few.
+
+    The self-repair rule is the one instruction here that no measurement
+    produced. It is in ACTFL's own definitions — circumlocution succeeding is
+    the vocabulary test at IH, and the fluency ladder already says pauses and
+    reformulations occur at every band — but neither said what a *successful*
+    repair is worth, and a rater reading the ladders alone can still read one as
+    a disfluency to deduct. Stated positively it also closes the gap the length
+    rule closes: a speaker who repairs is a speaker who reached.
+
     The transcript arrives fenced. The token is minted here rather than taken
     as an argument so that no caller can forget to vary it — `fencing.py` has
     the reason a candidate speaking into a microphone counts as someone
@@ -268,6 +290,47 @@ def rating_prompt(
         "THEREFORE WORSE. A short, safe answer demonstrates less, and a band it "
         "never attempts is a band it cannot earn. Rate what the answer shows; do "
         "not charge it for the errors its own reach made visible.\n\n"
+        "SELF-REPAIR IS A STRATEGY, NOT A FAILURE. A speaker who corrects a "
+        "form in the middle of a sentence, restates an idea a clearer way, or "
+        "reaches a word they do not have by another route has shown control "
+        "of the language rather than a shortfall of it. Count a repair "
+        "against the band only where it fails: the sentence is abandoned, the "
+        "meaning is lost, or the search stops the answer. A repair that lands "
+        "is evidence FOR the higher band on fluency and on vocabulary — it is "
+        "what circumlocution succeeding names at IH, and a speaker who never "
+        "needs to repair is usually one who never left safe ground.\n\n"
+        "THE TRANSCRIPT IS AUTOMATIC SPEECH RECOGNITION, NOT WRITING. It has no "
+        "punctuation the speaker chose, and the recogniser drops inflections it "
+        "cannot hear cleanly — a third-person -s, a past -ed, an article, a "
+        "plural. Do not lower grammar for an inflection you cannot distinguish "
+        "from transcription loss. Lower it for a structure the speaker plainly "
+        "never attempts, or a time frame the task required and the answer never "
+        "enters. Missing punctuation is never evidence about coherence.\n\n"
+        "IH AND AL ARE AWARDABLE ON EVERY DIMENSION, AND ON THIS EXAM THEY ARE "
+        "ORDINARY. Measured across 825 verdicts from this exam, an earlier "
+        "version of these instructions never once awarded above IM2 on fluency, "
+        "grammar or vocabulary and never awarded AL on anything — and candidates "
+        "who hold a real AL were returned IM2. That is a broken scale, not a "
+        "strict one. If the answer earns IH, write IH. An answer of ninety "
+        "seconds or more that narrates one specific past event from start to "
+        "finish, with a complication in it and present-tense commentary around "
+        "it, is IH territory on grammar, coherence and fluency unless something "
+        "in the answer argues it down: that is paragraph-length discourse across "
+        "time frames, which is what IH names, and frequent errors inside it are "
+        "expected there.\n\n"
+        "TWO ANCHORS, at the length this exam produces, on grammar:\n"
+        "  \"last week i take the bus to my office and the rain was very strong "
+        "so the bus is late almost thirty minute and i arrive late to my meeting "
+        "my boss was not angry because he knows the weather but i feel so bad "
+        "about it\"\n"
+        "  -> IH. A past event narrated through, past and present both carried, "
+        "frequent errors in the complex forms. Not IM1: the errors are what IH "
+        "predicts, and the time frames are what it requires.\n"
+        "  \"i usually eat lunch at home i cook simple food like pasta or rice "
+        "and after i drink coffee it is nice\"\n"
+        "  -> IM2. Habitual present only, no second time frame attempted, no "
+        "event narrated. It is the lower band for what it never reaches, not for "
+        "its mistakes — it has fewer of those than the answer above.\n\n"
         "WHAT FIXES THE MAJOR BAND, ONE DIMENSION AT A TIME.\n\n"
         "coherence — the text type reached and held. Isolated words and phrases: "
         "Novice. Discrete sentences that do not connect: IL. Strings of "
