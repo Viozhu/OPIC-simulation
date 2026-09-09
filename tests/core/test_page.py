@@ -345,6 +345,27 @@ def test_with_a_narrative_the_judged_sections_appear():
     assert "이 등급이 나온 이유" in page
 
 
+def test_the_human_rater_caveat_is_last_and_survives_a_missing_narrative():
+    """The one limit that belongs to the tool rather than to the session.
+
+    Every other caveat on the page is either about the recording or written by
+    the narrator about these particular answers, so all of them can be absent.
+    This one is about the grade itself — a machine produced it, and the single
+    labelled session says the machine sits low — so it is fixed, and it is last
+    because it qualifies everything above it rather than one section of it.
+    """
+    report = real_report()
+
+    bare = render_html(report, META)
+    narrated = render_html(report, META, a_narrative(report))
+
+    for page in (bare, narrated):
+        assert "실제 시험은 사람이 채점합니다" in page
+        assert "연습의 기준점으로" in page
+    # after the narrator's own caveat, not before it
+    assert narrated.index("유의 본문") < narrated.index("실제 시험은 사람이 채점합니다")
+
+
 def test_an_invented_episode_is_labelled_and_a_real_one_is_not():
     report = real_report()
     narrative = a_narrative(report)

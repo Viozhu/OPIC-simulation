@@ -66,6 +66,24 @@ PRONUNCIATION_CAVEAT_KO = (
     "점수로 읽지 마세요."
 )
 
+# Last of the caveats, and fixed rather than written by the narrator: it is the
+# one limit of this report that no answer in it can show. The grade above comes
+# from a machine, and the measurement that exists says the machine sits low —
+# the one candidate here whose real OPIc grade is known holds AL and was
+# returned IM2. Saying "possibly strict" without that number would be a hedge;
+# with it, it is what has been observed. It is deliberately not a promise that
+# the real exam scores higher.
+HUMAN_RATER_CAVEAT_KO = (
+    "실제 OPIc은 ACTFL 인증을 받은 <b>사람</b>이 채점합니다. 두 명이 따로 "
+    "채점하고, 의견이 갈리면 세 번째 채점자가 조정합니다. 이 리포트의 등급은 "
+    "기계가 매긴 것이고, 지금까지 확인된 범위에서는 실제 시험보다 <b>낮게</b> "
+    "나오는 쪽으로 치우쳐 있습니다 — 실제 시험에서 AL을 받은 응시자가 여기서는 "
+    "IM2로 나온 적이 있습니다. 사람은 기계가 세지 못하는 것을 봅니다: 하려던 "
+    "말이 전달되었는지, 막혔을 때 다시 풀어냈는지 같은 것들입니다. "
+    "여기 나온 등급은 실제 시험 점수의 예측이 아니라 연습의 기준점으로 "
+    "읽으세요. 실제 점수는 이보다 높게 나올 수 있습니다."
+)
+
 INVENTED_WARNING_KO = (
     "이 답변에는 원래 답변에 없던 <b>지어낸 내용</b>이 들어 있습니다 — "
     "질문이 요구한 구체적인 경험이거나, 문장을 채우기 위해 더한 세부 사항입니다. "
@@ -723,6 +741,9 @@ def _caveats(report: Report, narrative: Narrative | None) -> str:
     items = [("발음은 점수가 아닙니다", PRONUNCIATION_CAVEAT_KO)]
     if analysis is not None:
         items.extend((c.title_ko, c.body_ko) for c in analysis.caveats)
+    # Last, and after the narrator's own caveats: it is the limit that applies
+    # to every grade this tool produces, not to this session's answers.
+    items.append(("실제 시험은 사람이 채점합니다", HUMAN_RATER_CAVEAT_KO))
     body = "\n".join(
         f"""    <div class="cav">
       <h3>{title}</h3>
